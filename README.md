@@ -11,18 +11,19 @@
 
 ## 📖 DAFTAR ISI
 1. [Fitur Utama](#-fitur-utama-highlights)
-2. [Panduan Instalasi & Deployment](#-panduan-instalasi--deployment)
-3. [Panduan Penggunaan Sehari-Hari](#-panduan-penggunaan-sehari-hari)
+2. [6 Fitur Dahsyat (Killer Superpowers)](#-6-fitur-dahsyat-killer-superpowers)
+3. [Panduan Instalasi & Deployment](#-panduan-instalasi--deployment)
+4. [Panduan Penggunaan Sehari-Hari](#-panduan-penggunaan-sehari-hari)
    * [Perintah Kalacakra CLI](#1-perintah-kalacakra-cli)
    * [Universal Command Interceptor](#2-universal-command-interceptor-k-interceptor)
    * [AI Terminal Companion](#3-ai-terminal-companion-k-ai)
    * [Arch Linux AUR Integration](#4-arch-linux-aur-integration-k-aur)
    * [Dikte Suara & Pintasan Keyboard](#5-dikte-suara--pintasan-keyboard)
-4. [Panduan Build Image & ISO](#-panduan-build-image--iso)
+5. [Panduan Build Image & ISO](#-panduan-build-image--iso)
    * [Build via CI/CD Otomatis](#opsi-a-build-via-cicd-github-actions--gitea-actions)
    * [Build 100% Lokal di Komputer](#opsi-b-build-100-lokal-di-komputer-podman)
-5. [Struktur Repositori](#-struktur-repositori)
-6. [Lisensi & Spesifikasi](#-lisensi--spesifikasi)
+6. [Struktur Repositori](#-struktur-repositori)
+7. [Lisensi & Spesifikasi](#-lisensi--spesifikasi)
 
 ---
 
@@ -36,6 +37,56 @@
 * 🤖 **Local Private AI (`k-ai`) & Voice (`Super + V`):** Didukung runtime Ollama dan `whisper.cpp` offline lokal (dioptimalkan untuk NPU/GPU), dengan *Secret Sanitizer* otomatis untuk mencegah kebocoran data sensitif.
 * 🎮 **Game Ready Profile:** Pre-configured Steam, Heroic Launcher, ProtonUp-Qt, MangoHud, gamemode, dan UMU Proton Launcher (.exe context menu).
 * 🔒 **Enterprise-Grade Security:** Cosign image signature verification, SELinux Enforcing, MOK Secure Boot, USBGuard screen-lock binding, DNS-over-TLS (DoT), dan kesiapan Post-Quantum Cryptography (PQC).
+
+---
+
+## ⚡ 6 Fitur Dahsyat (Killer Superpowers)
+
+### ⏳ 1. Kalacakra Rewind (Time-Travel File Recovery)
+Memanfaatkan kecepatan snapshot Btrfs/Snapper untuk memutar balik waktu file yang tidak sengaja terhapus atau rusak:
+```bash
+kalacakra rewind list               # Lihat daftar titik waktu snapshot masa lalu
+kalacakra rewind create "Sebelum edit skripsi"  # Buat titik waktu baru instan
+kalacakra rewind diff 12 dok.txt    # Bandingkan versi file saat ini dengan snapshot 12
+kalacakra rewind restore 12 dok.txt # Kembalikan file dalam 1 detik!
+```
+
+### 📡 2. Kalacakra Beam (P2P Local Mesh File Transfer)
+Transfer file berkecepatan Gigabit lokal antar laptop Linux, Windows, Mac, dan HP Android/iPhone di Wi-Fi yang sama tanpa internet, tanpa cloud, dan tanpa flashdisk:
+* **Kirim via Dolphin:** Klik kanan file mana saja -> **"Beam to Device... (Kalacakra Beam)"**.
+* **Mode Terima via Terminal:**
+  ```bash
+  kalacakra beam receive            # Membuka server upload lokal di http://<ip>:53317
+  ```
+
+### 🖥️ 3. Kalacakra Portal (Monitor Kedua Nirkabel untuk Tablet / HP)
+Jadikan iPad, tablet Android, ponsel, atau laptop lama Anda sebagai monitor kedua 60fps dengan latensi ultra-rendah melalui Wayland:
+```bash
+kalacakra portal start              # Aktifkan portal layar kedua
+kalacakra portal stop               # Matikan portal layar kedua
+```
+* Buka browser di tablet Anda: `http://<IP-Laptop>:5800`. Layar kedua langsung aktif dengan dukungan input sentuh (*touch screen*) dan *pen stylus*!
+
+### 📷 4. AI Smart Screenshot with Local OCR (`Super + Shift + T`)
+Ekstrak teks secara instan dari video YouTube, gambar tutorial, atau aplikasi apa pun yang teksnya tidak bisa diblok:
+* Tekan tombol **`Super + Shift + T`** -> seleksi area layar.
+* Teks otomatis diekstrak menggunakan engine Tesseract offline dwibahasa (Indonesia + Inggris) dan **langsung disalin ke clipboard**.
+* Opsi terjemahan instan: `kalacakra ocr --translate`.
+
+### 🔋 5. Ultra-Battery Survival Mode (`k-survival`)
+Penyelamat darurat ketika baterai laptop tersisa 10%:
+```bash
+kalacakra survival on               # Aktifkan mode darurat
+kalacakra survival off              # Kembalikan ke mode normal
+```
+* **Efek:** Mengubah layar menjadi **Monokrom Grayscale** (menghemat baterai OLED hingga 40%), menurunkan refresh rate layar ke **40Hz/30Hz**, membatasi frekuensi CPU ke **800MHz**, dan menidurkan daemon latar belakang. Menambah daya tahan ekstra 1,5 – 2 jam!
+
+### 🎮 6. Vulkan Anti-Stutter Pre-Cache Engine (`k-precache`)
+Mengeliminasi *micro-stuttering* saat game Proton pertama kali dibuka:
+```bash
+kalacakra precache                  # Kompilasi pipeline shader DXVK/VKD3D di latar belakang
+```
+* Saat game dimainkan, seluruh *shader* grafis sudah terkompilasi penuh; FPS langsung terkunci mulus 60–144 FPS sejak detik pertama!
 
 ---
 
@@ -65,7 +116,7 @@ systemctl reboot
 Perintah pusat berbasis resep deklaratif untuk perawatan sistem:
 ```bash
 kalacakra update            # Perbarui seluruh sistem: Host OCI, Flatpak, Homebrew, & Spaces
-kalacakra doctor            # Jalankan diagnosa kesehatan Btrfs, ZRAM, AI, dan sistem
+kalacakra doctor            # Diagnosa kesehatan Btrfs, ZRAM, AI, dan integritas sistem
 kalacakra clean             # Bersihkan cache Flatpak usang dan container dangling images
 kalacakra install-model     # Unduh model AI lokal ke Ollama (contoh: Llama 3.2 1B)
 kalacakra scx lavd          # Aktifkan scheduler gaming latensi ultra-rendah (scx_lavd)
@@ -73,6 +124,12 @@ kalacakra scx rusty         # Aktifkan scheduler kompilasi multi-core (scx_rusty
 kalacakra rebase nvidia     # Berpindah ke varian driver Nvidia tanpa install ulang OS
 kalacakra battery-cap 80    # Batasi pengisian baterai laptop ke 80% (Preservasi baterai)
 kalacakra lang id           # Ganti bahasa sistem ke Bahasa Indonesia (atau 'en' untuk English)
+kalacakra rewind list       # Telusuri riwayat snapshot waktu file
+kalacakra portal toggle     # Nyalakan/matikan monitor kedua nirkabel
+kalacakra beam receive      # Buka penerima file P2P lokal
+kalacakra ocr               # Jalankan tangkapan layar teks OCR
+kalacakra survival toggle   # Nyalakan/matikan mode darurat hemat baterai
+kalacakra precache          # Pra-kompilasi shader game Vulkan
 ```
 
 ---
@@ -108,7 +165,7 @@ Asisten terminal cerdas berbasis bahasa alami dengan perlindungan data:
   ```bash
   k-ai "cari file video yang lebih dari 1GB lalu urutkan dari yang terbesar"
   ```
-  `k-ai` akan menampilkan preview perintah dan meminta konfirmasi `[Y/n]` sebelum dijalankan.
+  `k-ai` akan menampilkan preview perintah dan meminta konfirmasi `[Y/n/e]` sebelum dijalankan.
 * **Auto-Diagnosa Error Terminal:**
   ```bash
   k-ai --diagnose
@@ -121,11 +178,11 @@ Asisten terminal cerdas berbasis bahasa alami dengan perlindungan data:
 ### 4. Arch Linux AUR Integration (`k-aur`)
 Memasang paket khusus dari Arch User Repository (AUR) ke dalam container terisolasi dan mengekspor shortcut-nya langsung ke menu desktop host:
 ```bash
-# Pasang paket dari AUR (contoh: visual-studio-code-bin)
-k-aur install visual-studio-code-bin
+# Pasang paket dari AUR (bisa multi-paket sekaligus!)
+k-aur install visual-studio-code-bin discord-canary
 
 # Cari paket di AUR
-k-aur search discord-canary
+k-aur search brave-bin
 
 # Hapus paket
 k-aur remove visual-studio-code-bin
@@ -135,6 +192,7 @@ k-aur remove visual-studio-code-bin
 
 ### 5. Dikte Suara & Pintasan Keyboard
 * **`Super + V`**: Buka mikrofon dikte suara offline (`whisper.cpp`). Bicara dalam Bahasa Indonesia atau Inggris, teks langsung disisipkan di kursor aktif.
+* **`Super + Shift + T`**: AI Smart Screenshot OCR untuk mengambil teks dari area layar mana saja ke clipboard.
 * **`Super + Y`**: Toggle mode **Auto-Tiling KWin (Polonium)** untuk beralih instan antara mode jendela floating tradisional dan tiling otomatis.
 * **`Super + Space`**: Buka HUD Selection Assistant untuk menerjemahkan teks atau memperbaiki tata bahasa secara instan.
 * **Game Windows Non-Steam:** Klik kanan file `.exe` installer game di Dolphin -> pilih **"Jalankan dengan Kalacakra Game Launcher (Proton UMU)"**.
@@ -187,11 +245,12 @@ kalacakra/
 │   │   ├── sysctl.d/       # Kernel security hardening
 │   │   └── profile.d/      # Homebrew path & interceptor shell hooks
 │   └── usr/
-│       ├── bin/            # Kalacakra CLI suite (kalacakra, k-interceptor, k-ai, k-aur, k-doctor)
-│       └── share/kalacakra/
-│           ├── fastfetch/  # Logo mandala ASCII & config Fastfetch
-│           ├── locales/    # File i18n dwibahasa (id.json & en.json)
-│           └── scripts/    # Battery lifespan 80% cap limiter
+│       ├── bin/            # Kalacakra CLI suite:
+│       │                   # kalacakra, k-interceptor, k-ai, k-aur, k-doctor,
+│       │                   # k-rewind, k-beam, k-portal, k-ocr, k-survival, k-precache
+│       └── share/
+│           ├── kalacakra/  # Fastfetch config, i18n locales (id/en), Justfile, shared lib
+│           └── kio/        # Dolphin context menu (Beam P2P, Proton Game Launcher)
 ├── .github/workflows/      # Pipeline build OCI & bootc-image-builder ISO
 └── tests/                  # Unit test suite untuk validasi CLI & keamanan
 ```

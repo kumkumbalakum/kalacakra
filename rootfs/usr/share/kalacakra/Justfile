@@ -77,3 +77,27 @@ lang code="id":
     else \
         echo "Kode bahasa tidak dikenal / Unknown language code: {{code}}"; \
     fi
+
+# Kalacakra Rewind - Time-travel file recovery & snapshot browser
+rewind action="list":
+    @/usr/bin/k-rewind {{action}}
+
+# Kalacakra Portal - Wireless second screen untuk tablet/ponsel
+portal action="toggle":
+    @/usr/bin/k-portal {{action}}
+
+# Kalacakra Beam - P2P local mesh file transfer
+beam action="receive":
+    @/usr/bin/k-beam {{action}}
+
+# Kalacakra OCR - AI Smart Screenshot with Local OCR
+ocr:
+    @/usr/bin/k-ocr
+
+# Kalacakra Survival - Mode darurat baterai laptop (layar monokrom, 40Hz, CPU cap)
+survival action="toggle":
+    @/usr/bin/k-survival {{action}}
+
+# Kalacakra Precache - Vulkan DXVK anti-stutter shader pre-compiler
+precache:
+    @/usr/bin/k-precache run

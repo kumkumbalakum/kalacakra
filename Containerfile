@@ -6,7 +6,7 @@
 FROM ghcr.io/ublue-os/kinoite-main:latest
 
 LABEL org.opencontainers.image.title="Kalacakra OS"
-LABEL org.opencontainers.image.description="Rock-Solid Modern Immutable Desktop with Native Dual Language (EN/ID), Sched-ext, & Local AI"
+LABEL org.opencontainers.image.description="Rock-Solid Modern Immutable Desktop with Native Dual Language (EN/ID), Sched-ext, Local AI, & Killer Tools"
 LABEL org.opencontainers.image.licenses="GPL-3.0-or-later"
 LABEL org.opencontainers.image.vendor="Kalacakra OS Project"
 
@@ -38,10 +38,17 @@ RUN rpm-ostree install \
     fzf \
     zoxide \
     jq \
-    bubblewrap && \
+    bubblewrap \
+    tesseract \
+    tesseract-langpack-ind \
+    tesseract-langpack-eng \
+    grim \
+    slurp \
+    wl-clipboard \
+    diffutils && \
     rpm-ostree cleanup -m
 
-# 2. Pemasangan biner resmi Ollama (Clean Standalone Binary - no systemd conflicts during build)
+# 2. Pemasangan biner resmi Ollama (Clean Standalone Binary)
 RUN curl -fsSL https://ollama.com/download/ollama-linux-amd64.tar.gz | tar -xz -C /usr/
 
 # 3. Pemasangan biner whisper.cpp untuk offline speech-to-text
@@ -58,6 +65,12 @@ RUN chmod 0755 \
     /usr/bin/k-ai \
     /usr/bin/k-aur \
     /usr/bin/k-doctor \
+    /usr/bin/k-rewind \
+    /usr/bin/k-beam \
+    /usr/bin/k-portal \
+    /usr/bin/k-ocr \
+    /usr/bin/k-survival \
+    /usr/bin/k-precache \
     /usr/share/kalacakra/scripts/battery-cap.sh 2>/dev/null || true
 
 # 6. Aktifkan service sistem esensial

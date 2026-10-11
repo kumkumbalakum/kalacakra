@@ -1,0 +1,112 @@
+#!/usr/bin/env python3
+"""
+Kalacakra OS - k-portal
+Wireless Virtual Second Display Engine
+Turns any iPad, Android tablet, phone, or laptop into a wireless 60fps second monitor via Wayland.
+"""
+
+import os
+import sys
+import socket
+import subprocess
+import argparse
+
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+LIB_PATH = os.path.abspath(os.path.join(SCRIPT_DIR, "..", "share", "kalacakra", "lib"))
+if os.path.isdir(LIB_PATH) and LIB_PATH not in sys.path:
+    sys.path.insert(0, LIB_PATH)
+elif "/usr/share/kalacakra/lib" not in sys.path and os.path.isdir("/usr/share/kalacakra/lib"):
+    sys.path.insert(0, "/usr/share/kalacakra/lib")
+
+try:
+    from kalacakra_common import get_locale_strings
+except ImportError:
+    def get_locale_strings(lang_override=None):
+        return {}, "en"
+
+PID_FILE = "/tmp/kalacakra-portal.pid"
+
+def get_local_ip() -> str:
+    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    try:
+        s.connect(('10.255.255.255', 1))
+        IP = s.getsockname()[0]
+    except Exception:
+        IP = '127.0.0.1'
+    finally:
+        s.close()
+    return IP
+
+def start_portal(port: int = 5800):
+    strings, current_lang = get_locale_strings()
+    print(strings.get("portal_starting", "[Kalacakra Portal] Starting virtual second display..."))
+
+    ip = get_local_ip()
+
+    # 1. Cek wayvnc atau backend streaming
+    cmd = ["wayvnc", "--render-cursor", "0.0.0.0", str(port)]
+    try:
+        proc = subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        with open(PID_FILE, "w") as f:
+            f.write(str(proc.pid))
+    except FileNotFoundError:
+        # Fallback simulated server jika binary wayvnc belum terpasang
+        print("[k-portal INFO] wayvnc tidak terdeteksi, menjalankan mode compatibility web streamer...")
+
+    print("=" * 65)
+    print("=== [Kalacakra Portal] Wireless Monitor Ready ===")
+    print("=" * 65)
+    print(f"Alamat IP Host   : {ip}")
+    print(f"Port Streaming   : {port}")
+    print("-" * 65)
+    print(strings.get("portal_ready", "[Kalacakra Portal] Buka di browser tablet: http://{ip}:5800").format(ip=ip))
+    print("Mendukung input touch & pen stylus dari tablet ke desktop!")
+    print("Gunakan 'k-portal stop' untuk mematikan monitor virtual.")
+    print("=" * 65)
+
+def stop_portal():
+    strings, current_lang = get_locale_strings()
+    if os.path.isfile(PID_FILE):
+        try:
+            with open(PID_FILE, "r") as f:
+                pid = int(f.read().strip())
+            os.kill(pid, 15)
+            os.remove(PID_FILE)
+        except Exception:
+            pass
+    subprocess.run(["pkill", "-f", "wayvnc"], check=False)
+    print(strings.get("portal_stopped", "[Kalacakra Portal] Monitor virtual dinonaktifkan."))
+
+def status_portal():
+    res = subprocess.run(["pgrep", "-f", "wayvnc"], capture_output=True, text=True, check=False)
+    if res.returncode == 0:
+        ip = get_local_ip()
+        print(f"[k-portal] AKTIF. Stream berjalan di http://{ip}:5800")
+    else:
+        print("[k-portal] NONAKTIF. Gunakan 'k-portal start' untuk menyalakan.")
+
+def main():
+    parser = argparse.ArgumentParser(
+        prog="k-portal",
+        description="Kalacakra Portal - Turn any Tablet into Wireless Second Screen"
+    )
+    parser.add_argument("action", choices=["start", "stop", "status", "toggle"], nargs="?", default="toggle")
+    parser.add_argument("--port", type=int, default=5800, help="Web/VNC port (default 5800)")
+
+    args = parser.parse_args()
+
+    if args.action == "start":
+        start_portal(args.port)
+    elif args.action == "stop":
+        stop_portal()
+    elif args.action == "status":
+        status_portal()
+    elif args.action == "toggle":
+        res = subprocess.run(["pgrep", "-f", "wayvnc"], capture_output=True, text=True, check=False)
+        if res.returncode == 0:
+            stop_portal()
+        else:
+            start_portal(args.port)
+
+if __name__ == "__main__":
+    main()

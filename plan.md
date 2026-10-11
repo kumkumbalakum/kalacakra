@@ -246,8 +246,40 @@ kalacakra scx [lavd|rusty]  # Ganti dynamic CPU scheduler on-the-fly
 kalacakra rebase nvidia     # Berpindah ke image driver Nvidia tanpa install ulang OS
 kalacakra battery-cap 80    # Aktifkan batas pengisian baterai 80%
 kalacakra lang [id|en]      # Beralih bahasa sistem seketika
+kalacakra rewind list       # Telusuri riwayat titik waktu file snapshot
+kalacakra portal toggle     # Nyalakan/matikan monitor kedua nirkabel untuk tablet
+kalacakra beam receive      # Buka penerima file P2P lokal
+kalacakra ocr               # Jalankan tangkapan layar teks OCR
+kalacakra survival toggle   # Nyalakan/matikan mode darurat hemat baterai
+kalacakra precache          # Pra-kompilasi shader game Vulkan
 kalacakra doctor            # Menjalankan diagnostik menyeluruh sistem
 ```
+
+### **6.7 Kalacakra Rewind: Time-Travel File Recovery (`k-rewind`)**
+* Memanfaatkan integrasi snapshot Btrfs/Snapper untuk memutar balik waktu file atau direktori yang tidak sengaja terhapus, rusak, atau salah timpa.
+* Menyediakan perbandingan versi (*visual diff*) dan pengembalian instan 1-detik tanpa membebani sistem.
+
+### **6.8 Kalacakra Beam: P2P Local Mesh File Transfer (`k-beam`)**
+* Transfer file langsung berkecepatan Gigabit lokal antar perangkat di jaringan Wi-Fi yang sama (Linux, Android, iOS, Windows, Mac) tanpa internet, cloud, atau flashdisk.
+* Terintegrasi dengan menu klik kanan Dolphin (*"Beam to Device..."*) dan server upload web lokal.
+
+### **6.9 Kalacakra Portal: Wireless Virtual Second Display (`k-portal`)**
+* Mengubah iPad, tablet Android, ponsel, atau laptop lama menjadi monitor kedua nirkabel 60fps dengan latensi ultra-rendah melalui output virtual Wayland.
+* Mendukung input sentuh (*touchscreen*) dan stylus pen dari tablet ke layar desktop.
+
+### **6.10 Kalacakra OCR: AI Smart Screenshot with Local OCR (`k-ocr` / `Super + Shift + T`)**
+* Mengambil tangkapan layar area mana saja dan mengekstrak teks secara instan menggunakan engine Tesseract offline dwibahasa (Indonesia + Inggris).
+* Teks hasil ekstraksi otomatis disalin ke clipboard dan siap diterjemahkan via `k-ai`.
+
+### **6.11 Kalacakra Survival: Ultra-Battery Emergency Mode (`k-survival`)**
+* Penyelamat darurat saat baterai laptop tersisa di bawah 10%:
+  * Mengaktifkan filter layar monokrom grayscale untuk menghemat daya layar OLED hingga 40%.
+  * Menurunkan refresh rate layar ke 40Hz/30Hz.
+  * Membatasi frekuensi CPU maksimum ke 800MHz dan menidurkan proses AI latar belakang, memberikan daya tahan ekstra 1,5–2 jam.
+
+### **6.12 Kalacakra Precache: Vulkan Anti-Stutter Shader Engine (`k-precache`)**
+* Pra-kompilasi pipeline shader DXVK/VKD3D secara otomatis di latar belakang saat game Steam/Heroic/Lutris dipasang.
+* Menghilangkan *micro-stuttering* saat game pertama kali dibuka, menjamin gameplay terkunci pada 60–144 FPS sejak detik pertama.
 
 ---
 
@@ -415,6 +447,12 @@ Membangun utilitas inti dengan arsitektur i18n (menggunakan Rust / Go untuk perf
 5. `k-agent`: Sandboxed autonomous agent untuk otomasi tugas multi-langkah di OS.
 6. `k-aur`: Wrapper integrasi Distrobox Arch untuk manajemen paket AUR dan ekspor shortcut desktop.
 7. `k-doctor`: Skrip automasi diagnosa kesehatan dan verifikasi integritas sistem (laporan dwibahasa).
+8. `k-rewind`: Time-travel file recovery dan snapshot browser berbasis Btrfs Snapper.
+9. `k-beam`: AirDrop-like P2P local mesh file transfer tanpa internet.
+10. `k-portal`: Wireless virtual second display engine untuk tablet dan ponsel via Wayland.
+11. `k-ocr`: AI smart screenshot dengan OCR lokal offline dwibahasa (EN/ID).
+12. `k-survival`: Ultra-battery emergency survival mode (layar monokrom, 40Hz, CPU cap 800MHz).
+13. `k-precache`: Vulkan DXVK/VKD3D anti-stutter shader pre-compilation engine.
 
 ### **Fase 3: Media Installer ISO & Delivery Pipeline**
 

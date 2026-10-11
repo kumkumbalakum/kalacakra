@@ -20,7 +20,8 @@ SECRET_PATTERNS = [
 
 # Perintah berisiko tinggi / destruktif yang memerlukan peringatan keras
 DESTRUCTIVE_PATTERNS = [
-    r"\brm\s+-(?:r|rf|fr)\s+/(?:\s|$)",
+    # rm rekursif ke path absolut / home / glob: 'rm -rf /', '/*', '/var', '~', '$HOME'
+    r"\brm\s+(?:-[a-zA-Z-]+\s+)+(?:/|~|\$HOME)",
     r"\bmkfs(?:\.\w+)?\s+",
     r"\bdd\s+if=.*?of=/dev/[a-z]+",
     r":\(\)\s*\{\s*:\s*\|\s*:\s*&\s*\}\s*;\s*:",  # Fork bomb

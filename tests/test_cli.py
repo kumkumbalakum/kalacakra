@@ -2,7 +2,6 @@ import unittest
 import os
 import sys
 
-# Tambahkan path library kalacakra_common
 ROOTFS_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "rootfs"))
 LIB_PATH = os.path.join(ROOTFS_DIR, "usr", "share", "kalacakra", "lib")
 if LIB_PATH not in sys.path:
@@ -22,14 +21,25 @@ class TestKalacakraCommon(unittest.TestCase):
         locales_dir = resolve_locales_dir()
         self.assertTrue(os.path.isdir(locales_dir), f"Locales directory {locales_dir} should exist")
         
+        required_keys = [
+            "interceptor_title",
+            "ai_safety_warning",
+            "doctor_header",
+            "doctor_label_btrfs",
+            "ai_dangerous_warning",
+            "rewind_header",
+            "beam_header",
+            "portal_ready",
+            "ocr_copied",
+            "survival_enabled",
+            "precache_header"
+        ]
+
         for lang in ["id", "en"]:
             strings, resolved_lang = get_locale_strings(lang)
             self.assertEqual(resolved_lang, lang)
-            self.assertIn("interceptor_title", strings)
-            self.assertIn("ai_safety_warning", strings)
-            self.assertIn("doctor_header", strings)
-            self.assertIn("doctor_label_btrfs", strings)
-            self.assertIn("ai_dangerous_warning", strings)
+            for k in required_keys:
+                self.assertIn(k, strings, f"Key '{k}' must exist in {lang}.json")
 
     def test_secret_redaction(self):
         sample_gh = "Run deploy script with token ghp_123456789012345678901234567890123456"

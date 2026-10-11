@@ -2,6 +2,8 @@
 """
 Kalacakra OS - k-doctor
 Comprehensive System Health, Integrity & Maintenance Utility (Bilingual EN/ID)
+Checks both the immutable OS core (bootc/ostree, SELinux, DoT, security services)
+and day-to-day resources (Btrfs, ZRAM, containers, Flatpak, battery).
 """
 
 import os
@@ -25,8 +27,120 @@ def run_cmd(cmd_list):
     try:
         res = subprocess.run(cmd_list, capture_output=True, text=True, check=False)
         return res.stdout.strip(), res.returncode
+    except FileNotFoundError:
+        return "", 127
     except Exception as e:
         return str(e), 1
+
+# ==============================================================================
+# Bagian A: Jantung OS Imutabel (Immutable Core)
+# ==============================================================================
+
+def check_bootc_status():
+    """Status image bootable: jalur update atomik & robooth truntuk (rollback)."""
+    out, code = run_cmd(["bootc", "status", "--json"])
+    if code == 0 and out:
+        try:
+            import json
+            data = json.loads(out)
+            img = data.get("image", {})
+            version = img.get("version", "unknown")
+            # 'cached-update'/'update available' diserahkan ke pesan mentah bootc
+            return "OK", f"bootc image deployed (version: {version})"
+        except Exception:
+            return "OK", "bootc image deployed"
+    # Fallback ke rpm-ostree untuk image non-bootc
+    out, code = run_cmd(["rpm-ostree", "status"])
+    if code == 0 and out:
+        for line in out.split("\n"):
+            if "*" in line and ("ostree" in line or "ghcr.io" in line or "registry" in line):
+                return "OK", line.strip()[:60]
+        return "OK", "rpm-ostree deployment active"
+    return "WARN", "bootc/rpm-ostree status tidak tersedia"
+
+def check_rollback_protection():
+    """Perlindungan rollback: bootloader harus mendukung pilih deployment lama."""
+    for path in ("/boot/loader.1", "/boot/loader", "/boot/efi/EFI/fedora"):
+        if os.path.isdir(path):
+            return "OK", "Boot menu multi-deployment aktif"
+    # grub2-editenv menyimpan hitungan boot gagal (boot-counting ala systemd)
+    out, code = run_cmd(["grub2-editenv", "list"])
+    if code == 0 and out:
+        return "OK", out.split("\n")[0][:60]
+    return "INFO", "Tidak dapat memverifikasi menu boot cadangan"
+
+def check_selinux():
+    """SELinux harus Enforcing sesuai janji defense-in-depth."""
+    out, code = run_cmd(["getenforce"])
+    if code == 0:
+        mode = out.strip()
+        if mode == "Enforcing":
+            return "OK", "Enforcing"
+        if mode == "Permissive":
+            return "WARN", "Permissive (seharusnya Enforcing)"
+        return "WARN", mode or "Unknown"
+    return "INFO", "getenforce tidak tersedia (bukan host Fedora)"
+
+def check_dot_dns():
+    """DNS-over-TLS via systemd-resolved (konfigurasi kalacakra-dot.conf)."""
+    conf = "/etc/systemd/resolved.conf.d/kalacakra-dot.conf"
+    out, code = run_cmd(["resolvectl", "status"])
+    if code == 0 and "DNSOverTLS: yes" in out:
+        return "OK", "DNSOverTLS aktif (Quad9/Cloudflare)"
+    if os.path.isfile(conf):
+        return "OK", "DoT config terpasang (resolved aktif)"
+    return "WARN", "DoT tidak terkonfigurasi"
+
+def check_firewall():
+    """firewalld harus aktif (di-enable di Containerfile)."""
+    out, code = run_cmd(["systemctl", "is-active", "firewalld"])
+    if out == "active":
+        return "OK", "Active"
+    return "WARN", f"Nonaktif ({out or 'unknown'}) - seharusnya aktif"
+
+def check_usbguard():
+    """USBGuard harus aktif (blocked policy per perangkat tak dikenal)."""
+    out, code = run_cmd(["systemctl", "is-active", "usbguard"])
+    if out == "active":
+        return "OK", "Active (unknown devices blocked)"
+    return "WARN", f"Nonaktif ({out or 'unknown'}) - seharusnya aktif"
+
+def check_tailscale():
+    out, code = run_cmd(["systemctl", "is-active", "tailscaled"])
+    if out == "active":
+        return "OK", "Active"
+    return "INFO", "Standby (mesh VPN tidak dipakai)"
+
+def check_scheduler():
+    """Sched-ext: scheduler aktif saat ini (default EEVDF jika tak ada scx_)."""
+    out, code = run_cmd(["pgrep", "-a", "-f", "scx_"])
+    if code == 0 and out:
+        first = out.split("\n")[0].split()[-1]
+        return "OK", f"SCX aktif: {os.path.basename(first)}"
+    return "INFO", "Default kernel scheduler (EEVDF) - jalankan 'kalacakra scx lavd' bila perlu"
+
+def check_layered_packages():
+    """Jumlah paket layering rpm-ostree - terlalu banyak = menyimpang dari image atomik."""
+    out, code = run_cmd(["rpm-ostree", "status", "--json"])
+    if code == 0 and out:
+        try:
+            import json
+            data = json.loads(out)
+            deployments = data.get("deployments", [])
+            for d in deployments:
+                pkgs = d.get("packages", []) or d.get("requested-packages", [])
+                if pkgs:
+                    if len(pkgs) > 20:
+                        return "WARN", f"{len(pkgs)} paket di-layer (pertimbangkan rebase)"
+                    return "OK", f"{len(pkgs)} paket di-layer"
+            return "OK", "Host murni tanpa layering (atomic penuh)"
+        except Exception:
+            pass
+    return "INFO", "rpm-ostree tidak tersedia"
+
+# ==============================================================================
+# Bagian B: Resource & Kesehatan Harian
+# ==============================================================================
 
 def check_btrfs():
     out, code = run_cmd(["btrfs", "filesystem", "df", "/"])
@@ -74,6 +188,12 @@ def check_battery():
                 pass
     return "INFO", "Default 100% or desktop PC without battery"
 
+# ==============================================================================
+
+def print_row(strings, status, key, default_label, msg, width=26):
+    label = strings.get(key, default_label)
+    print(f"[{status:^6}] {label:<{width}} : {msg}")
+
 def main():
     strings, lang = get_locale_strings()
     clean_mode = "--clean" in sys.argv
@@ -85,35 +205,41 @@ def main():
     print(strings.get("doctor_checking_all", "Menjalankan diagnosa integritas sistem..."))
     print("-" * 65)
 
-    # 1. Btrfs
-    status, msg = check_btrfs()
-    label_btrfs = strings.get("doctor_label_btrfs", "Filesystem Root (Btrfs)")
-    print(f"[{status:^6}] {label_btrfs:<26} : {msg}")
+    print(strings.get("doctor_section_core", "--- Jantung OS Imutabel / Immutable Core ---"))
+    checks_core = [
+        (check_bootc_status,      "doctor_label_bootc",      "Image Bootable (bootc)"),
+        (check_rollback_protection, "doctor_label_rollback", "Proteksi Rollback Boot"),
+        (check_selinux,           "doctor_label_selinux",    "Keamanan SELinux"),
+        (check_dot_dns,           "doctor_label_dot",        "DNS-over-TLS Resolver"),
+        (check_firewall,          "doctor_label_firewall",   "Firewall (firewalld)"),
+        (check_usbguard,          "doctor_label_usbguard",   "USBGuard Device Policy"),
+        (check_tailscale,         "doctor_label_tailscale",  "Tailscale Mesh"),
+        (check_scheduler,         "doctor_label_scheduler",  "CPU Scheduler (SCX)"),
+        (check_layered_packages,  "doctor_label_layering",   "Paket Layering (ostree)"),
+    ]
+    for func, key, default in checks_core:
+        status, msg = func()
+        print_row(strings, status, key, default, msg)
 
-    # 2. ZRAM
-    status, msg = check_zram()
-    label_zram = strings.get("doctor_label_zram", "ZRAM Swap Engine")
-    print(f"[{status:^6}] {label_zram:<26} : {msg}")
+    print("-" * 65)
+    print(strings.get("doctor_section_resource", "--- Resource & Kesehatan Harian / Daily Resources ---"))
 
-    # 3. AI Service
-    status, msg = check_ai_service()
-    label_ai = strings.get("doctor_label_ai", "Local AI Daemon (k-ai)")
-    print(f"[{status:^6}] {label_ai:<26} : {msg}")
-
-    # 4. Containers
-    status_cont, msg_cont = check_containers()
-    label_cont = strings.get("doctor_label_containers", "Container Storage")
-    print(f"[{status_cont:^6}] {label_cont:<26} : {msg_cont}")
-
-    # 5. Flatpak
-    status_fp, msg_fp = check_flatpak_unused()
-    label_fp = strings.get("doctor_label_flatpak", "Flatpak Runtimes")
-    print(f"[{status_fp:^6}] {label_fp:<26} : {msg_fp}")
-
-    # 6. Battery
-    status, msg = check_battery()
-    label_bat = strings.get("doctor_label_battery", "Battery Preservation")
-    print(f"[{status:^6}] {label_bat:<26} : {msg}")
+    checks_daily = [
+        (check_btrfs,             "doctor_label_btrfs",      "Filesystem Root (Btrfs)"),
+        (check_zram,              "doctor_label_zram",       "ZRAM Swap Engine"),
+        (check_ai_service,        "doctor_label_ai",         "Local AI Daemon (k-ai)"),
+        (check_containers,        "doctor_label_containers", "Container Storage"),
+        (check_flatpak_unused,    "doctor_label_flatpak",    "Flatpak Runtimes"),
+        (check_battery,           "doctor_label_battery",    "Battery Preservation"),
+    ]
+    status_cont = status_fp = "OK"
+    for func, key, default in checks_daily:
+        status, msg = func()
+        if func is check_containers:
+            status_cont = status
+        elif func is check_flatpak_unused:
+            status_fp = status
+        print_row(strings, status, key, default, msg)
 
     print("-" * 65)
 
@@ -128,9 +254,14 @@ def main():
             ans = "y"
 
         if ans in ("", "y", "yes"):
-            print(strings.get("doctor_clean_cache", "Cleaning caches..."))
-            subprocess.run(["flatpak", "uninstall", "--unused", "-y"], check=False)
-            subprocess.run(["podman", "system", "prune", "-f"], check=False)
+            print(strings.get("doctor_clean_cache", "Cleaning unused Flatpak runtimes & user cache..."))
+            for cleanup_cmd in (["flatpak", "uninstall", "--unused", "-y"],
+                                ["podman", "system", "prune", "-f"]):
+                try:
+                    subprocess.run(cleanup_cmd, check=False)
+                except FileNotFoundError:
+                    tool = cleanup_cmd[0]
+                    print(f"[INFO] {tool} tidak tersedia - dilewati.")
             print("[OK] Pembersihan selesai! / Cleanup complete!")
     else:
         print(strings.get("doctor_all_healthy", "All systems are healthy and operating optimally!"))

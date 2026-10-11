@@ -130,7 +130,8 @@ def main():
     else:
         print()
         # Periksa apakah perintah berisiko destruktif
-        if is_dangerous_command(suggested_cmd):
+        is_dangerous = is_dangerous_command(suggested_cmd)
+        if is_dangerous:
             print("!" * 70)
             print(strings.get("ai_dangerous_warning", "[PERINGATAN BAHAYA] Perintah ini terdeteksi berpotensi merusak sistem!"))
             print("!" * 70)
@@ -138,7 +139,7 @@ def main():
         print(strings.get("ai_safety_warning", "[k-ai Guard] Perintah berikut akan dieksekusi:"))
         print(f"\n  $ {suggested_cmd}\n")
 
-        if args.yes:
+        if args.yes and not is_dangerous:
             action = "y"
         else:
             prompt_confirm = strings.get("ai_safety_confirm", "Jalankan perintah ini? [Y/n/e] (e=edit): ")

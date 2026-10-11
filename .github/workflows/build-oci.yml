@@ -18,7 +18,52 @@ env:
   IMAGE_NVIDIA_NAME: ${{ github.repository_owner }}/kalacakra-nvidia
 
 jobs:
+  test:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Run Unit Tests
+        run: python -m unittest discover -s tests -v
+
+      - name: Syntax-check Python CLI Scripts
+        run: |
+          python -m py_compile \
+            rootfs/usr/bin/kalacakra \
+            rootfs/usr/bin/k-ai \
+            rootfs/usr/bin/k-doctor \
+            rootfs/usr/bin/k-interceptor \
+            rootfs/usr/share/kalacakra/lib/kalacakra_common.py
+
+      - name: Syntax-check Bash Scripts
+        run: |
+          bash -n rootfs/usr/bin/k-aur
+          bash -n rootfs/usr/share/kalacakra/scripts/battery-cap.sh
+          bash -n rootfs/etc/profile.d/kalacakra-env.sh
+
+      - name: Validate Locale JSON (EN/ID sync)
+        run: |
+          python - <<'EOF'
+          import json, sys
+          id_keys = set(json.load(open("rootfs/usr/share/kalacakra/locales/id.json")))
+          en_keys = set(json.load(open("rootfs/usr/share/kalacakra/locales/en.json")))
+          if id_keys != en_keys:
+              print(f"Locale tidak sinkron! Selisih: {id_keys ^ en_keys}")
+              sys.exit(1)
+          print(f"Locale sinkron: {len(id_keys)} key per bahasa")
+          EOF
+
   build-and-push:
+    needs: test
     runs-on: ubuntu-latest
     permissions:
       contents: read

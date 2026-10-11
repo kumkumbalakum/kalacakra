@@ -1,0 +1,119 @@
+#!/usr/bin/env python3
+"""
+Kalacakra OS - k-rewind
+Time-Travel File Recovery & Btrfs Snapshot Browser
+Provides instant file restoration and version comparison across Btrfs/Snapper snapshots.
+"""
+
+import os
+import sys
+import subprocess
+import argparse
+
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+LIB_PATH = os.path.abspath(os.path.join(SCRIPT_DIR, "..", "share", "kalacakra", "lib"))
+if os.path.isdir(LIB_PATH) and LIB_PATH not in sys.path:
+    sys.path.insert(0, LIB_PATH)
+elif "/usr/share/kalacakra/lib" not in sys.path and os.path.isdir("/usr/share/kalacakra/lib"):
+    sys.path.insert(0, "/usr/share/kalacakra/lib")
+
+try:
+    from kalacakra_common import get_locale_strings
+except ImportError:
+    def get_locale_strings(lang_override=None):
+        return {}, "en"
+
+def run_snapper_list():
+    res = subprocess.run(["snapper", "list"], capture_output=True, text=True, check=False)
+    if res.returncode == 0:
+        return res.stdout.strip()
+    return None
+
+def find_snapshot_path(snapshot_id: str) -> str:
+    candidates = [
+        f"/.snapshots/{snapshot_id}/snapshot",
+        f"/home/.snapshots/{snapshot_id}/snapshot",
+        f"/.snapshots/{snapshot_id}"
+    ]
+    for c in candidates:
+        if os.path.isdir(c):
+            return c
+    return None
+
+def main():
+    parser = argparse.ArgumentParser(
+        prog="k-rewind",
+        description="Kalacakra Rewind - Time-Travel File Recovery & Snapshot Browser"
+    )
+    subparsers = parser.add_subparsers(dest="command", help="Rewind command")
+
+    subparsers.add_parser("list", help="List available snapshots and timestamps")
+    
+    p_create = subparsers.add_parser("create", help="Create an on-demand snapshot of user workspace")
+    p_create.add_argument("description", nargs="?", default="Manual Rewind Point", help="Snapshot description")
+
+    p_restore = subparsers.add_parser("restore", help="Restore a file or directory from a past snapshot")
+    p_restore.add_argument("snapshot_id", help="Target snapshot ID number")
+    p_restore.add_argument("path", help="Relative or absolute path of the file to restore")
+
+    p_diff = subparsers.add_parser("diff", help="View changes between current file and snapshot version")
+    p_diff.add_argument("snapshot_id", help="Target snapshot ID number")
+    p_diff.add_argument("path", help="File path to compare")
+
+    args = parser.parse_args()
+    strings, current_lang = get_locale_strings()
+
+    print()
+    print(strings.get("rewind_header", "=== Kalacakra Rewind (Time-Travel File Recovery) ==="))
+    print("-" * 60)
+
+    if not args.command or args.command == "list":
+        out = run_snapper_list()
+        if out:
+            print(out)
+        else:
+            print("[INFO] Snapper service tidak aktif atau sedang berjalan di mode standalone.")
+            print("Gunakan 'k-rewind create <deskripsi>' untuk membuat titik waktu baru.")
+        print("-" * 60)
+        sys.exit(0)
+
+    if args.command == "create":
+        print(f"[k-rewind] Membuat snapshot baru: '{args.description}'...")
+        res = subprocess.run(["snapper", "create", "-d", args.description], check=False)
+        if res.returncode == 0:
+            print("[OK] Titik waktu berhasil disimpan! / Snapshot created successfully!")
+        else:
+            print("[WARN] Snapper command returned non-zero code. Pastikan subvolume @snapshots ter-mount.")
+
+    elif args.command == "restore":
+        snap_path = find_snapshot_path(args.snapshot_id)
+        rel_path = os.path.relpath(args.path, "/") if os.path.isabs(args.path) else args.path
+        source_file = os.path.join(snap_path, rel_path) if snap_path else None
+
+        print(strings.get("rewind_restoring", "Restoring file from snapshot {id}...").format(id=args.snapshot_id))
+        if source_file and os.path.exists(source_file):
+            target = os.path.abspath(args.path)
+            backup = f"{target}.before-rewind"
+            if os.path.exists(target):
+                os.rename(target, backup)
+                print(f"[k-rewind] Versi saat ini dicadangkan ke: {backup}")
+            
+            subprocess.run(["cp", "-a", source_file, target])
+            print(strings.get("rewind_success", "File successfully restored to {path}!").format(path=target))
+        else:
+            print(f"[k-rewind Error] Berkas '{args.path}' tidak ditemukan di snapshot {args.snapshot_id}.")
+
+    elif args.command == "diff":
+        snap_path = find_snapshot_path(args.snapshot_id)
+        rel_path = os.path.relpath(args.path, "/") if os.path.isabs(args.path) else args.path
+        source_file = os.path.join(snap_path, rel_path) if snap_path else None
+
+        if source_file and os.path.isfile(source_file) and os.path.isfile(args.path):
+            print(f"--- Snapshot {args.snapshot_id}: {source_file}")
+            print(f"+++ Current: {args.path}")
+            subprocess.run(["diff", "-u", source_file, args.path])
+        else:
+            print(f"[k-rewind Error] Tidak dapat membandingkan berkas: {args.path}")
+
+if __name__ == "__main__":
+    main()

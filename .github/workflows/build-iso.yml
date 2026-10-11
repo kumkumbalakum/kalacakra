@@ -6,7 +6,22 @@ on:
     types: [published]
 
 jobs:
+  test:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Run Unit Tests
+        run: python -m unittest discover -s tests -v
+
   build-iso:
+    needs: test
     runs-on: ubuntu-latest
     permissions:
       contents: write

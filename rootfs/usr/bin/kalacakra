@@ -9,7 +9,6 @@ import sys
 import subprocess
 import argparse
 
-# Tambahkan library path kalacakra
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 LIB_PATH = os.path.abspath(os.path.join(SCRIPT_DIR, "..", "share", "kalacakra", "lib"))
 if os.path.isdir(LIB_PATH) and LIB_PATH not in sys.path:
@@ -34,6 +33,16 @@ def find_justfile() -> str:
         if os.path.isfile(c):
             return c
     return "/usr/share/kalacakra/Justfile"
+
+def find_bin(name: str) -> str:
+    candidates = [
+        f"/usr/bin/{name}",
+        os.path.join(SCRIPT_DIR, name)
+    ]
+    for c in candidates:
+        if os.path.isfile(c):
+            return c
+    return name
 
 def main():
     parser = argparse.ArgumentParser(
@@ -62,6 +71,23 @@ def main():
     p_lang = subparsers.add_parser("lang", help="Switch system language")
     p_lang.add_argument("code", choices=["id", "en"], help="Language code (id/en)")
 
+    # 6 Fitur Baru
+    p_rewind = subparsers.add_parser("rewind", help="Kalacakra Rewind - Time-travel file recovery & snapshot browser")
+    p_rewind.add_argument("subaction", nargs="*", help="Rewind arguments (list/create/restore/diff)")
+
+    p_portal = subparsers.add_parser("portal", help="Kalacakra Portal - Turn any tablet into wireless second screen")
+    p_portal.add_argument("subaction", choices=["start", "stop", "status", "toggle"], nargs="?", default="toggle")
+
+    p_beam = subparsers.add_parser("beam", help="Kalacakra Beam - P2P mesh local file transfer")
+    p_beam.add_argument("subaction", nargs="*", help="Beam arguments (send/receive)")
+
+    subparsers.add_parser("ocr", help="Kalacakra OCR - AI smart screenshot with local OCR")
+
+    p_surv = subparsers.add_parser("survival", help="Kalacakra Survival - Ultra-battery emergency mode")
+    p_surv.add_argument("subaction", choices=["on", "off", "toggle", "status"], nargs="?", default="toggle")
+
+    subparsers.add_parser("precache", help="Kalacakra Precache - Vulkan DXVK anti-stutter shader pre-compiler")
+
     args, unknown = parser.parse_known_args()
     strings, current_lang = get_locale_strings(args.lang)
 
@@ -78,11 +104,21 @@ def main():
             subprocess.run(["just", "--justfile", justfile, "--list"])
         sys.exit(0)
 
-    # Route commands to Justfile or direct executables
+    # Route commands to executables
     if args.command == "doctor":
-        # Jalankan k-doctor (bisa di PATH atau relatif)
-        doctor_bin = "/usr/bin/k-doctor" if os.path.isfile("/usr/bin/k-doctor") else os.path.join(SCRIPT_DIR, "k-doctor")
-        sys.exit(subprocess.run([doctor_bin]).returncode)
+        sys.exit(subprocess.run([find_bin("k-doctor")]).returncode)
+    elif args.command == "rewind":
+        sys.exit(subprocess.run([find_bin("k-rewind")] + args.subaction).returncode)
+    elif args.command == "portal":
+        sys.exit(subprocess.run([find_bin("k-portal"), args.subaction]).returncode)
+    elif args.command == "beam":
+        sys.exit(subprocess.run([find_bin("k-beam")] + args.subaction).returncode)
+    elif args.command == "ocr":
+        sys.exit(subprocess.run([find_bin("k-ocr")]).returncode)
+    elif args.command == "survival":
+        sys.exit(subprocess.run([find_bin("k-survival"), args.subaction]).returncode)
+    elif args.command == "precache":
+        sys.exit(subprocess.run([find_bin("k-precache"), "run"]).returncode)
     elif args.command == "update":
         sys.exit(subprocess.run(["just", "--justfile", justfile, "update"]).returncode)
     elif args.command == "clean":

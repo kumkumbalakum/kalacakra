@@ -27,5 +27,21 @@
   "doctor_clean_cache": "Membersihkan cache paket Flatpak & user...",
   "doctor_all_healthy": "Semua sistem dalam kondisi sehat dan optimal!",
   "aur_exporting": "Mengekspor shortcut desktop ke host sistem...",
-  "aur_success": "Paket AUR berhasil diinstal di dalam Kalacakra Space!"
+  "aur_success": "Paket AUR berhasil diinstal di dalam Kalacakra Space!",
+  "rewind_header": "=== Kalacakra Rewind (Roda Waktu File Recovery) ===",
+  "rewind_no_snapshots": "Tidak ada snapshot ditemukan di sistem.",
+  "rewind_restoring": "Memulihkan berkas dari snapshot {id}...",
+  "rewind_success": "Berkas berhasil dipulihkan ke {path}!",
+  "beam_header": "=== Kalacakra Beam (P2P Local Mesh File Transfer) ===",
+  "beam_sending": "Mengirim '{file}' ke jaringan lokal...",
+  "beam_success": "Pengiriman selesai!",
+  "portal_starting": "[Kalacakra Portal] Menyiapkan monitor virtual nirkabel untuk tablet...",
+  "portal_ready": "[Kalacakra Portal] Buka tautan berikut di browser tablet Anda: http://{ip}:5800",
+  "portal_stopped": "[Kalacakra Portal] Monitor virtual dinonaktifkan.",
+  "ocr_processing": "[Kalacakra OCR] Memproses teks dari area layar...",
+  "ocr_copied": "[Kalacakra OCR] Teks berhasil disalin ke clipboard!",
+  "survival_enabled": "[Kalacakra Survival] Mode Darurat Aktif: Layar Monokrom, 40Hz, CPU Cap 800MHz.",
+  "survival_disabled": "[Kalacakra Survival] Mode Darurat Nonaktif: Tampilan dan performa normal dipulihkan.",
+  "precache_header": "=== Kalacakra Vulkan Anti-Stutter Pre-Cache Engine ===",
+  "precache_running": "Mengompilasi pipeline shader DXVK/VKD3D di latar belakang..."
 }

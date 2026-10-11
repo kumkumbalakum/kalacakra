@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Service
+ServiceTypes=KonqPopupMenu/Plugin
+MimeType=application/octet-stream;all/allfiles;
+Actions=BeamFile;
+X-KDE-Priority=TopLevel
+
+[Desktop Action BeamFile]
+Name=Beam to Device... (Kalacakra Beam)
+Name[id]=Beam ke Perangkat... (Kalacakra Beam)
+Icon=network-wireless
+Exec=/usr/bin/k-beam send %f

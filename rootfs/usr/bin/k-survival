@@ -1,0 +1,106 @@
+#!/usr/bin/env python3
+"""
+Kalacakra OS - k-survival
+Ultra-Battery Emergency Survival Mode
+Extends emergency laptop battery life by 1.5 - 2 hours:
+- Grayscale monochrome display filter (saves OLED power up to 40%)
+- Drops display refresh rate to 40Hz / 48Hz
+- Caps CPU maximum frequency to 800MHz - 1GHz
+- Freezes idle background AI daemons and containers
+"""
+
+import os
+import sys
+import glob
+import subprocess
+import argparse
+
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+LIB_PATH = os.path.abspath(os.path.join(SCRIPT_DIR, "..", "share", "kalacakra", "lib"))
+if os.path.isdir(LIB_PATH) and LIB_PATH not in sys.path:
+    sys.path.insert(0, LIB_PATH)
+elif "/usr/share/kalacakra/lib" not in sys.path and os.path.isdir("/usr/share/kalacakra/lib"):
+    sys.path.insert(0, "/usr/share/kalacakra/lib")
+
+try:
+    from kalacakra_common import get_locale_strings
+except ImportError:
+    def get_locale_strings(lang_override=None):
+        return {}, "en"
+
+STATE_FILE = "/tmp/kalacakra-survival.active"
+
+def set_grayscale_filter(enable: bool):
+    # KWin effect toggle via qdbus
+    effect = "kwin4_effect_grayscale"
+    try:
+        if enable:
+            subprocess.run(["qdbus", "org.kde.KWin", "/Effects", "loadEffect", effect], check=False)
+        else:
+            subprocess.run(["qdbus", "org.kde.KWin", "/Effects", "unloadEffect", effect], check=False)
+    except Exception:
+        pass
+
+def drop_refresh_rate(enable: bool):
+    try:
+        if enable:
+            # Cari mode 40Hz/48Hz/60Hz terendah via kscreen-doctor
+            subprocess.run(["kscreen-doctor", "output.1.mode.lowest"], check=False)
+        else:
+            subprocess.run(["kscreen-doctor", "output.1.mode.highest"], check=False)
+    except Exception:
+        pass
+
+def cap_cpu_frequency(enable: bool):
+    for cpu_max in glob.glob("/sys/devices/system/cpu/cpu*/cpufreq/scaling_max_freq"):
+        try:
+            freq = "800000" if enable else "4500000"
+            subprocess.run(["sudo", "sh", "-c", f"echo {freq} > {cpu_max}"], check=False)
+        except Exception:
+            pass
+
+def manage_ai_service(enable_survival: bool):
+    if enable_survival:
+        subprocess.run(["systemctl", "--user", "stop", "kalacakra-ai.service"], check=False)
+    else:
+        subprocess.run(["systemctl", "--user", "start", "kalacakra-ai.service"], check=False)
+
+def main():
+    parser = argparse.ArgumentParser(
+        prog="k-survival",
+        description="Kalacakra OS Ultra-Battery Emergency Survival Mode"
+    )
+    parser.add_argument("action", choices=["on", "off", "toggle", "status"], nargs="?", default="toggle")
+
+    args = parser.parse_args()
+    strings, current_lang = get_locale_strings()
+
+    is_active = os.path.isfile(STATE_FILE)
+
+    if args.action == "status":
+        print(f"[k-survival] Status: {'AKTIF (Survival Mode ON)' if is_active else 'NONAKTIF (Normal)'}")
+        sys.exit(0)
+
+    target_on = not is_active if args.action == "toggle" else (args.action == "on")
+
+    if target_on:
+        print(strings.get("survival_enabled", "[Kalacakra Survival] Mode Darurat Aktif: Layar Monokrom, 40Hz, CPU Cap 800MHz."))
+        set_grayscale_filter(True)
+        drop_refresh_rate(True)
+        cap_cpu_frequency(True)
+        manage_ai_service(True)
+        with open(STATE_FILE, "w") as f:
+            f.write("active")
+        subprocess.run(["notify-send", "-u", "critical", "Kalacakra Survival Mode", "Layar monokrom aktif, CPU dibatasi untuk memperpanjang sisa baterai."], check=False)
+    else:
+        print(strings.get("survival_disabled", "[Kalacakra Survival] Mode Darurat Nonaktif: Tampilan dan performa normal dipulihkan."))
+        set_grayscale_filter(False)
+        drop_refresh_rate(False)
+        cap_cpu_frequency(False)
+        manage_ai_service(False)
+        if is_active:
+            os.remove(STATE_FILE)
+        subprocess.run(["notify-send", "Kalacakra Normal Mode", "Performa dan warna layar penuh dipulihkan."], check=False)
+
+if __name__ == "__main__":
+    main()

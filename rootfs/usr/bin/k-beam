@@ -1,0 +1,157 @@
+#!/usr/bin/env python3
+"""
+Kalacakra OS - k-beam
+AirDrop-like Zero-Config P2P Local Mesh File Transfer
+Sends and receives files between Linux, Android, iOS, Windows, and Mac over local Wi-Fi without internet.
+"""
+
+import os
+import sys
+import socket
+import http.server
+import socketserver
+import urllib.parse
+import argparse
+import subprocess
+
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+LIB_PATH = os.path.abspath(os.path.join(SCRIPT_DIR, "..", "share", "kalacakra", "lib"))
+if os.path.isdir(LIB_PATH) and LIB_PATH not in sys.path:
+    sys.path.insert(0, LIB_PATH)
+elif "/usr/share/kalacakra/lib" not in sys.path and os.path.isdir("/usr/share/kalacakra/lib"):
+    sys.path.insert(0, "/usr/share/kalacakra/lib")
+
+try:
+    from kalacakra_common import get_locale_strings
+except ImportError:
+    def get_locale_strings(lang_override=None):
+        return {}, "en"
+
+def get_local_ip() -> str:
+    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    try:
+        s.connect(('10.255.255.255', 1))
+        IP = s.getsockname()[0]
+    except Exception:
+        IP = '127.0.0.1'
+    finally:
+        s.close()
+    return IP
+
+def start_beam_receiver(port: int = 53317, save_dir: str = None):
+    if not save_dir:
+        save_dir = os.path.expanduser("~/Downloads/Beam")
+    os.makedirs(save_dir, exist_ok=True)
+
+    ip = get_local_ip()
+    print("=" * 60)
+    print("=== [Kalacakra Beam] Receiver Server Active ===")
+    print("=" * 60)
+    print(f"IP Lokal          : http://{ip}:{port}")
+    print(f"Direktori Simpan  : {save_dir}")
+    print("-" * 60)
+    print(f"Buka browser di HP/Tablet/PC lain pada Wi-Fi yang sama:")
+    print(f" -> http://{ip}:{port}")
+    print("Tekan Ctrl+C untuk menghentikan server.")
+    print("-" * 60)
+
+    class BeamUploadHandler(http.server.SimpleHTTPRequestHandler):
+        def __init__(self, *args, **kwargs):
+            super().__init__(*args, directory=save_dir, **kwargs)
+
+        def do_GET(self):
+            if self.path == "/":
+                html = f"""<!DOCTYPE html>
+<html>
+<head>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Kalacakra Beam - Transfer File</title>
+    <style>
+        body {{ font-family: sans-serif; background: #1a1b26; color: #c0caf5; text-align: center; padding: 30px; }}
+        .card {{ background: #24283b; padding: 25px; border-radius: 12px; max-width: 450px; margin: auto; box-shadow: 0 4px 15px rgba(0,0,0,0.5); }}
+        input, button {{ margin: 15px 0; padding: 12px; border-radius: 8px; width: 85%; font-size: 16px; }}
+        button {{ background: #bb9af7; color: #1a1b26; font-weight: bold; border: none; cursor: pointer; }}
+    </style>
+</head>
+<body>
+    <div class="card">
+        <h2>☸️ Kalacakra Beam</h2>
+        <p>Kirim file langsung ke laptop ini secara instan:</p>
+        <form method="POST" enctype="multipart/form-data" action="/upload">
+            <input type="file" name="file" required><br>
+            <button type="submit">Kirim File / Send File</button>
+        </form>
+    </div>
+</body>
+</html>"""
+                self.send_response(200)
+                self.send_header("Content-Type", "text/html; charset=utf-8")
+                self.end_headers()
+                self.wfile.write(html.encode("utf-8"))
+            else:
+                super().do_GET()
+
+        def do_POST(self):
+            if self.path == "/upload":
+                content_type = self.headers.get("Content-Type", "")
+                if "multipart/form-data" in content_type:
+                    length = int(self.headers.get('content-length', 0))
+                    data = self.rfile.read(length)
+                    # Simple multipart boundary extractor
+                    boundary = content_type.split("boundary=")[-1].encode()
+                    parts = data.split(boundary)
+                    for part in parts:
+                        if b'filename="' in part:
+                            head, file_data = part.split(b"\r\n\r\n", 1)
+                            fname_match = head.split(b'filename="')[-1].split(b'"')[0].decode('utf-8', errors='ignore')
+                            if fname_match:
+                                file_data = file_data.rsplit(b"\r\n--", 1)[0]
+                                out_path = os.path.join(save_dir, fname_match)
+                                with open(out_path, "wb") as f:
+                                    f.write(file_data)
+                                print(f"[Kalacakra Beam] File diterima: {fname_match} ({len(file_data)} bytes)")
+                    
+                    self.send_response(200)
+                    self.send_header("Content-Type", "text/html")
+                    self.end_headers()
+                    self.wfile.write(b"<h2>File Berhasil Dikirim! / File Received Successfully!</h2><a href='/'>Kembali</a>")
+                    return
+            self.send_response(400)
+            self.end_headers()
+
+    with socketserver.TCPServer(("", port), BeamUploadHandler) as httpd:
+        httpd.serve_forever()
+
+def main():
+    parser = argparse.ArgumentParser(
+        prog="k-beam",
+        description="Kalacakra Beam - P2P Mesh File Transfer"
+    )
+    subparsers = parser.add_subparsers(dest="command")
+
+    p_send = subparsers.add_parser("send", help="Send file to another device")
+    p_send.add_argument("file", help="File to send")
+    p_send.add_argument("target", nargs="?", help="Target IP address")
+
+    p_recv = subparsers.add_parser("receive", help="Start Beam receiver server")
+    p_recv.add_argument("--port", type=int, default=53317, help="Port to listen on (default 53317)")
+
+    args = parser.parse_args()
+    strings, current_lang = get_locale_strings()
+
+    if not args.command or args.command == "receive":
+        start_beam_receiver(port=getattr(args, "port", 53317))
+    elif args.command == "send":
+        if not os.path.exists(args.file):
+            print(f"[k-beam Error] Berkas '{args.file}' tidak ditemukan.")
+            sys.exit(1)
+        print(strings.get("beam_sending", "Sending '{file}'...").format(file=args.file))
+        # Jika LocalSend terpasang, panggil localsend
+        if shutil.which("localsend"):
+            subprocess.run(["localsend", args.file])
+        else:
+            print("[k-beam] Membuka receiver mode untuk mengirim file...")
+            start_beam_receiver()
+
+if __name__ == "__main__":
+    main()
