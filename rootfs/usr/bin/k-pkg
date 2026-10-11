@@ -92,22 +92,32 @@ def install_package(manifest: dict, non_interactive: bool = False):
 
     if method == "flatpak":
         if shutil.which("flatpak"):
-            subprocess.run(["flatpak", "install", "-y", "flathub", pkg], check=False)
+            res = subprocess.run(["flatpak", "install", "-y", "flathub", pkg], check=False)
+            ok = res.returncode == 0
         else:
-            print(f"[k-pkg Emulasi] flatpak install -y flathub {pkg}")
+            print("[k-pkg Error] 'flatpak' tidak terpasang - instalasi TIDAK dilakukan.")
+            ok = False
     elif method == "aur":
         k_aur = os.path.join(SCRIPT_DIR, "k-aur") if os.path.isfile(os.path.join(SCRIPT_DIR, "k-aur")) else "k-aur"
-        subprocess.run([k_aur, "install", pkg], check=False)
+        res = subprocess.run([k_aur, "install", pkg], check=False)
+        ok = res.returncode == 0
     elif method == "brew":
         if shutil.which("brew"):
-            subprocess.run(["brew", "install", pkg], check=False)
+            res = subprocess.run(["brew", "install", pkg], check=False)
+            ok = res.returncode == 0
         else:
-            print(f"[k-pkg Emulasi] brew install {pkg}")
+            print("[k-pkg Error] 'brew' tidak terpasang - instalasi TIDAK dilakukan.")
+            ok = False
     else:
         print(f"[k-pkg] Mengarahkan ke k-interceptor untuk metode '{method}'...")
-        subprocess.run(["k-interceptor", "install", pkg], check=False)
+        res = subprocess.run(["k-interceptor", "install", pkg], check=False)
+        ok = res.returncode == 0
 
-    print(f"[k-pkg] Paket '{name}' siap digunakan!")
+    if ok:
+        print(f"[k-pkg] Paket '{name}' siap digunakan!")
+    else:
+        print(f"[k-pkg Error] Pemasangan '{name}' GAGAL - jangan klaim siap digunakan.")
+        sys.exit(1)
     print("=" * 65)
     print()
 
