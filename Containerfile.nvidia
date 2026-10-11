@@ -1,0 +1,67 @@
+# ==============================================================================
+# Kalacakra OS - Nvidia Target Containerfile (Proprietary Nvidia Driver Base)
+# Architecture: Triad (Debian Stability Philosophy + Fedora/uBlue + Arch Spaces)
+# ==============================================================================
+
+FROM ghcr.io/ublue-os/kinoite-nvidia:latest
+
+LABEL org.opencontainers.image.title="Kalacakra OS (Nvidia)"
+LABEL org.opencontainers.image.description="Kalacakra OS with Pre-baked Proprietary Nvidia Drivers and Secure Boot MOK Signing"
+LABEL org.opencontainers.image.licenses="GPL-3.0-or-later"
+LABEL org.opencontainers.image.vendor="Kalacakra OS Project"
+
+# 1. Pemasangan paket bahasa, security, terminal, kernel schedulers, dan dev tools
+RUN rpm-ostree install \
+    glibc-langpack-id \
+    glibc-langpack-en \
+    langpacks-id \
+    langpacks-en \
+    snapper \
+    zram-generator \
+    distrobox \
+    podman \
+    wireguard-tools \
+    tailscale \
+    firewalld \
+    usbguard \
+    gamemode \
+    gamescope \
+    mangohud \
+    ptyxis \
+    just \
+    scx-scheds \
+    plasma-vault \
+    fastfetch \
+    starship \
+    bat \
+    eza \
+    fzf \
+    zoxide \
+    jq \
+    bubblewrap && \
+    rpm-ostree cleanup -m
+
+# 2. Pemasangan biner resmi Ollama
+RUN curl -fsSL https://ollama.com/download/ollama-linux-amd64.tar.gz | tar -xz -C /usr/
+
+# 3. Pemasangan biner whisper.cpp untuk offline speech-to-text
+RUN curl -fsSL -o /usr/bin/whisper-cli https://github.com/ggerganov/whisper.cpp/releases/download/v1.7.4/whisper-cli-linux-x86_64 && \
+    chmod 0755 /usr/bin/whisper-cli || true
+
+# 4. Injeksi overlay filesystem (konfigurasi sistem, security hardening, CLI tools)
+COPY rootfs/ /
+
+# 5. Pastikan seluruh skrip CLI eksekutabel
+RUN chmod 0755 \
+    /usr/bin/kalacakra \
+    /usr/bin/k-interceptor \
+    /usr/bin/k-ai \
+    /usr/bin/k-aur \
+    /usr/bin/k-doctor \
+    /usr/share/kalacakra/scripts/battery-cap.sh 2>/dev/null || true
+
+# 6. Aktifkan service sistem esensial
+RUN systemctl enable zram-generator.service && \
+    systemctl enable tailscaled.service && \
+    systemctl enable firewalld.service && \
+    systemctl enable usbguard.service

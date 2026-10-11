@@ -1,0 +1,14 @@
+[Unit]
+Description=Kalacakra OS - Local Private AI Daemon (Ollama)
+Documentation=https://github.com/kalacakra-os
+After=network.target
+
+[Service]
+ExecStart=/usr/bin/ollama serve
+Restart=always
+RestartSec=3
+Environment="OLLAMA_HOST=127.0.0.1:11434"
+Environment="OLLAMA_ORIGINS=*"
+
+[Install]
+WantedBy=default.target

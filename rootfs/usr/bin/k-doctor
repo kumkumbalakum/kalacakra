@@ -1,0 +1,136 @@
+#!/usr/bin/env python3
+"""
+Kalacakra OS - k-doctor
+Comprehensive System Health, Integrity & Maintenance Utility (Bilingual EN/ID)
+"""
+
+import os
+import sys
+import json
+import shutil
+import subprocess
+
+LOCALES_DIR = "/usr/share/kalacakra/locales"
+
+def get_locale_strings():
+    lang = os.environ.get("LANG", "en_US.UTF-8")
+    is_id = "id" in lang.lower()
+    locale_file = os.path.join(LOCALES_DIR, "id.json" if is_id else "en.json")
+    if os.path.isfile(locale_file):
+        try:
+            with open(locale_file, "r", encoding="utf-8") as f:
+                return json.load(f), "id" if is_id else "en"
+        except Exception:
+            pass
+    return {}, "id" if is_id else "en"
+
+def run_cmd(cmd_list):
+    try:
+        res = subprocess.run(cmd_list, capture_output=True, text=True, check=False)
+        return res.stdout.strip(), res.returncode
+    except Exception as e:
+        return str(e), 1
+
+def check_btrfs():
+    out, code = run_cmd(["btrfs", "filesystem", "df", "/"])
+    if code == 0:
+        return "OK", out.split("\n")[0]
+    return "WARN", "Btrfs tools not active or not Btrfs root"
+
+def check_zram():
+    out, code = run_cmd(["zramctl"])
+    if code == 0 and "zram0" in out:
+        return "OK", "Active (zstd compressed)"
+    return "INFO", "Standard swap or inactive"
+
+def check_ai_service():
+    out, code = run_cmd(["systemctl", "--user", "is-active", "kalacakra-ai.service"])
+    if out == "active":
+        return "OK", "Running (Ollama @ 127.0.0.1:11434)"
+    return "INFO", "Disabled / Standby"
+
+def check_containers():
+    out, code = run_cmd(["podman", "images", "-f", "dangling=true", "-q"])
+    if code == 0:
+        count = len([x for x in out.split("\n") if x])
+        if count > 0:
+            return "CLEANABLE", f"{count} dangling container images"
+        return "OK", "0 dangling images"
+    return "INFO", "Podman daemon not in use"
+
+def check_flatpak_unused():
+    out, code = run_cmd(["flatpak", "list", "--unused"])
+    if code == 0 and out:
+        count = len(out.split("\n"))
+        return "CLEANABLE", f"{count} unused Flatpak runtimes"
+    return "OK", "No unused runtimes"
+
+def check_battery():
+    threshold_found = False
+    for bat in ["/sys/class/power_supply/BAT0", "/sys/class/power_supply/BAT1"]:
+        limit_file = os.path.join(bat, "charge_control_limit_max")
+        if os.path.isfile(limit_file):
+            try:
+                with open(limit_file, "r") as f:
+                    val = f.read().strip()
+                return "OK", f"Cap active at {val}%"
+            except Exception:
+                pass
+    return "INFO", "Default 100% or desktop PC without battery"
+
+def main():
+    strings, lang = get_locale_strings()
+    clean_mode = "--clean" in sys.argv
+
+    print()
+    print("=" * 60)
+    print(strings.get("doctor_header", "=== Kalacakra OS System Health Doctor ==="))
+    print("=" * 60)
+
+    # 1. Btrfs
+    status, msg = check_btrfs()
+    print(f"[{status:^6}] Filesystem Root (Btrfs) : {msg}")
+
+    # 2. ZRAM
+    status, msg = check_zram()
+    print(f"[{status:^6}] ZRAM Swap Engine        : {msg}")
+
+    # 3. AI Service
+    status, msg = check_ai_service()
+    print(f"[{status:^6}] Local AI Daemon (k-ai)  : {msg}")
+
+    # 4. Containers
+    status_cont, msg_cont = check_containers()
+    print(f"[{status_cont:^6}] Container Storage       : {msg_cont}")
+
+    # 5. Flatpak
+    status_fp, msg_fp = check_flatpak_unused()
+    print(f"[{status_fp:^6}] Flatpak Runtimes        : {msg_fp}")
+
+    # 6. Battery
+    status, msg = check_battery()
+    print(f"[{status:^6}] Battery Preservation    : {msg}")
+
+    print("-" * 60)
+
+    if clean_mode or (status_cont == "CLEANABLE" or status_fp == "CLEANABLE"):
+        if not clean_mode:
+            prompt = "Bersihkan file usang sekarang? / Clean unused files now? [Y/n]: "
+            try:
+                ans = input(prompt).strip().lower()
+            except (KeyboardInterrupt, EOFError):
+                ans = "n"
+        else:
+            ans = "y"
+
+        if ans in ("", "y", "yes"):
+            print(strings.get("doctor_clean_cache", "Cleaning caches..."))
+            subprocess.run(["flatpak", "uninstall", "--unused", "-y"], check=False)
+            subprocess.run(["podman", "system", "prune", "-f"], check=False)
+            print("[OK] Pembersihan selesai! / Cleanup complete!")
+    else:
+        print(strings.get("doctor_all_healthy", "All systems are healthy and operating optimally!"))
+    print()
+
+if __name__ == "__main__":
+    main()

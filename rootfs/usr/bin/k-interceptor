@@ -1,0 +1,98 @@
+#!/usr/bin/env python3
+"""
+Kalacakra OS - Universal Command Interceptor
+Intercepts traditional package manager commands (apt, pacman, yay) on the immutable host
+and guides the user to install software cleanly via Flatpak, Spaces (Distrobox), Homebrew, or ostree.
+"""
+
+import os
+import sys
+import json
+import subprocess
+
+LOCALES_DIR = "/usr/share/kalacakra/locales"
+
+def get_locale_strings():
+    lang = os.environ.get("LANG", "en_US.UTF-8")
+    is_id = "id" in lang.lower()
+    locale_file = os.path.join(LOCALES_DIR, "id.json" if is_id else "en.json")
+    if os.path.isfile(locale_file):
+        try:
+            with open(locale_file, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except Exception:
+            pass
+    return {}
+
+def extract_target_packages(args):
+    # Filter out flags (starting with -) and subcommands like 'install' or '-S'
+    skip_tokens = {"install", "remove", "update", "upgrade", "-S", "-Syu", "-Syy", "-R", "-U", "-y", "-q"}
+    packages = [arg for arg in args if not arg.startswith("-") and arg not in skip_tokens]
+    return packages
+
+def main():
+    if len(sys.argv) < 2:
+        print("Usage: k-interceptor <command> [args...]")
+        sys.exit(1)
+
+    intercepted_cmd = sys.argv[1]
+    cmd_args = sys.argv[2:]
+    strings = get_locale_strings()
+
+    # Extract package names
+    packages = extract_target_packages(cmd_args)
+    pkg_str = " ".join(packages) if packages else " ".join(cmd_args)
+
+    print()
+    print(strings.get("interceptor_title", "[Kalacakra Interceptor] Host system is Immutable (Protected)."))
+    msg_available = strings.get("interceptor_pkg_available", "Command '{cmd} {args}' detected.").format(
+        cmd=intercepted_cmd,
+        args=" ".join(cmd_args)
+    )
+    print(msg_available)
+    print()
+    print(strings.get("interceptor_prompt", "Choose your preferred installation method:"))
+    print(f"  [1] {strings.get('interceptor_opt_flatpak', 'Flatpak (Recommended for GUI apps)')}")
+    print(f"  [2] {strings.get('interceptor_opt_arch', 'Kalacakra Space (Arch Linux Container / AUR via k-aur)')}")
+    print(f"  [3] {strings.get('interceptor_opt_debian', 'Kalacakra Space (Debian / Ubuntu Container)')}")
+    print(f"  [4] {strings.get('interceptor_opt_brew', 'Homebrew on Linux (CLI tool isolated in /home)')}")
+    print(f"  [5] {strings.get('interceptor_opt_layer', 'Layer to Host OS (rpm-ostree - requires reboot)')}")
+    print()
+
+    choice_prompt = strings.get("interceptor_choice", "Your choice [1-5]: ")
+    try:
+        choice = input(choice_prompt).strip()
+    except (KeyboardInterrupt, EOFError):
+        print("\nAborted.")
+        sys.exit(0)
+
+    if choice == "1":
+        # Flatpak
+        print(f"\n[Kalacakra] Searching and installing via Flatpak for: {pkg_str}...")
+        for pkg in packages:
+            subprocess.run(["flatpak", "install", "--user", "flathub", pkg])
+    elif choice == "2":
+        # Arch / k-aur
+        print(f"\n[Kalacakra] Forwarding to Kalacakra Arch Space (k-aur) for: {pkg_str}...")
+        subprocess.run(["/usr/bin/k-aur", "install"] + packages)
+    elif choice == "3":
+        # Debian Space
+        print(f"\n[Kalacakra] Ensuring Debian space exists...")
+        subprocess.run(["distrobox", "create", "--name", "kalacakra-debian", "--image", "debian:stable", "--yes"], check=False)
+        print(f"[Kalacakra] Installing inside Debian space: {pkg_str}...")
+        subprocess.run(["distrobox", "enter", "kalacakra-debian", "--", "sudo", "apt", "update"])
+        subprocess.run(["distrobox", "enter", "kalacakra-debian", "--", "sudo", "apt", "install", "-y"] + packages)
+    elif choice == "4":
+        # Homebrew
+        print(f"\n[Kalacakra] Installing via Homebrew: {pkg_str}...")
+        subprocess.run(["brew", "install"] + packages)
+    elif choice == "5":
+        # rpm-ostree
+        print(f"\n[Kalacakra] Layering package to immutable host: {pkg_str}...")
+        subprocess.run(["sudo", "rpm-ostree", "install"] + packages)
+    else:
+        print(strings.get("interceptor_invalid", "Invalid choice."))
+        sys.exit(1)
+
+if __name__ == "__main__":
+    main()

@@ -1,0 +1,80 @@
+#!/usr/bin/env bash
+# ==============================================================================
+# Kalacakra OS - k-aur
+# Seamless Arch Linux AUR integration via isolated Distrobox container
+# Automatically installs packages and exports .desktop shortcuts to host
+# ==============================================================================
+
+set -euo pipefail
+
+CONTAINER_NAME="kalacakra-arch"
+IMAGE="docker.io/library/archlinux:latest"
+
+# Fungsi memastikan container Arch ada dan siap
+ensure_container() {
+    if ! distrobox list | grep -q "$CONTAINER_NAME"; then
+        echo "[k-aur] Menginisialisasi Kalacakra Arch Space container..."
+        distrobox create --name "$CONTAINER_NAME" --image "$IMAGE" --yes
+        
+        echo "[k-aur] Menyiapkan base-devel & git di dalam container..."
+        distrobox enter "$CONTAINER_NAME" -- sudo pacman -Syu --noconfirm base-devel git
+        
+        echo "[k-aur] Memasang AUR helper (paru-bin)..."
+        distrobox enter "$CONTAINER_NAME" -- bash -c '
+            cd /tmp
+            git clone https://aur.archlinux.org/paru-bin.git
+            cd paru-bin
+            makepkg -si --noconfirm
+            rm -rf /tmp/paru-bin
+        '
+    fi
+}
+
+cmd="${1:-}"
+
+if [ -z "$cmd" ]; then
+    echo "Penggunaan / Usage: k-aur <install|search|remove|enter|list> [paket]"
+    echo "Contoh: k-aur install visual-studio-code-bin"
+    exit 0
+fi
+
+case "$cmd" in
+    install|-S)
+        shift
+        PACKAGE="$1"
+        ensure_container
+        echo "[k-aur] Menginstal '$PACKAGE' via paru di Arch Space..."
+        distrobox enter "$CONTAINER_NAME" -- paru -S --noconfirm "$PACKAGE"
+        
+        echo "[k-aur] Mengekspor aplikasi ke menu host desktop..."
+        distrobox enter "$CONTAINER_NAME" -- distrobox-export --app "$PACKAGE" 2>/dev/null || true
+        distrobox enter "$CONTAINER_NAME" -- distrobox-export --bin "/usr/bin/$PACKAGE" 2>/dev/null || true
+        echo "[k-aur] Berhasil! Aplikasi '$PACKAGE' kini tersedia di host menu & terminal."
+        ;;
+    search|-Ss)
+        shift
+        ensure_container
+        distrobox enter "$CONTAINER_NAME" -- paru -Ss "$@"
+        ;;
+    remove|-R)
+        shift
+        PACKAGE="$1"
+        ensure_container
+        distrobox enter "$CONTAINER_NAME" -- paru -R --noconfirm "$PACKAGE"
+        distrobox enter "$CONTAINER_NAME" -- distrobox-export --app "$PACKAGE" --delete 2>/dev/null || true
+        echo "[k-aur] '$PACKAGE' berhasil dihapus dari container & host menu."
+        ;;
+    enter)
+        ensure_container
+        distrobox enter "$CONTAINER_NAME"
+        ;;
+    list)
+        ensure_container
+        distrobox enter "$CONTAINER_NAME" -- pacman -Qe
+        ;;
+    *)
+        echo "[k-aur] Perintah tidak dikenal: $cmd"
+        echo "Gunakan: k-aur install <paket>"
+        exit 1
+        ;;
+esac

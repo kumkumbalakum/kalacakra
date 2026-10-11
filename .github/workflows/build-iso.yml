@@ -1,0 +1,38 @@
+name: Build Bootable ISO via bootc-image-builder
+
+on:
+  workflow_dispatch:
+  release:
+    types: [published]
+
+jobs:
+  build-iso:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      packages: read
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Build ISO using bootc-image-builder
+        run: |
+          mkdir -p output
+          sudo podman run \
+            --rm \
+            --privileged \
+            --security-opt label=type:unconfined_t \
+            -v ./output:/output \
+            -v /var/lib/containers/storage:/var/lib/containers/storage \
+            quay.io/centos-bootc/bootc-image-builder:latest \
+            --type iso \
+            ghcr.io/${{ github.repository_owner }}/kalacakra-os:latest
+
+      - name: Upload Bootable ISO Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: kalacakra-os-installer-iso
+          path: output/bootiso/*.iso
+          if-no-files-found: error
+          retention-days: 14

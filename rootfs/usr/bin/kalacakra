@@ -1,0 +1,93 @@
+#!/usr/bin/env python3
+"""
+Kalacakra OS - Central System Management CLI
+Provides a unified entry point for maintenance, recipe execution, and configuration.
+"""
+
+import os
+import sys
+import json
+import subprocess
+import argparse
+
+LOCALES_DIR = "/usr/share/kalacakra/locales"
+
+def get_locale_strings(lang_override=None):
+    lang = lang_override or os.environ.get("LANG", "en_US.UTF-8")
+    is_id = "id" in lang.lower()
+    locale_file = os.path.join(LOCALES_DIR, "id.json" if is_id else "en.json")
+    
+    if os.path.isfile(locale_file):
+        try:
+            with open(locale_file, "r", encoding="utf-8") as f:
+                return json.load(f), "id" if is_id else "en"
+        except Exception:
+            pass
+    return {}, "id" if is_id else "en"
+
+def main():
+    parser = argparse.ArgumentParser(
+        prog="kalacakra",
+        description="Kalacakra OS Central System Management CLI"
+    )
+    parser.add_argument("--lang", choices=["id", "en"], help="Override display language")
+    subparsers = parser.add_subparsers(dest="command", help="System command to execute")
+
+    subparsers.add_parser("update", help="Update host OS, Flatpak, Homebrew, and Spaces")
+    subparsers.add_parser("clean", help="Clean unused Flatpak runtimes, caches, and dangling containers")
+    subparsers.add_parser("doctor", help="Run comprehensive system health check")
+    
+    p_model = subparsers.add_parser("install-model", help="Download local Ollama AI model")
+    p_model.add_argument("model", nargs="?", default="llama3.2:1b", help="Model name (e.g. llama3.2:1b, qwen2.5:3b)")
+
+    p_scx = subparsers.add_parser("scx", help="Switch dynamic CPU scheduler (sched-ext)")
+    p_scx.add_argument("scheduler", choices=["lavd", "rusty", "default"], help="Scheduler target (lavd/rusty/default)")
+
+    p_rebase = subparsers.add_parser("rebase", help="Rebase OS image to another target without reinstall")
+    p_rebase.add_argument("target", choices=["nvidia", "base"], help="Target variant (nvidia/base)")
+
+    p_bat = subparsers.add_parser("battery-cap", help="Set battery charge limit percentage")
+    p_bat.add_argument("limit", nargs="?", default="80", help="Charge limit percentage (default 80)")
+
+    p_lang = subparsers.add_parser("lang", help="Switch system language")
+    p_lang.add_argument("code", choices=["id", "en"], help="Language code (id/en)")
+
+    args, unknown = parser.parse_known_args()
+    strings, current_lang = get_locale_strings(args.lang)
+
+    if not args.command:
+        # Default behavior: run 'just --list' or print banner
+        print("=== Kalacakra OS Control CLI ===")
+        if current_lang == "id":
+            print("Gunakan 'kalacakra --help' untuk melihat daftar perintah.")
+        else:
+            print("Use 'kalacakra --help' to see available commands.")
+        
+        # If Justfile exists, display available recipes
+        if os.path.isfile("/usr/share/kalacakra/Justfile") or os.path.isfile("Justfile"):
+            justfile = "/usr/share/kalacakra/Justfile" if os.path.isfile("/usr/share/kalacakra/Justfile") else "Justfile"
+            subprocess.run(["just", "--justfile", justfile, "--list"])
+        sys.exit(0)
+
+    # Route commands to Justfile or direct executables
+    justfile = "/usr/share/kalacakra/Justfile" if os.path.isfile("/usr/share/kalacakra/Justfile") else "Justfile"
+    
+    if args.command == "doctor":
+        sys.exit(subprocess.run(["/usr/bin/k-doctor"]).returncode)
+    elif args.command == "update":
+        sys.exit(subprocess.run(["just", "--justfile", justfile, "update"]).returncode)
+    elif args.command == "clean":
+        sys.exit(subprocess.run(["just", "--justfile", justfile, "clean"]).returncode)
+    elif args.command == "install-model":
+        sys.exit(subprocess.run(["just", "--justfile", justfile, "install-model", f"model={args.model}"]).returncode)
+    elif args.command == "scx":
+        sys.exit(subprocess.run(["just", "--justfile", justfile, "scx", f"scheduler={args.scheduler}"]).returncode)
+    elif args.command == "rebase":
+        sys.exit(subprocess.run(["just", "--justfile", justfile, "rebase", f"target={args.target}"]).returncode)
+    elif args.command == "battery-cap":
+        sys.exit(subprocess.run(["just", "--justfile", justfile, "battery-cap", f"limit={args.limit}"]).returncode)
+    elif args.command == "lang":
+        sys.exit(subprocess.run(["just", "--justfile", justfile, "lang", f"code={args.code}"]).returncode)
+
+if __name__ == "__main__":
+    main()

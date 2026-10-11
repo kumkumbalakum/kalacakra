@@ -1,0 +1,157 @@
+#!/usr/bin/env python3
+"""
+Kalacakra OS - k-ai Terminal Companion & Error Diagnostic
+Natural Language to Bash translator, stderr analyzer, with Secret Redaction & Safety Gate.
+Supports English & Bahasa Indonesia out-of-the-box.
+"""
+
+import os
+import sys
+import re
+import json
+import urllib.request
+import urllib.error
+import subprocess
+import argparse
+
+LOCALES_DIR = "/usr/share/kalacakra/locales"
+DEFAULT_OLLAMA_URL = os.environ.get("OLLAMA_URL", "http://127.0.0.1:11434/api/generate")
+DEFAULT_MODEL = os.environ.get("KALACAKRA_AI_MODEL", "llama3.2:1b")
+
+# Regex pattern untuk menyensor rahasia / secret sebelum dikirim ke AI
+SECRET_PATTERNS = [
+    r"(?i)(api[_-]?key|secret|token|password|auth|bearer)\s*[:=]\s*['\"]?([A-Za-z0-9_\-\.]{8,})['\"]?",
+    r"ghp_[A-Za-z0-9]{36}",                          # GitHub Personal Access Token
+    r"AKIA[0-9A-Z]{16}",                             # AWS Access Key
+    r"-----BEGIN (?:RSA |EC )?PRIVATE KEY-----[\s\S]+?-----END (?:RSA |EC )?PRIVATE KEY-----", # SSH/SSL Key
+    r"eyJ[A-Za-z0-9_-]{10,}\.eyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}" # JWT Token
+]
+
+def get_locale_strings():
+    lang = os.environ.get("LANG", "en_US.UTF-8")
+    is_id = "id" in lang.lower()
+    locale_file = os.path.join(LOCALES_DIR, "id.json" if is_id else "en.json")
+    if os.path.isfile(locale_file):
+        try:
+            with open(locale_file, "r", encoding="utf-8") as f:
+                return json.load(f), "id" if is_id else "en"
+        except Exception:
+            pass
+    return {}, "id" if is_id else "en"
+
+def redact_secrets(text: str) -> str:
+    redacted = text
+    for pattern in SECRET_PATTERNS:
+        redacted = re.sub(pattern, "[REDACTED_SECRET]", redacted)
+    return redacted
+
+def call_ollama(prompt: str, system_prompt: str, model: str = DEFAULT_MODEL) -> str:
+    payload = {
+        "model": model,
+        "prompt": prompt,
+        "system": system_prompt,
+        "stream": False
+    }
+    data = json.dumps(payload).encode("utf-8")
+    req = urllib.request.Request(
+        DEFAULT_OLLAMA_URL,
+        data=data,
+        headers={"Content-Type": "application/json"}
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=30) as resp:
+            result = json.loads(resp.read().decode("utf-8"))
+            return result.get("response", "").strip()
+    except urllib.error.URLError as e:
+        return f"ERROR: Tidak dapat terhubung ke Ollama daemon (localhost:11434). Pastikan 'systemctl --user start kalacakra-ai' aktif. Detail: {e}"
+
+def clean_code_block(text: str) -> str:
+    match = re.search(r"```(?:bash|sh)?\n?(.*?)\n?```", text, re.DOTALL)
+    if match:
+        return match.group(1).strip()
+    return text.strip()
+
+def main():
+    parser = argparse.ArgumentParser(
+        prog="k-ai",
+        description="Kalacakra OS Terminal Companion & Diagnostic (EN/ID)"
+    )
+    parser.add_argument("query", nargs="*", help="Natural language request or error text")
+    parser.add_argument("--diagnose", "-d", action="store_true", help="Diagnose last terminal error")
+    parser.add_argument("--yes", "-y", action="store_true", help="Skip safety prompt")
+    parser.add_argument("--model", "-m", default=DEFAULT_MODEL, help="Target Ollama model")
+
+    args = parser.parse_args()
+    strings, current_lang = get_locale_strings()
+
+    # Gabungkan input query
+    raw_query = " ".join(args.query)
+
+    # Cek apakah ada input via stdin (pipe error log)
+    if not sys.stdin.isatty():
+        stdin_content = sys.stdin.read().strip()
+        if stdin_content:
+            raw_query = f"{raw_query}\n{stdin_content}".strip()
+            args.diagnose = True
+
+    if not raw_query:
+        print("[k-ai] Silakan masukkan pertanyaan atau perintah bahasa alami / Please enter a prompt.")
+        print("Contoh: k-ai 'cari file video yang lebih dari 500mb'")
+        print("Example: k-ai 'find video files larger than 500MB'")
+        sys.exit(0)
+
+    # 1. Secret Sanitization Guardrail
+    sanitized_query = redact_secrets(raw_query)
+    if sanitized_query != raw_query:
+        print(strings.get("ai_secret_redacted", "[k-ai Shield] Sensitive secrets detected and automatically redacted."))
+
+    # 2. System prompt bilingual
+    if args.diagnose:
+        system_prompt = (
+            "You are a Linux system diagnostic expert on Kalacakra OS (Fedora bootc / KDE Plasma 6). "
+            "Analyze the given error and provide a concise diagnosis and the exact command to fix it. "
+            "Reply in the same language as the user (Indonesian or English). "
+            "Include the command inside a ```bash ... ``` code block."
+        )
+    else:
+        system_prompt = (
+            "You are a terminal command generator for Kalacakra OS (Linux, modern bash). "
+            "Convert the user's natural language request into a single, correct, and safe Bash command. "
+            "OUTPUT ONLY the Bash command inside a ```bash ... ``` code block without conversational filler."
+        )
+
+    print(f"[k-ai] Berpikir / Thinking using '{args.model}'...")
+    response = call_ollama(sanitized_query, system_prompt, model=args.model)
+
+    if response.startswith("ERROR:"):
+        print(response)
+        sys.exit(1)
+
+    suggested_cmd = clean_code_block(response)
+
+    if args.diagnose:
+        print("\n=== [k-ai Diagnostik] ===")
+        print(response)
+        print()
+    else:
+        print()
+        print(strings.get("ai_safety_warning", "[k-ai Guard] Perintah berikut akan dieksekusi:"))
+        print(f"\n  $ {suggested_cmd}\n")
+
+        if args.yes:
+            confirm = "y"
+        else:
+            prompt_confirm = strings.get("ai_safety_confirm", "Jalankan perintah ini? [Y/n]: ")
+            try:
+                confirm = input(prompt_confirm).strip().lower()
+            except (KeyboardInterrupt, EOFError):
+                confirm = "n"
+
+        if confirm in ("", "y", "yes"):
+            print("[k-ai] Menjalankan perintah...")
+            subprocess.run(suggested_cmd, shell=True)
+        else:
+            print(strings.get("ai_aborted", "Eksekusi dibatalkan."))
+
+if __name__ == "__main__":
+    main()
