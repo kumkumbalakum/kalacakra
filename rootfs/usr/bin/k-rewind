@@ -24,9 +24,12 @@ except ImportError:
         return {}, "en"
 
 def run_snapper_list():
-    res = subprocess.run(["snapper", "list"], capture_output=True, text=True, check=False)
-    if res.returncode == 0:
-        return res.stdout.strip()
+    try:
+        res = subprocess.run(["snapper", "list"], capture_output=True, text=True, check=False)
+        if res.returncode == 0:
+            return res.stdout.strip()
+    except FileNotFoundError:
+        return None
     return None
 
 def find_snapshot_path(snapshot_id: str) -> str:
@@ -79,11 +82,16 @@ def main():
 
     if args.command == "create":
         print(f"[k-rewind] Membuat snapshot baru: '{args.description}'...")
-        res = subprocess.run(["snapper", "create", "-d", args.description], check=False)
+        try:
+            res = subprocess.run(["snapper", "create", "-d", args.description], check=False)
+        except FileNotFoundError:
+            print("[k-rewind Error] 'snapper' tidak terpasang di sistem ini.")
+            sys.exit(1)
         if res.returncode == 0:
             print("[OK] Titik waktu berhasil disimpan! / Snapshot created successfully!")
         else:
             print("[WARN] Snapper command returned non-zero code. Pastikan subvolume @snapshots ter-mount.")
+            sys.exit(res.returncode)
 
     elif args.command == "restore":
         snap_path = find_snapshot_path(args.snapshot_id)

@@ -1,0 +1,12 @@
+[Desktop Entry]
+Name=Kalacakra 1-Click Package Installer
+Name[id]=Pemasang Paket 1-Klik Kalacakra
+Comment=One-click application installer for .kpkg files and web schemes
+Comment[id]=Pemasang aplikasi 1-klik untuk berkas .kpkg dan skema web
+Exec=/usr/bin/k-pkg %u
+Terminal=true
+Type=Application
+Icon=system-software-install
+Categories=System;PackageManager;
+MimeType=x-scheme-handler/kalacakra;application/x-kalacakra-pkg;
+NoDisplay=true

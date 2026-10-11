@@ -308,6 +308,29 @@ kalacakra doctor            # Menjalankan diagnostik menyeluruh sistem
   * Unified SSH-Agent session autostart di `/etc/profile.d/kalacakra-ssh-agent.sh`.
   * Integrasi sensor sidik jari laptop (*Touch ID* ala Mac) via `fprintd` untuk otorisasi login dan `sudo` tanpa perlu mengetik ulang password.
 
+### **6.18 Kalacakra Control Hub: YaST-Style Unified TUI Management (`k-hub`)**
+* Dashboard administrasi sistem terpadu berbasis terminal (TUI) interaktif terinspirasi dari YaST openSUSE.
+* Mengelola seluruh aspek sistem tanpa ketergantungan GUI: status SELinux Enforcing, USBGuard, eBPF CPU sched-ext, batas preservasi baterai 80%, AI daemon status, Snapper rollback, dan alih bahasa sistem.
+
+### **6.19 Kalacakra QA: openQA-Style Automated Verification & Testing Engine (`k-qa`)**
+* Engine verifikasi kualitas dan regresi otomatis untuk mengaudit integritas OCI bootc image dan sistem berjalan.
+* Memvalidasi ketersediaan seluruh binary eksekutabel, kelengkapan kamus i18n dwibahasa, konfigurasi sysctl kernel, dan integrasi desktop KIO sebelum maupun sesudah pembaruan sistem. Mendukung laporan JSON untuk pipeline CI/CD.
+
+### **6.20 Kalacakra SnapBoot: Btrfs Snapper Bootloader Integration (`k-snapboot`)**
+* Integrasi snapshot Btrfs langsung ke menu bootloader (`systemd-boot` / `GRUB`) ala `grub2-snapper-plugin` openSUSE.
+* Mengizinkan pengguna memilih dan mem-booting langsung snapshot riwayat masa lalu dari layar bootloader saat komputer dinyalakan, menjamin pemulihan instan jika konfigurasi bermasalah.
+
+### **6.21 Kalacakra Profile: Workload Stacks Ala Zypper Patterns (`k-profile`)**
+* Mekanisme pemasangan stack beban kerja kurasi siap pakai dalam 1 perintah deklaratif:
+  * `web-dev`: VS Code, Postman, Node.js, TypeScript di dalam Arch Space terisolasi.
+  * `content-creator`: Kdenlive, OBS Studio, GIMP, Audacity via Flatpak.
+  * `data-science`: JupyterLab, Python scientific stack, dan PyTorch.
+  * `gaming`: Steam, Heroic Launcher, MangoHud, Gamemode, ProtonUp-Qt.
+  * `cybersec`: Sandbox Arch Space berisikan network auditing tools.
+
+### **6.22 Kalacakra 1-Click: OBS-Style Package & URL Scheme Installer (`k-pkg`)**
+* Penangan berkas paket deklaratif `.kpkg` dan web URL scheme (`kalacakra://install?...`) ala Open Build Service (OBS) 1-Click Install.
+* Mengurai manifes aplikasi dari web browser dan mengeksekusi instalasi aman ke Flatpak, Arch Space, atau Homebrew dengan gerbang konfirmasi privasi.
 
 ---
 
@@ -486,6 +509,11 @@ Membangun utilitas inti dengan arsitektur i18n (menggunakan Rust / Go untuk perf
 16. `k-flow`: Universal Control roaming daemon untuk mouse & keyboard sharing lintas perangkat Wi-Fi lokal.
 17. `k-snippet`: Global text replacement manager terintegrasi konfigurasi Espanso untuk ekspansi teks instan.
 18. `k-keyring`: Zero-friction SDDM PAM KWallet auto-unlock, session SSH-Agent, dan enrollment sidik jari fprintd.
+19. `k-hub`: Centralized System TUI Dashboard terinspirasi YaST untuk administrasi tanpa GUI.
+20. `k-qa`: Headless automated verification & regression testing suite terinspirasi openQA.
+21. `k-snapboot`: Integrasi Snapper Btrfs snapshot langsung ke menu bootloader systemd-boot/GRUB.
+22. `k-profile`: Workload stack installer terinspirasi Zypper Patterns (web-dev, creator, AI, gaming, cybersec).
+23. `k-pkg`: 1-Click declarative package (.kpkg) and web URL scheme handler terinspirasi OBS.
 
 ### **Fase 3: Media Installer ISO & Delivery Pipeline**
 

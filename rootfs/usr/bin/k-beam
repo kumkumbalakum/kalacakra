@@ -7,10 +7,13 @@ Sends and receives files between Linux, Android, iOS, Windows, and Mac over loca
 
 import os
 import sys
+import shutil
 import socket
 import http.server
 import socketserver
 import urllib.parse
+import urllib.request
+import secrets
 import argparse
 import subprocess
 
@@ -38,29 +41,52 @@ def get_local_ip() -> str:
         s.close()
     return IP
 
-def start_beam_receiver(port: int = 53317, save_dir: str = None):
+def start_beam_receiver(port: int = 53317, save_dir: str = None, token: str = None):
     if not save_dir:
         save_dir = os.path.expanduser("~/Downloads/Beam")
+    save_dir = os.path.abspath(save_dir)
     os.makedirs(save_dir, exist_ok=True)
+
+    if not token:
+        token = secrets.token_urlsafe(16)
 
     ip = get_local_ip()
     print("=" * 60)
     print("=== [Kalacakra Beam] Receiver Server Active ===")
     print("=" * 60)
     print(f"IP Lokal          : http://{ip}:{port}")
+    print(f"Akses Token       : {token}")
     print(f"Direktori Simpan  : {save_dir}")
     print("-" * 60)
     print(f"Buka browser di HP/Tablet/PC lain pada Wi-Fi yang sama:")
-    print(f" -> http://{ip}:{port}")
+    print(f" -> http://{ip}:{port}/?token={token}")
     print("Tekan Ctrl+C untuk menghentikan server.")
-    print("-" * 60)
+    print("=" * 60)
 
     class BeamUploadHandler(http.server.SimpleHTTPRequestHandler):
+        # Nonaktifkan directory listing demi keamanan (file hanya lewat upload)
+        def list_directory(self, path):
+            self.send_error(403, "Directory listing disabled")
+            return None
+
+        def _check_token(self) -> bool:
+            parsed = urllib.parse.urlparse(self.path)
+            q = urllib.parse.parse_qs(parsed.query)
+            supplied = q.get("token", [""])[0]
+            return supplied == token and len(token) >= 8
+
         def __init__(self, *args, **kwargs):
             super().__init__(*args, directory=save_dir, **kwargs)
 
         def do_GET(self):
-            if self.path == "/":
+            parsed = urllib.parse.urlparse(self.path)
+            if parsed.path == "/":
+                if not self._check_token():
+                    self.send_response(403)
+                    self.send_header("Content-Type", "text/html; charset=utf-8")
+                    self.end_headers()
+                    self.wfile.write(b"<h2>403 - Token tidak valid. Buka link dari layar laptop penerima.</h2>")
+                    return
                 html = f"""<!DOCTYPE html>
 <html>
 <head>
@@ -77,7 +103,7 @@ def start_beam_receiver(port: int = 53317, save_dir: str = None):
     <div class="card">
         <h2>☸️ Kalacakra Beam</h2>
         <p>Kirim file langsung ke laptop ini secara instan:</p>
-        <form method="POST" enctype="multipart/form-data" action="/upload">
+        <form method="POST" enctype="multipart/form-data" action="/upload?token={token}">
             <input type="file" name="file" required><br>
             <button type="submit">Kirim File / Send File</button>
         </form>
@@ -89,10 +115,18 @@ def start_beam_receiver(port: int = 53317, save_dir: str = None):
                 self.end_headers()
                 self.wfile.write(html.encode("utf-8"))
             else:
-                super().do_GET()
+                # Cegah directory listing / akses file sembarang tanpa token
+                if self._check_token():
+                    super().do_GET()
+                else:
+                    self.send_error(403, "Invalid or missing token")
+                    return
 
         def do_POST(self):
-            if self.path == "/upload":
+            if self.path.startswith("/upload"):
+                if not self._check_token():
+                    self.send_error(403, "Invalid or missing token")
+                    return
                 content_type = self.headers.get("Content-Type", "")
                 if "multipart/form-data" in content_type:
                     length = int(self.headers.get('content-length', 0))
@@ -104,13 +138,19 @@ def start_beam_receiver(port: int = 53317, save_dir: str = None):
                         if b'filename="' in part:
                             head, file_data = part.split(b"\r\n\r\n", 1)
                             fname_match = head.split(b'filename="')[-1].split(b'"')[0].decode('utf-8', errors='ignore')
-                            if fname_match:
+                            # Pertahanan path traversal: hanya pakai basename, tolak path berisi direktori
+                            fname_match = os.path.basename(fname_match.replace("\\", "/"))
+                            if fname_match and fname_match not in (".", ".."):
                                 file_data = file_data.rsplit(b"\r\n--", 1)[0]
-                                out_path = os.path.join(save_dir, fname_match)
+                                out_path = os.path.abspath(os.path.join(save_dir, fname_match))
+                                # Double-check: hasil join wajib masih di dalam save_dir
+                                if not out_path.startswith(save_dir + os.sep):
+                                    print(f"[Kalacakra Beam] DITOLAK (path traversal): {fname_match}")
+                                    continue
                                 with open(out_path, "wb") as f:
                                     f.write(file_data)
                                 print(f"[Kalacakra Beam] File diterima: {fname_match} ({len(file_data)} bytes)")
-                    
+
                     self.send_response(200)
                     self.send_header("Content-Type", "text/html")
                     self.end_headers()
@@ -119,8 +159,12 @@ def start_beam_receiver(port: int = 53317, save_dir: str = None):
             self.send_response(400)
             self.end_headers()
 
+    socketserver.TCPServer.allow_reuse_address = True
     with socketserver.TCPServer(("", port), BeamUploadHandler) as httpd:
-        httpd.serve_forever()
+        try:
+            httpd.serve_forever()
+        except KeyboardInterrupt:
+            print("\n[k-beam] Server dihentikan.")
 
 def main():
     parser = argparse.ArgumentParser(
@@ -146,12 +190,40 @@ def main():
             print(f"[k-beam Error] Berkas '{args.file}' tidak ditemukan.")
             sys.exit(1)
         print(strings.get("beam_sending", "Sending '{file}'...").format(file=args.file))
-        # Jika LocalSend terpasang, panggil localsend
+        # 1. Jika LocalSend terpasang, panggil localsend
         if shutil.which("localsend"):
             subprocess.run(["localsend", args.file])
-        else:
-            print("[k-beam] Membuka receiver mode untuk mengirim file...")
-            start_beam_receiver()
+            sys.exit(0)
+        # 2. Jika target IP diberikan, unggah langsung ke receiver Beam target
+        if args.target:
+            token = input("Token akses dari layar penerima: ").strip()
+            url = f"http://{args.target}:53317/upload?token={urllib.parse.quote(token)}"
+            boundary = "KalacakraBeamBoundary"
+            fname = os.path.basename(args.file)
+            with open(args.file, "rb") as fh:
+                payload = fh.read()
+            body = (
+                f"--{boundary}\r\n"
+                f'Content-Disposition: form-data; name="file"; filename="{fname}"\r\n'
+                f"Content-Type: application/octet-stream\r\n\r\n"
+            ).encode() + payload + f"\r\n--{boundary}--\r\n".encode()
+            req = urllib.request.Request(
+                url, data=body,
+                headers={"Content-Type": f"multipart/form-data; boundary={boundary}"}
+            )
+            try:
+                with urllib.request.urlopen(req, timeout=60) as resp:
+                    print(f"[k-beam OK] Server membalas HTTP {resp.status} - file terkirim ke {args.target}.")
+            except Exception as e:
+                print(f"[k-beam Error] Gagal mengirim ke {args.target}: {e}")
+                sys.exit(1)
+            sys.exit(0)
+        # 3. Fallback: beri instruksi (jangan jalankan server blocking)
+        print("[k-beam] 'localsend' tidak terpasang dan target IP tidak diberikan.")
+        print("[k-beam] Cara kirim ke perangkat lain:")
+        print("   1. Di penerima jalankan: k-beam receive")
+        print("   2. Di sini jalankan    : k-beam send <file> <ip_penerima>")
+        sys.exit(1)
 
 if __name__ == "__main__":
     main()

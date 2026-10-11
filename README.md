@@ -13,18 +13,19 @@
 1. [Fitur Utama](#-fitur-utama-highlights)
 2. [6 Fitur Dahsyat (Killer Superpowers)](#-6-fitur-dahsyat-killer-superpowers)
 3. [5 Fitur Ergonomi macOS (macOS-Inspired Ergonomics)](#-5-fitur-ergonomi-macos-macos-inspired-ergonomics)
-4. [Panduan Instalasi & Deployment](#-panduan-instalasi--deployment)
-5. [Panduan Penggunaan Sehari-Hari](#-panduan-penggunaan-sehari-hari)
+4. [5 Fitur Keandalan openSUSE (openSUSE-Inspired Engineering)](#-5-fitur-keandalan-opensuse-opensuse-inspired-engineering)
+5. [Panduan Instalasi & Deployment](#-panduan-instalasi--deployment)
+6. [Panduan Penggunaan Sehari-Hari](#-panduan-penggunaan-sehari-hari)
    * [Perintah Kalacakra CLI](#1-perintah-kalacakra-cli)
    * [Universal Command Interceptor](#2-universal-command-interceptor-k-interceptor)
    * [AI Terminal Companion](#3-ai-terminal-companion-k-ai)
    * [Arch Linux AUR Integration](#4-arch-linux-aur-integration-k-aur)
    * [Dikte Suara & Pintasan Keyboard](#5-dikte-suara--pintasan-keyboard)
-6. [Panduan Build Image & ISO](#-panduan-build-image--iso)
+7. [Panduan Build Image & ISO](#-panduan-build-image--iso)
    * [Build via CI/CD Otomatis](#opsi-a-build-via-cicd-github-actions--gitea-actions)
    * [Build 100% Lokal di Komputer](#opsi-b-build-100-lokal-di-komputer-podman)
-7. [Struktur Repositori](#-struktur-repositori)
-8. [Lisensi & Spesifikasi](#-lisensi--spesifikasi)
+8. [Struktur Repositori](#-struktur-repositori)
+9. [Lisensi & Spesifikasi](#-lisensi--spesifikasi)
 
 ---
 
@@ -139,6 +140,52 @@ Keamanan tanpa friksi setara macOS Keychain:
 
 ---
 
+## 🦎 5 Fitur Keandalan openSUSE (openSUSE-Inspired Engineering)
+
+### 🎛️ 1. Kalacakra Control Hub: YaST-Style TUI Management (`k-hub`)
+Dashboard administrasi terpusat berbasis antarmuka terminal interaktif (TUI) ala YaST openSUSE yang dapat dioperasikan tanpa desktop GUI (sangat bermanfaat saat rescue mode atau via SSH):
+```bash
+kalacakra hub                       # Buka menu interaktif TUI
+kalacakra hub --status              # Ringkasan cepat SELinux, USBGuard, Sched-ext, & Btrfs
+```
+
+### 🧪 2. Kalacakra QA: openQA-Style Automated Verification (`k-qa`)
+Engine pengujian kualitas otomatis untuk memverifikasi integritas OS dan image OCI sebelum dan sesudah update:
+```bash
+kalacakra qa                        # Jalankan 5 uji regresi integritas sistem
+kalacakra qa --json                 # Format JSON untuk automasi CI/CD pipeline
+```
+* Memvalidasi seluruh biner CLI, integritas kamus i18n dwibahasa, konfigurasi sysctl kernel, dan integrasi desktop Dolphin KIO.
+
+### ⏱️ 3. Kalacakra SnapBoot: Btrfs Bootloader Integration (`k-snapboot`)
+Integrasi snapshot Snapper langsung ke menu bootloader (`systemd-boot`/`GRUB`) ala `grub2-snapper-plugin` openSUSE:
+```bash
+kalacakra snapboot list             # Daftar snapshot yang dapat di-booting langsung
+kalacakra snapboot sync             # Sinkronisasi snapshot ke entri menu bootloader
+kalacakra snapboot select 2         # Atur snapshot #2 sebagai target boot berikutnya
+```
+
+### 🧩 4. Kalacakra Workload Profiles: Zypper Patterns (`k-profile`)
+Pemasangan stack lingkungan kerja kurasi lengkap dalam satu perintah deklaratif tanpa mengotori host OS imutabel:
+```bash
+kalacakra profile list              # Lihat daftar profil beban kerja tersedia
+kalacakra profile apply web-dev     # Pasang VS Code, Postman, & Arch Space Node.js
+kalacakra profile apply content-creator # Pasang Kdenlive, OBS Studio, GIMP, Audacity
+kalacakra profile apply data-science   # Pasang JupyterLab & Python AI space
+kalacakra profile apply gaming         # Pasang Steam, Heroic, MangoHud, Gamemode
+kalacakra profile apply cybersec       # Pasang Arch Space dengan tools audit jaringan
+```
+
+### 📦 5. Kalacakra 1-Click Installer & Scheme Handler (`k-pkg`)
+Penangan instalasi 1-klik deklaratif ala Open Build Service (OBS) `.ymp` dan web scheme `kalacakra://`:
+```bash
+kalacakra pkg app.kpkg              # Pasang manifes aplikasi lokal
+kalacakra pkg "kalacakra://install?name=VLC&method=flatpak&package=org.videolan.VLC"
+```
+* Terintegrasi dengan web browser: Klik tautan di web, sistem langsung menampilkan dialog verifikasi keamanan dan mengeksekusi instalasi sandbox terisolasi.
+
+---
+
 ## 💿 Panduan Instalasi & Deployment
 
 ### Metode 1: Instalasi Baru via File ISO
@@ -184,6 +231,11 @@ kalacakra spotlight "100 $" # Kalkulasi matematika & konversi kurs cepat
 kalacakra flow server       # Universal Control mouse & keyboard roaming
 kalacakra snippet list      # Kelola pintasan teks global
 kalacakra keyring status    # Periksa status keyring, Touch ID, & SSH-agent
+kalacakra hub               # Buka Central Management TUI Dashboard (YaST-style)
+kalacakra qa                # Jalankan automated system QA & regression testing
+kalacakra snapboot sync     # Sinkronisasi snapshot Btrfs ke menu bootloader
+kalacakra profile apply dev # Pasang stack beban kerja lengkap (Zypper Patterns)
+kalacakra pkg app.kpkg      # Pasang aplikasi 1-klik deklaratif (OBS-style)
 ```
 
 ---
@@ -302,8 +354,10 @@ kalacakra/
 │       ├── bin/            # Kalacakra CLI suite:
 │       │                   # kalacakra, k-interceptor, k-ai, k-aur, k-doctor,
 │       │                   # k-rewind, k-beam, k-portal, k-ocr, k-survival, k-precache,
-│       │                   # k-preview, k-spotlight, k-flow, k-snippet, k-keyring
+│       │                   # k-preview, k-spotlight, k-flow, k-snippet, k-keyring,
+│       │                   # k-hub, k-qa, k-snapboot, k-profile, k-pkg
 │       └── share/
+│           ├── applications/ # Desktop entries & scheme handler (.kpkg / kalacakra://)
 │           ├── kalacakra/  # Fastfetch config, i18n locales (id/en), Justfile, shared lib
 │           └── kio/        # Dolphin context menu (Beam P2P, Game Launcher, Quick Look)
 ├── .github/workflows/      # Pipeline build OCI & bootc-image-builder ISO

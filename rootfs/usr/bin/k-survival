@@ -12,6 +12,7 @@ Extends emergency laptop battery life by 1.5 - 2 hours:
 import os
 import sys
 import glob
+import json
 import subprocess
 import argparse
 
@@ -29,41 +30,124 @@ except ImportError:
         return {}, "en"
 
 STATE_FILE = "/tmp/kalacakra-survival.active"
+CPU_STATE_FILE = "/tmp/kalacakra-survival.cpus"
 
-def set_grayscale_filter(enable: bool):
-    # KWin effect toggle via qdbus
-    effect = "kwin4_effect_grayscale"
-    try:
-        if enable:
-            subprocess.run(["qdbus", "org.kde.KWin", "/Effects", "loadEffect", effect], check=False)
-        else:
-            subprocess.run(["qdbus", "org.kde.KWin", "/Effects", "unloadEffect", effect], check=False)
-    except Exception:
-        pass
+def _has_cmd(cmd: str) -> bool:
+    import shutil
+    return shutil.which(cmd) is not None
 
-def drop_refresh_rate(enable: bool):
+def set_grayscale_filter(enable: bool) -> bool:
+    """Toggle efek grayscale KWin. Mengembalikan True jika efek berhasil dimuat."""
+    if not _has_cmd("qdbus"):
+        return False
+    # Cari ID efek grayscale yang tersedia di instalasi KWin saat ini
+    candidates = ["kwin4_effect_grayscale", "coloringscreen", "grayscale"]
     try:
-        if enable:
-            # Cari mode 40Hz/48Hz/60Hz terendah via kscreen-doctor
-            subprocess.run(["kscreen-doctor", "output.1.mode.lowest"], check=False)
-        else:
-            subprocess.run(["kscreen-doctor", "output.1.mode.highest"], check=False)
+        res = subprocess.run(
+            ["qdbus", "org.kde.KWin", "/Effects", "listEffects"],
+            capture_output=True, text=True, check=False
+        )
+        available = set(res.stdout.split())
+        effect = next((e for e in candidates if e in available), None)
+        if effect is None:
+            return False
+        action = "loadEffect" if enable else "unloadEffect"
+        load = subprocess.run(
+            ["qdbus", "org.kde.KWin", "/Effects", action, effect],
+            check=False
+        )
+        return load.returncode == 0
     except Exception:
-        pass
+        return False
+
+def drop_refresh_rate(enable: bool) -> bool:
+    if not _has_cmd("kscreen-doctor"):
+        return False
+    try:
+        arg = "output.1.mode.lowest" if enable else "output.1.mode.highest"
+        res = subprocess.run(["kscreen-doctor", arg], check=False)
+        return res.returncode == 0
+    except Exception:
+        return False
 
 def cap_cpu_frequency(enable: bool):
-    for cpu_max in glob.glob("/sys/devices/system/cpu/cpu*/cpufreq/scaling_max_freq"):
-        try:
-            freq = "800000" if enable else "4500000"
-            subprocess.run(["sudo", "sh", "-c", f"echo {freq} > {cpu_max}"], check=False)
-        except Exception:
-            pass
+    """Simpan frekuensi maksimum asli sebelum menurunkannya, dan KEMBALIKAN nilai asli
+    saat mode nonaktif (bukan hardcode 4.5GHz yang bisa melebihi kemampuan CPU)."""
+    cpufreq_files = glob.glob("/sys/devices/system/cpu/cpu*/cpufreq/scaling_max_freq")
+    if enable:
+        original_values = {}
+        for cpu_max in cpufreq_files:
+            try:
+                with open(cpu_max, "r") as f:
+                    original_values[cpu_max] = f.read().strip()
+            except Exception:
+                pass
+        # Simpan nilai asli (sekali saja, sebelum diturunkan)
+        if original_values and not os.path.isfile(CPU_STATE_FILE):
+            try:
+                with open(CPU_STATE_FILE, "w") as f:
+                    json.dump(original_values, f)
+            except Exception:
+                pass
+        for cpu_max in cpufreq_files:
+            try:
+                subprocess.run(["sudo", "-n", "sh", "-c", f"echo 800000 > {cpu_max}"],
+                               capture_output=True, check=False)
+            except Exception:
+                pass
+    else:
+        original_values = {}
+        if os.path.isfile(CPU_STATE_FILE):
+            try:
+                with open(CPU_STATE_FILE, "r") as f:
+                    original_values = json.load(f)
+            except Exception:
+                pass
+        for cpu_max in cpufreq_files:
+            # Fallback: baca cpuinfo_max_freq (batas aman hardware) jika state hilang
+            target = original_values.get(cpu_max)
+            if not target:
+                try:
+                    with open(cpu_max.replace("scaling_max_freq", "cpuinfo_max_freq"), "r") as f:
+                        target = f.read().strip()
+                except Exception:
+                    continue
+            try:
+                subprocess.run(["sudo", "-n", "sh", "-c", f"echo {target} > {cpu_max}"],
+                               capture_output=True, check=False)
+            except Exception:
+                pass
+        if os.path.isfile(CPU_STATE_FILE):
+            try:
+                os.remove(CPU_STATE_FILE)
+            except Exception:
+                pass
 
 def manage_ai_service(enable_survival: bool):
+    """Hanya matikan AI service jika sedang aktif; JANGAN menyalakannya kembali
+    jika memang tidak pernah aktif sebelumnya."""
     if enable_survival:
-        subprocess.run(["systemctl", "--user", "stop", "kalacakra-ai.service"], check=False)
+        # Tandai status awal sebelum dihentikan
+        try:
+            res = subprocess.run(["systemctl", "--user", "is-active", "kalacakra-ai.service"],
+                                 capture_output=True, text=True, check=False)
+            if res.stdout.strip() == "active":
+                with open("/tmp/kalacakra-survival.ai-was-active", "w") as f:
+                    f.write("active")
+            subprocess.run(["systemctl", "--user", "stop", "kalacakra-ai.service"], check=False)
+        except Exception:
+            pass
     else:
-        subprocess.run(["systemctl", "--user", "start", "kalacakra-ai.service"], check=False)
+        # Hanya start kembali jika sebelumnya aktif
+        if os.path.isfile("/tmp/kalacakra-survival.ai-was-active"):
+            try:
+                os.remove("/tmp/kalacakra-survival.ai-was-active")
+            except Exception:
+                pass
+            try:
+                subprocess.run(["systemctl", "--user", "start", "kalacakra-ai.service"], check=False)
+            except Exception:
+                pass
 
 def main():
     parser = argparse.ArgumentParser(
@@ -84,13 +168,25 @@ def main():
     target_on = not is_active if args.action == "toggle" else (args.action == "on")
 
     if target_on:
-        print(strings.get("survival_enabled", "[Kalacakra Survival] Mode Darurat Aktif: Layar Monokrom, 40Hz, CPU Cap 800MHz."))
-        set_grayscale_filter(True)
-        drop_refresh_rate(True)
+        applied, skipped = [], []
+        if set_grayscale_filter(True):
+            applied.append("grayscale")
+        else:
+            skipped.append("grayscale (efek KWin tak tersedia)")
+        if drop_refresh_rate(True):
+            applied.append("refresh-rate")
+        else:
+            skipped.append("refresh-rate (kscreen-doctor absen)")
         cap_cpu_frequency(True)
+        applied.append("cpu-cap 800MHz" if os.path.isfile(CPU_STATE_FILE)
+                       else "cpu-cap (butuh sudo tanpa password - nilai tidak tersimpan)")
         manage_ai_service(True)
         with open(STATE_FILE, "w") as f:
             f.write("active")
+        print(strings.get("survival_enabled", "[Kalacakra Survival] Mode Darurat Aktif: Layar Monokrom, 40Hz, CPU Cap 800MHz."))
+        print(f"[k-survival] Aktif : {', '.join(applied)}")
+        if skipped:
+            print(f"[k-survival] Lewat : {', '.join(skipped)}")
         subprocess.run(["notify-send", "-u", "critical", "Kalacakra Survival Mode", "Layar monokrom aktif, CPU dibatasi untuk memperpanjang sisa baterai."], check=False)
     else:
         print(strings.get("survival_disabled", "[Kalacakra Survival] Mode Darurat Nonaktif: Tampilan dan performa normal dipulihkan."))
@@ -100,6 +196,7 @@ def main():
         manage_ai_service(False)
         if is_active:
             os.remove(STATE_FILE)
+        print("[k-survival] Frekuensi CPU dikembalikan ke nilai asli hardware (bukan hardcode).")
         subprocess.run(["notify-send", "Kalacakra Normal Mode", "Performa dan warna layar penuh dipulihkan."], check=False)
 
 if __name__ == "__main__":

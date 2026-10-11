@@ -122,3 +122,24 @@ snippet action="list":
 keyring action="status":
     @/usr/bin/k-keyring {{action}}
 
+# Kalacakra Control Hub - Pusat Kendali Terpadu Ala YaST (TUI Dashboard)
+hub action="":
+    @/usr/bin/k-hub {{action}}
+
+# Kalacakra QA - Validasi & Pengujian Regresi Otomatis Ala openQA
+qa action="":
+    @/usr/bin/k-qa {{action}}
+
+# Kalacakra SnapBoot - Sinkronisasi & Integrasi Snapshot Snapper ke Menu Bootloader
+snapboot action="list":
+    @/usr/bin/k-snapboot {{action}}
+
+# Kalacakra Profile - Pemasangan Paket Stack Kerja Lengkap Ala Zypper Patterns
+profile action="list":
+    @/usr/bin/k-profile {{action}}
+
+# Kalacakra 1-Click - Pemasangan Paket & Skema Web 1-Klik Ala OBS
+pkg target="":
+    @/usr/bin/k-pkg {{target}}
+
+

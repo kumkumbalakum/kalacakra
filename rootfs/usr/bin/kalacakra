@@ -104,6 +104,22 @@ def main():
     p_key = subparsers.add_parser("keyring", help="Kalacakra Keyring - Zero-friction PAM auto-unlock & Touch ID")
     p_key.add_argument("subaction", nargs="*", help="Keyring action (status/enroll-finger/setup)")
 
+    # 5 Fitur openSUSE (YaST, openQA, Snapper Boot, Patterns, OBS 1-Click)
+    p_hub = subparsers.add_parser("hub", help="Kalacakra Control Hub - YaST-style centralized management TUI")
+    p_hub.add_argument("subaction", nargs="*", help="Hub arguments (--status)")
+
+    p_qa = subparsers.add_parser("qa", help="Kalacakra QA - openQA-style automated system regression tests")
+    p_qa.add_argument("subaction", nargs="*", help="QA arguments (--json)")
+
+    p_sb = subparsers.add_parser("snapboot", help="Kalacakra SnapBoot - Snapper bootloader snapshot integration")
+    p_sb.add_argument("subaction", nargs="*", help="SnapBoot action (list/sync/select)")
+
+    p_prof = subparsers.add_parser("profile", help="Kalacakra Profile - Zypper Patterns-style workload stacks")
+    p_prof.add_argument("subaction", nargs="*", help="Profile action (list/apply)")
+
+    p_pkg = subparsers.add_parser("pkg", help="Kalacakra 1-Click - OBS-style package & scheme installer")
+    p_pkg.add_argument("target", nargs="*", help="Package file, name, or kalacakra:// URL")
+
     args, unknown = parser.parse_known_args()
     strings, current_lang = get_locale_strings(args.lang)
 
@@ -145,6 +161,16 @@ def main():
         sys.exit(subprocess.run([find_bin("k-snippet")] + args.subaction).returncode)
     elif args.command == "keyring":
         sys.exit(subprocess.run([find_bin("k-keyring")] + args.subaction).returncode)
+    elif args.command == "hub":
+        sys.exit(subprocess.run([find_bin("k-hub")] + args.subaction).returncode)
+    elif args.command == "qa":
+        sys.exit(subprocess.run([find_bin("k-qa")] + args.subaction).returncode)
+    elif args.command == "snapboot":
+        sys.exit(subprocess.run([find_bin("k-snapboot")] + args.subaction).returncode)
+    elif args.command == "profile":
+        sys.exit(subprocess.run([find_bin("k-profile")] + args.subaction).returncode)
+    elif args.command == "pkg":
+        sys.exit(subprocess.run([find_bin("k-pkg")] + args.target).returncode)
     elif args.command == "update":
         sys.exit(subprocess.run(["just", "--justfile", justfile, "update"]).returncode)
     elif args.command == "clean":

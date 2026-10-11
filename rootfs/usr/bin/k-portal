@@ -39,29 +39,42 @@ def get_local_ip() -> str:
 
 def start_portal(port: int = 5800):
     strings, current_lang = get_locale_strings()
+    import shutil as _shutil
+
+    if not _shutil.which("wayvnc"):
+        print("[k-portal Error] 'wayvnc' tidak terpasang di sistem ini.")
+        print("[k-portal] Monitor kedua nirkabel TIDAK dapat dijalankan.")
+        print("[k-portal] Pasang wayvnc terlebih dahulu (mis. via rpm-ostree layering")
+        print("           atau gunakan image yang menyertakan wayvnc).")
+        sys.exit(1)
+
     print(strings.get("portal_starting", "[Kalacakra Portal] Starting virtual second display..."))
 
     ip = get_local_ip()
 
-    # 1. Cek wayvnc atau backend streaming
     cmd = ["wayvnc", "--render-cursor", "0.0.0.0", str(port)]
     try:
         proc = subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         with open(PID_FILE, "w") as f:
             f.write(str(proc.pid))
     except FileNotFoundError:
-        # Fallback simulated server jika binary wayvnc belum terpasang
-        print("[k-portal INFO] wayvnc tidak terdeteksi, menjalankan mode compatibility web streamer...")
+        print("[k-portal Error] wayvnc gagal dijalankan. / Failed to start wayvnc.")
+        sys.exit(1)
 
     print("=" * 65)
-    print("=== [Kalacakra Portal] Wireless Monitor Ready ===")
+    print("=== [Kalacakra Portal] VNC Server Ready ===")
     print("=" * 65)
     print(f"Alamat IP Host   : {ip}")
     print(f"Port Streaming   : {port}")
     print("-" * 65)
     print(strings.get("portal_ready", "[Kalacakra Portal] Buka di browser tablet: http://{ip}:5800").format(ip=ip))
-    print("Mendukung input touch & pen stylus dari tablet ke desktop!")
-    print("Gunakan 'k-portal stop' untuk mematikan monitor virtual.")
+    print("⚠ PERINGATAN KEAMANAN: wayvnc listen di SEMUA interface (0.0.0.0)")
+    print("  dan umumnya TANPA password - siapa pun di jaringan yang sama bisa")
+    print("  melihat & mengontrol layar Anda. Batasi ke jaringan tepercaya / firewall,")
+    print("  atau atur password di ~/.config/wayvnc/config.")
+    print("  Catatan: cara kerja = mirror layar utama (bukan layar kedua virtual),")
+    print("  input yang diteruskan = mouse & keyboard (bukan touch/pen stylus).")
+    print("Gunakan 'k-portal stop' untuk mematikan server.")
     print("=" * 65)
 
 def stop_portal():

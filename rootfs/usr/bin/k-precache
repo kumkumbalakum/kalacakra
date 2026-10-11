@@ -38,6 +38,24 @@ def find_fossilize_databases():
                 databases.append(db)
     return databases
 
+def find_fossilize_replay():
+    """Cari fossilize_replay: PATH, lalu Steam runtime (fossilizeReplay bundled)."""
+    import shutil
+    found = shutil.which("fossilize_replay") or shutil.which("fossilizeReplay")
+    if found:
+        return found
+    # Cari di dalam runtime Steam / Proton
+    patterns = [
+        os.path.expanduser("~/.local/share/Steam/ubuntu12_32/steam-runtime/usr/bin/fossilize_replay"),
+        os.path.expanduser("~/.steam/steam/ubuntu12_32/steam-runtime/usr/bin/fossilize_replay"),
+        os.path.expanduser("~/.local/share/Steam/steamapps/common/Proton*/files/bin/fossilize_replay"),
+    ]
+    for p in patterns:
+        matches = glob.glob(p)
+        if matches and os.path.isfile(matches[0]) and os.access(matches[0], os.X_OK):
+            return matches[0]
+    return None
+
 def precompile_shaders():
     databases = find_fossilize_databases()
     if not databases:
@@ -45,18 +63,25 @@ def precompile_shaders():
         print("Pastikan opsi 'Shader Pre-caching' aktif di pengaturan Steam.")
         return
 
+    replay = find_fossilize_replay()
+    if not replay:
+        print("[k-precache WARN] 'fossilize_replay' TIDAK ditemukan - kompilasi TIDAK dijalankan.")
+        print("   Database ditemukan, tetapi tool replay tidak ada di sistem maupun Steam runtime.")
+        print("   Kompilasi shader tetap ditangani otomatis oleh Steam saat game dijalankan.")
+        return
+
     print(f"[k-precache] Ditemukan {len(databases)} database pipeline shader game.")
+    ok_count = 0
     for db in databases:
         game_id = os.path.basename(os.path.dirname(db))
         print(f" -> Memproses Game AppID {game_id}...")
-        # Jalankan fossilize_replay jika tersedia
-        if shutil_which("fossilize_replay"):
-            subprocess.run(["fossilize_replay", db], check=False)
-    print("[k-precache OK] Kompilasi shader selesai! Game siap dimainkan tanpa stuttering.")
-
-def shutil_which(cmd: str) -> bool:
-    import shutil
-    return shutil.which(cmd) is not None
+        res = subprocess.run([replay, db], check=False)
+        if res.returncode == 0:
+            ok_count += 1
+    if ok_count:
+        print(f"[k-precache OK] Kompilasi shader selesai untuk {ok_count}/{len(databases)} database.")
+    else:
+        print("[k-precache WARN] Tidak ada database yang berhasil dikompilasi.")
 
 def main():
     parser = argparse.ArgumentParser(

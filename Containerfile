@@ -80,6 +80,11 @@ RUN chmod 0755 \
     /usr/bin/k-flow \
     /usr/bin/k-snippet \
     /usr/bin/k-keyring \
+    /usr/bin/k-hub \
+    /usr/bin/k-qa \
+    /usr/bin/k-snapboot \
+    /usr/bin/k-profile \
+    /usr/bin/k-pkg \
     /etc/profile.d/kalacakra-ssh-agent.sh \
     /usr/share/kalacakra/scripts/battery-cap.sh 2>/dev/null || true
 

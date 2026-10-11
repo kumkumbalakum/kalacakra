@@ -1,0 +1,140 @@
+#!/usr/bin/env python3
+"""
+Kalacakra OS - k-profile
+Workload Profiles & Presets Engine (Zypper Patterns Style)
+Deploys curated, complete development, creator, gaming, or security stacks
+using Flatpaks and isolated Distrobox Spaces in one command without polluting host OS.
+"""
+
+import os
+import sys
+import shutil
+import subprocess
+import argparse
+
+if hasattr(sys.stdout, "reconfigure"):
+    try:
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    except Exception:
+        pass
+
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+LIB_PATH = os.path.abspath(os.path.join(SCRIPT_DIR, "..", "share", "kalacakra", "lib"))
+if os.path.isdir(LIB_PATH) and LIB_PATH not in sys.path:
+    sys.path.insert(0, LIB_PATH)
+elif "/usr/share/kalacakra/lib" not in sys.path and os.path.isdir("/usr/share/kalacakra/lib"):
+    sys.path.insert(0, "/usr/share/kalacakra/lib")
+
+try:
+    from kalacakra_common import get_locale_strings
+except ImportError:
+    def get_locale_strings(lang_override=None):
+        return {}, "en"
+
+PROFILES = {
+    "web-dev": {
+        "title": "Full-Stack Web Development",
+        "description": "Visual Studio Code, Postman, Node.js, TypeScript, & Container Space",
+        "flatpaks": ["com.visualstudio.code", "com.getpostman.Postman"],
+        "space": "kalacakra-dev",
+        "space_packages": ["nodejs", "npm", "git", "ripgrep"]
+    },
+    "content-creator": {
+        "title": "Audio, Video & Multimedia Creator",
+        "description": "Kdenlive Video Editor, OBS Studio 60fps, GIMP, & Audacity",
+        "flatpaks": ["org.kde.kdenlive", "com.obsproject.Studio", "org.gimp.GIMP", "org.audacityteam.Audacity"],
+        "space": None
+    },
+    "data-science": {
+        "title": "Data Science & AI Engineering",
+        "description": "JupyterLab, Python Scientific Stack (NumPy/Pandas/PyTorch), & Ollama Tools",
+        "flatpaks": ["org.jupyter.JupyterLab"],
+        "space": "kalacakra-ai",
+        "space_packages": ["python", "python-pip", "python-numpy"]
+    },
+    "gaming": {
+        "title": "Pro Gaming & Emulation Suite",
+        "description": "Steam, Heroic Launcher, MangoHud, ProtonUp-Qt, & Gamemode",
+        "flatpaks": ["com.valvesoftware.Steam", "com.heroicgameslauncher.hgl", "net.davidotek.pupgui2"],
+        "space": None
+    },
+    "cybersec": {
+        "title": "Cybersecurity & Network Auditing",
+        "description": "Isolated Arch Linux Space equipped with network analysis & security tools",
+        "flatpaks": [],
+        "space": "kalacakra-sec",
+        "space_packages": ["nmap", "wireshark-cli", "curl", "bind-tools"]
+    }
+}
+
+def list_profiles():
+    print()
+    print("=" * 72)
+    print("=== [Kalacakra Profiles] Pola Preset Beban Kerja (Patterns) ===")
+    print("=" * 72)
+    for name, p in PROFILES.items():
+        print(f" ▶ {name:<18} : {p['title']}")
+        print(f"   └─ {p['description']}")
+    print("-" * 72)
+    print("Gunakan 'k-profile apply <nama>' untuk memasang stack kerja lengkap.")
+    print("=" * 72)
+    print()
+
+def apply_profile(name: str):
+    strings, current_lang = get_locale_strings()
+    if name not in PROFILES:
+        print(f"[k-profile Error] Profil '{name}' tidak ditemukan.")
+        print(f"Profil tersedia: {', '.join(PROFILES.keys())}")
+        sys.exit(1)
+
+    profile = PROFILES[name]
+    print()
+    print("=" * 70)
+    print(f"=== Memasang Profil Kerja: {profile['title']} ===")
+    print("=" * 70)
+
+    # 1. Pasang Flatpak
+    if profile["flatpaks"]:
+        print(f"[k-profile] Menyiapkan {len(profile['flatpaks'])} aplikasi Flatpak...")
+        for fp in profile["flatpaks"]:
+            print(f"  └─ Memasang: {fp}")
+            if shutil.which("flatpak"):
+                subprocess.run(["flatpak", "install", "-y", "flathub", fp], check=False)
+
+    # 2. Siapkan Distrobox Space jika diperlukan
+    if profile.get("space"):
+        space_name = profile["space"]
+        print(f"[k-profile] Menyiapkan Kalacakra Space terisolasi '{space_name}'...")
+        if shutil.which("distrobox"):
+            subprocess.run(["distrobox", "create", "--name", space_name, "--image", "ghcr.io/ublue-os/arch-distrobox:latest", "-Y"], check=False)
+            if profile.get("space_packages"):
+                pkgs = " ".join(profile["space_packages"])
+                print(f"[k-profile] Memasang paket di dalam space: {pkgs}")
+                subprocess.run(["distrobox", "enter", space_name, "--", "sudo", "pacman", "-S", "--noconfirm"] + profile["space_packages"], check=False)
+
+    print("-" * 70)
+    msg = strings.get("profile_applied", "Profil lingkungan '{name}' berhasil dipasang dan dikonfigurasi!").format(name=name)
+    print(msg)
+    print("=" * 70)
+    print()
+
+def main():
+    parser = argparse.ArgumentParser(
+        prog="k-profile",
+        description="Kalacakra Profile - Zypper Patterns-style Workload Stacks"
+    )
+    subparsers = parser.add_subparsers(dest="command")
+    subparsers.add_parser("list", help="List available workload profiles")
+    
+    p_app = subparsers.add_parser("apply", help="Apply and install a workload profile")
+    p_app.add_argument("name", choices=list(PROFILES.keys()), help="Profile name to apply")
+
+    args = parser.parse_args()
+
+    if not args.command or args.command == "list":
+        list_profiles()
+    elif args.command == "apply":
+        apply_profile(args.name)
+
+if __name__ == "__main__":
+    main()

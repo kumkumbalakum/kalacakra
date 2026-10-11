@@ -37,7 +37,16 @@ class TestKalacakraCommon(unittest.TestCase):
             "spotlight_calculating",
             "flow_starting",
             "snippet_added",
-            "keyring_configured"
+            "keyring_configured",
+            "hub_header",
+            "qa_header",
+            "qa_passed",
+            "snapboot_header",
+            "snapboot_synced",
+            "profile_header",
+            "profile_applied",
+            "pkg_header",
+            "pkg_installing"
         ]
 
         for lang in ["id", "en"]:
