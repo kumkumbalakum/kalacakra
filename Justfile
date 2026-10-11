@@ -35,6 +35,20 @@ install-model model="llama3.2:1b":
     @echo "=== [Kalacakra AI] Downloading model {{model}} ==="
     @ollama pull {{model}}
 
+# Unduh model whisper.cpp untuk dikte suara offline (k-voice)
+# Pakai: just install-whisper-model size=small   (tiny|base|small|medium)
+install-whisper-model size="small":
+    @echo "=== [Kalacakra Voice] Downloading whisper.cpp ggml-{{size}} model ==="
+    @mkdir -p ~/.cache/whisper
+    @if [ ! -f ~/.cache/whisper/ggml-{{size}}.bin ]; then \
+        curl -fL --progress-bar \
+          -o ~/.cache/whisper/ggml-{{size}}.bin \
+          "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-{{size}}.bin"; \
+        echo "Model tersimpan di ~/.cache/whisper/ggml-{{size}}.bin"; \
+    else \
+        echo "Model sudah ada: ~/.cache/whisper/ggml-{{size}}.bin"; \
+    fi
+
 # Ganti penjadwal CPU dinamis (scx_lavd untuk gaming, scx_rusty untuk throughput)
 scx scheduler="lavd":
     @echo "=== [Kalacakra SCX] Switching scheduler to scx_{{scheduler}} ==="

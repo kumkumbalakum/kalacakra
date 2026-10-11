@@ -58,7 +58,7 @@ def start_beam_receiver(port: int = 53317, save_dir: str = None, token: str = No
     print(f"Akses Token       : {token}")
     print(f"Direktori Simpan  : {save_dir}")
     print("-" * 60)
-    print(f"Buka browser di HP/Tablet/PC lain pada Wi-Fi yang sama:")
+    print("Buka browser di HP/Tablet/PC lain pada Wi-Fi yang sama:")
     print(f" -> http://{ip}:{port}/?token={token}")
     print("Tekan Ctrl+C untuk menghentikan server.")
     print("=" * 60)

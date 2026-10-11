@@ -38,7 +38,7 @@
 * 🇮🇩 / 🇺🇸 **Native Dual Language (EN/ID):** Sistem dwibahasa penuh sejak boot pertama di seluruh elemen: GUI KDE Plasma 6, CLI tooling, voice Whisper, dan AI Terminal Companion.
 * 🚀 **Universal Command Interceptor (`k-interceptor`):** Mencegat perintah `sudo apt install` atau `pacman -S` pada host imutabel dan memandu instalasi ke Flatpak, Arch Space, Debian Space, atau Homebrew tanpa kebingungan.
 * ⚡ **Kernel Sched-ext (SCX Framework):** Penggantian *CPU scheduler* secara dinamis via eBPF (`scx_lavd` untuk gaming ultra-low latency, `scx_rusty` untuk kompilasi kode).
-* 🤖 **Local Private AI (`k-ai`) & Voice (`Super + V`):** Didukung runtime Ollama dan `whisper.cpp` offline lokal (dioptimalkan untuk NPU/GPU), dengan *Secret Sanitizer* otomatis untuk mencegah kebocoran data sensitif.
+* 🤖 **Local Private AI (`k-ai`) & Voice (`k-voice` / `Super + V`):** Didukung runtime Ollama dan `whisper.cpp` offline lokal, dengan *Secret Sanitizer* otomatis untuk mencegah kebocoran data sensitif.
 * 🎮 **Game Ready Profile:** Pre-configured Steam, Heroic Launcher, ProtonUp-Qt, MangoHud, gamemode, dan UMU Proton Launcher (.exe context menu).
 * 🔒 **Enterprise-Grade Security:** Cosign image signature verification, SELinux Enforcing, MOK Secure Boot, USBGuard screen-lock binding, DNS-over-TLS (DoT), dan kesiapan Post-Quantum Cryptography (PQC).
 
@@ -63,47 +63,51 @@ Transfer file berkecepatan Gigabit lokal antar laptop Linux, Windows, Mac, dan H
   kalacakra beam receive            # Membuka server upload lokal di http://<ip>:53317
   ```
 
-### 🖥️ 3. Kalacakra Portal (Monitor Kedua Nirkabel untuk Tablet / HP)
-Jadikan iPad, tablet Android, ponsel, atau laptop lama Anda sebagai monitor kedua 60fps dengan latensi ultra-rendah melalui Wayland:
+### 🖥️ 3. Kalacakra Portal (Mirror Layar ke Tablet / HP via VNC)
+Pantau layar laptop di tablet, HP, atau laptop lama lewat browser pada jaringan Wi-Fi yang sama:
 ```bash
-kalacakra portal start              # Aktifkan portal layar kedua
-kalacakra portal stop               # Matikan portal layar kedua
+kalacakra portal start              # Aktifkan server VNC (wayvnc) di port 5800
+kalacakra portal stop               # Matikan portal
 ```
-* Buka browser di tablet Anda: `http://<IP-Laptop>:5800`. Layar kedua langsung aktif dengan dukungan input sentuh (*touch screen*) dan *pen stylus*!
+* Buka `http://<IP-Laptop>:5800` di perangkat lain.
+* **Cara kerja jujur:** ini adalah **mirror layar utama** (bukan layar kedua virtual), dikirim via `wayvnc`. Input yang diteruskan adalah **mouse & keyboard** — bukan sentuhan layar/stylus sebagai tablet input.
+* **Keamanan:** `wayvnc` umumnya listen di semua interface **tanpa password**. Hanya gunakan di jaringan tepercaya, atau atur password di `~/.config/wayvnc/config`.
 
 ### 📷 4. AI Smart Screenshot with Local OCR (`Super + Shift + T`)
-Ekstrak teks secara instan dari video YouTube, gambar tutorial, atau aplikasi apa pun yang teksnya tidak bisa diblok:
-* Tekan tombol **`Super + Shift + T`** -> seleksi area layar.
-* Teks otomatis diekstrak menggunakan engine Tesseract offline dwibahasa (Indonesia + Inggris) dan **langsung disalin ke clipboard**.
-* Opsi terjemahan instan: `kalacakra ocr --translate`.
+Ekstrak teks dari video, gambar tutorial, atau aplikasi apa pun:
+* Tekan **`Super + Shift + T`** → seleksi area layar (`slurp` + `grim`).
+* Teks diekstrak oleh `tesseract` offline dwibahasa (Indonesia + Inggris) dan **disalin ke clipboard**.
+* Opsi terjemahan instan: `kalacakra ocr --translate` (dirutekan ke `k-ai` lokal).
 
 ### 🔋 5. Ultra-Battery Survival Mode (`k-survival`)
-Penyelamat darurat ketika baterai laptop tersisa 10%:
+Penyelamat darurat ketika baterai tersisa sedikit:
 ```bash
 kalacakra survival on               # Aktifkan mode darurat
 kalacakra survival off              # Kembalikan ke mode normal
 ```
-* **Efek:** Mengubah layar menjadi **Monokrom Grayscale** (menghemat baterai OLED hingga 40%), menurunkan refresh rate layar ke **40Hz/30Hz**, membatasi frekuensi CPU ke **800MHz**, dan menidurkan daemon latar belakang. Menambah daya tahan ekstra 1,5 – 2 jam!
+* **Efek nyata:** menurunkan refresh rate layar ke mode terendah (`kscreen-doctor`), membatasi frekuensi CPU ke 800MHz (frekuensi asli disimpan & dikembalikan saat `off`), memuat efek grayscale KWin **jika tersedia**, dan menidurkan `kalacakra-ai.service` jika sedang aktif.
+* **Perkiraan:** penghematan baterai OLED dari grayscale + refresh rate rendah **bervariasi per perangkat** — umumnya terasa signifikan (<20% konsumsi layar), tetapi tidak ada angka jaminan universal. Tool ini melaporkan komponen mana yang berhasil aktif dan mana yang dilewati.
 
 ### 🎮 6. Vulkan Anti-Stutter Pre-Cache Engine (`k-precache`)
-Mengeliminasi *micro-stuttering* saat game Proton pertama kali dibuka:
+Mengurangi *micro-stuttering* saat game Proton pertama dibuka:
 ```bash
 kalacakra precache                  # Kompilasi pipeline shader DXVK/VKD3D di latar belakang
 ```
-* Saat game dimainkan, seluruh *shader* grafis sudah terkompilasi penuh; FPS langsung terkunci mulus 60–144 FPS sejak detik pertama!
+* Menemukan database Fossilize Steam dan menjalankan `fossilize_replay` (termasuk di dalam Steam runtime) untuk mengompilasi shader lebih awal.
+* **Catatan jujur:** ini **mengurangi** stutter akibat kompilasi shader parsial, bukan menjamin FPS terkunci mulus sejak detik pertama — performa akhir tetap bergantung GPU, driver, dan Proton.
 
 ---
 
 ## 🍎 5 Fitur Ergonomi macOS (macOS-Inspired Ergonomics)
 
-### 🔍 1. Quick Look: Pratinjau Berkas Instan 0.1s (`k-preview` / `Space` di Dolphin)
-Arahkan kursor dan tekan tombol **`Spasi`** pada berkas apa pun di file manager Dolphin untuk melihat pratinjau instan tanpa menunggu aplikasi berat terbuka:
-* **Markdown (`.md`)**: Dirender visual indah dengan `glow`.
-* **PDF & Gambar**: Tampilan instan resolusi penuh (`okular` / `gwenview`).
-* **Arsip (`.zip`, `.tar.gz`)**: Struktur isi folder arsip langsung terbaca tanpa perlu mengekstrak.
-* **Source Code**: Teks program dengan pewarnaan sintaks kaya (`bat`).
+### 🔍 1. Quick Look: Pratinjau Berkas Instan (`k-preview` / Klik Kanan di Dolphin)
+Arahkan kursor ke berkas apa pun di file manager Dolphin, klik kanan → **"Quick Look Preview (Kalacakra)"**, untuk melihat pratinjau instan tanpa membuka aplikasi berat:
+* **Markdown (`.md`)**: Dirender dengan `glow`.
+* **PDF & Gambar**: Tampilan instan (`okular` / `gwenview`).
+* **Arsip (`.zip`, `.tar.gz`)**: Daftar isi arsip tanpa mengekstrak.
+* **Source Code**: Teks program dengan pewarnaan sintaks (`bat`).
 ```bash
-kalacakra preview dokumen.pdf       # Pratinjau via CLI atau tekan Spasi di Dolphin
+kalacakra preview dokumen.pdf       # Pratinjau via CLI atau klik kanan di Dolphin
 ```
 
 ### 💡 2. Supercharged Spotlight & KRunner Apex (`k-spotlight` / `Super + Space`)
@@ -134,11 +138,20 @@ Ketik `;;rek` di aplikasi mana saja, otomatis terurai menjadi nomor rekening len
 Keamanan tanpa friksi setara macOS Keychain:
 * **SDDM PAM Auto-Unlock**: KWallet terbuka otomatis saat login; tidak ada lagi popup *"Enter password for wallet"*.
 * **Single-SignOn SSH-Agent**: Sesi kunci SSH otomatis aktif di seluruh tab terminal via `/etc/profile.d/kalacakra-ssh-agent.sh`.
-* **Touch ID (Fingerprint)**: Login dan `sudo` cukup tempelkan jari pada sensor sidik jari laptop:
+* **Touch ID (Fingerprint)**: Setelah `fprintd` dikonfigurasi untuk PAM, login & sudo bisa pakai sidik jari:
   ```bash
-  kalacakra keyring enroll-finger   # Daftarkan sidik jari untuk login & sudo
+  kalacakra keyring enroll-finger   # Daftarkan sidik jari (fprintd-enroll)
   kalacakra keyring status          # Periksa status KWallet PAM, SSH-Agent & Touch ID
   ```
+  *Catatan jujur:* pendaftaran sidik jari dilakukan di sini, tetapi **aktivasi PAM login/sudo** (`pam_fprintd`) tetap memerlukan konfigurasi root di `/etc/pam.d/` — `k-keyring` tidak melakukannya secara otomatis agar tidak merusak konfigurasi PAM sistem.
+
+### 🎙️ 6. Diktir Suara Offline (`k-voice` / `Super + V`)
+Rekam mikrofon, transkripsi lokal dengan `whisper.cpp`, hasil disalin ke clipboard — tanpa cloud:
+```bash
+kalacakra install-whisper-model small   # Unduh model ggml sekali saja
+kalacakra voice                         # Rekam 8 detik, transkripsi, salin ke clipboard
+kalacakra voice -d 15 -l id             # Durasi 15 detik, bahasa Indonesia
+```
 
 ---
 
@@ -406,11 +419,11 @@ k-aur remove visual-studio-code-bin
 ---
 
 ### 5. Dikte Suara & Pintasan Keyboard
-* **`Super + V`**: Buka mikrofon dikte suara offline (`whisper.cpp`). Bicara dalam Bahasa Indonesia atau Inggris, teks langsung disisipkan di kursor aktif.
-* **`Super + Shift + T`**: AI Smart Screenshot OCR untuk mengambil teks dari area layar mana saja ke clipboard.
-* **`Super + Y`**: Toggle mode **Auto-Tiling KWin (Polonium)** untuk beralih instan antara mode jendela floating tradisional dan tiling otomatis.
-* **`Super + Space`**: Buka HUD Selection Assistant untuk menerjemahkan teks atau memperbaiki tata bahasa secara instan.
-* **Game Windows Non-Steam:** Klik kanan file `.exe` installer game di Dolphin -> pilih **"Jalankan dengan Kalacakra Game Launcher (Proton UMU)"**.
+* **`Super + V`**: Diktir suara **offline** (`k-voice`, tenaga `whisper.cpp`). Rekam mikrofon 8 detik, transkripsi lokal, hasil **disalin ke clipboard** (Ctrl+V untuk menempel). Model harus diunduh dulu ke `~/.cache/whisper/`.
+* **`Super + Shift + T`**: `k-ocr` — seleksi area layar, OCR lokal (`tesseract`), hasil ke clipboard.
+* **`Super + Space`**: `k-spotlight` — kalkulasi matematika, konversi kurs/satuan, dan pertanyaan umum yang dirutekan ke `k-ai`.
+* Pintasan di atas dideklarasikan lewat berkas `.desktop` dengan `X-KDE-Shortcuts` di `/usr/share/applications/`. Jika desktop Anda tidak menanganinya otomatis, daftarkan manual di **System Settings → Shortcuts → Custom Shortcuts**.
+* **Game Windows Non-Steam:** Klik kanan file `.exe` installer game di Dolphin → pilih **"Jalankan dengan Kalacakra Game Launcher (Proton UMU)"**.
 
 ---
 

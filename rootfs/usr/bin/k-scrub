@@ -43,7 +43,7 @@ def start_scrub(path: str = "/"):
     if res.returncode != 0:
         print(f"[k-scrub Error] 'btrfs scrub start' gagal (kode {res.returncode}) - mungkin butuh sudo.")
         sys.exit(res.returncode)
-    print(f"[Kalacakra Scrub] Scrub berjalan di latar belakang (I/O ramah daya).")
+    print("[Kalacakra Scrub] Scrub berjalan di latar belakang (I/O ramah daya).")
     print("Gunakan 'k-scrub status' untuk memantau kemajuan verifikasi.")
 
 def check_status(path: str = "/"):

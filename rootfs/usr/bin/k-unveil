@@ -10,7 +10,6 @@ are rendered completely invisible and unreadable.
 import os
 import sys
 import shutil
-import tempfile
 import subprocess
 import argparse
 
@@ -58,10 +57,21 @@ def run_unveiled(command: list, ro_paths: list, rw_paths: list, hide_home: bool,
     # Cek ketersediaan bwrap
     bwrap_bin = shutil.which("bwrap")
     if not bwrap_bin:
-        print("[PERINGATAN] Bubblewrap ('bwrap') tidak terdeteksi.")
-        print("Untuk memanfaatkan fitur OpenBSD unveil di Linux, Bubblewrap diperlukan.")
+        print("[PERINGATAN] Bubblewrap ('bwrap') tidak terdeteksi - unveil TIDAK aktif.")
         if dry_run:
+            print("[DRY-RUN] Tanpa bwrap, isolasi path tidak mungkin dilakukan.")
             return 0
+        print("[k-unveil] Perintah dijalankan TANPA isolasi path. Lanjut? [y/N]: ", end="")
+        if not sys.stdin.isatty():
+            print("DITOLAK (non-interactive)")
+            return 1
+        try:
+            ans = input().strip().lower()
+        except (EOFError, KeyboardInterrupt):
+            ans = ""
+        if ans not in ("y", "yes", "ya"):
+            print("[k-unveil] Dibatalkan. Pasang 'bubblewrap' untuk isolasi unveil.")
+            return 1
         return subprocess.run(command).returncode
 
     # Susun isolasi namespace ala OpenBSD unveil

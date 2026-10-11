@@ -216,7 +216,11 @@ def action_check_kernel():
             try:
                 with open(path, "r") as f:
                     val = f.read().strip()
-                status = "PASS" if val >= ideal else "WARN"
+                # Bandingkan sebagai INTEGER, bukan string (hindari "10" >= "65536" salah)
+                try:
+                    status = "PASS" if int(val) >= int(ideal) else "WARN"
+                except ValueError:
+                    status = "WARN"
                 print(f"  [{status}] {desc:<45} : Nilai={val} (Ideal>={ideal})")
             except Exception:
                 print(f"  [WARN] {desc:<45} : Tidak dapat dibaca")
@@ -224,7 +228,8 @@ def action_check_kernel():
             print(f"  [INFO] {desc:<45} : Path tidak ada di environment ini")
 
     print("-" * 70)
-    print(" Seluruh mitigasi aktif memperkuat ketahanan Kalacakra OS dari exploit ROP/buffer overflow.")
+    print(" Catatan: baris [WARN] menandai mitigasi yang belum memenuhi nilai ideal.")
+    print(" Perkuat dengan: sudo kalacakra wx enforce && sudo sysctl --system")
     return 0
 
 def action_enforce():

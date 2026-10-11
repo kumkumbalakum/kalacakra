@@ -1,9 +1,10 @@
 [Desktop Entry]
 Type=Service
-ServiceTypes=KonqPopupMenu/Plugin
-MimeType=application/octet-stream;all/allfiles;
+MimeType=all/allfiles;application/octet-stream;
 Actions=BeamFile;
 X-KDE-Priority=TopLevel
+Name=Kalacakra Beam
+Name[id]=Kalacakra Beam
 
 [Desktop Action BeamFile]
 Name=Beam to Device... (Kalacakra Beam)

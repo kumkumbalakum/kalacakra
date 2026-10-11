@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Name=Kalacakra Local Voice Dictation
+Name[id]=Kalacakra Diktir Suara Lokal
+Comment=Offline voice dictation via whisper.cpp (Super+V)
+Comment[id]=Diktir suara offline via whisper.cpp (Super+V)
+Icon=audio-input-microphone
+Exec=/usr/bin/k-voice
+Terminal=false
+NoDisplay=true
+X-KDE-Shortcuts=Meta+V
+X-KDE-StartupNotify=false

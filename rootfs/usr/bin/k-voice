@@ -1,0 +1,146 @@
+#!/usr/bin/env python3
+"""
+Kalacakra OS - k-voice (Offline Voice Dictation)
+Records microphone audio, transcribes it locally with whisper.cpp (whisper-cli),
+and copies the resulting text to the clipboard via wl-copy.
+No cloud, no telemetry - everything runs on-device.
+"""
+
+import os
+import sys
+import time
+import shutil
+import signal
+import argparse
+import subprocess
+
+if hasattr(sys.stdout, "reconfigure"):
+    try:
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    except Exception:
+        pass
+
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+LIB_PATH = os.path.abspath(os.path.join(SCRIPT_DIR, "..", "share", "kalacakra", "lib"))
+if os.path.isdir(LIB_PATH) and LIB_PATH not in sys.path:
+    sys.path.insert(0, LIB_PATH)
+elif "/usr/share/kalacakra/lib" not in sys.path and os.path.isdir("/usr/share/kalacakra/lib"):
+    sys.path.insert(0, "/usr/share/kalacakra/lib")
+
+try:
+    from kalacakra_common import get_locale_strings
+except ImportError:
+    def get_locale_strings(lang_override=None):
+        return {}, "en"
+
+WAV_FILE = "/tmp/kalacakra-voice.wav"
+
+# Model whisper.cpp yang umum tersedia via Justfile install-model
+CANDIDATE_MODELS = [
+    os.path.expanduser("~/.cache/whisper/ggml-small.bin"),
+    os.path.expanduser("~/.cache/whisper/ggml-base.bin"),
+    os.path.expanduser("~/.cache/whisper/ggml-tiny.bin"),
+]
+
+def find_model(preferred: str = None):
+    if preferred:
+        return preferred if os.path.isfile(preferred) else None
+    for m in CANDIDATE_MODELS:
+        if os.path.isfile(m):
+            return m
+    return None
+
+def record_audio(seconds: int):
+    """Rekam mikrofon ke WAV. Kembalikan True jika file berhasil dibuat."""
+    if shutil.which("arecord"):
+        cmd = ["arecord", "-f", "S16_LE", "-r", "16000", "-d", str(seconds), WAV_FILE]
+    elif shutil.which("pw-record"):
+        # PipeWire: rekam dengan durasi, lalu beri sinyal setelah selesai
+        cmd = ["pw-record", "--rate", "16000", "--channels", "1", WAV_FILE]
+    else:
+        print("[k-voice Error] 'arecord' atau 'pw-record' tidak terpasang - tidak bisa merekam.")
+        return False
+
+    print(f"[k-voice] Merekam {seconds} detik... Bicara sekarang.")
+    try:
+        if cmd[0] == "pw-record":
+            proc = subprocess.Popen(cmd)
+            time.sleep(seconds)
+            proc.send_signal(signal.SIGINT)
+            proc.wait(timeout=10)
+        else:
+            subprocess.run(cmd, check=False)
+    except KeyboardInterrupt:
+        print("\n[k-voice] Perekaman dihentikan.")
+    except Exception as e:
+        print(f"[k-voice Error] Gagal merekam: {e}")
+        return False
+
+    return os.path.isfile(WAV_FILE) and os.path.getsize(WAV_FILE) > 44
+
+def transcribe(model: str, lang: str = None) -> str:
+    whisper = shutil.which("whisper-cli") or shutil.which("main")
+    if not whisper:
+        print("[k-voice Error] 'whisper-cli' (whisper.cpp) tidak terpasang.")
+        return ""
+    if not model or not os.path.isfile(model):
+        print("[k-voice Error] Model whisper.cpp tidak ditemukan.")
+        print("   Unduh model dengan: kalacakra install-model llama... (atau letakkan ggml-*.bin")
+        print("   di ~/.cache/whisper/). Lihat Justfile resep 'install-whisper-model'.")
+        return ""
+
+    cmd = [whisper, "-m", model, "-f", WAV_FILE, "-np", "-nt"]
+    if lang:
+        cmd += ["-l", lang]
+    try:
+        res = subprocess.run(cmd, capture_output=True, text=True, check=False)
+        return res.stdout.strip()
+    except Exception as e:
+        print(f"[k-voice Error] Transkripsi gagal: {e}")
+        return ""
+
+def main():
+    parser = argparse.ArgumentParser(
+        prog="k-voice",
+        description="Kalacakra Voice - Offline voice dictation via whisper.cpp"
+    )
+    parser.add_argument("-d", "--duration", type=int, default=8,
+                        help="Durasi perekaman dalam detik (default: 8)")
+    parser.add_argument("-m", "--model", default=None,
+                        help="Path model ggml whisper.cpp (default: auto-cari di ~/.cache/whisper)")
+    parser.add_argument("-l", "--lang", default=None,
+                        help="Kode bahasa audio (mis. 'id' atau 'en')")
+    parser.add_argument("--no-clipboard", action="store_true",
+                        help="Cetak hasil saja, jangan salin ke clipboard")
+    args = parser.parse_args()
+
+    strings, current_lang = get_locale_strings()
+    print(strings.get("voice_header", "=== Kalacakra Voice (Diktir Suara Offline - Tanpa Cloud) ==="))
+
+    model = find_model(args.model)
+    lang = args.lang or (current_lang if current_lang in ("id", "en") else None)
+
+    if not record_audio(args.duration):
+        sys.exit(1)
+
+    text = transcribe(model, lang)
+    if not text:
+        print("[k-voice] Tidak ada teks yang dikenali (audio kosong atau model tidak tersedia).")
+        sys.exit(1)
+
+    print("-" * 60)
+    print(f"[k-voice] Hasil: {text}")
+    print("-" * 60)
+
+    if not args.no_clipboard and shutil.which("wl-copy"):
+        subprocess.run(["wl-copy"], input=text.encode("utf-8"), check=False)
+        print(strings.get("voice_copied", "[k-voice] Teks disalin ke clipboard (tempel dengan Ctrl+V)."))
+
+    if os.path.isfile(WAV_FILE):
+        try:
+            os.remove(WAV_FILE)
+        except OSError:
+            pass
+
+if __name__ == "__main__":
+    main()

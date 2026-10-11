@@ -87,5 +87,7 @@
   "doas_header": "=== Kalacakra doas (Elevasi Hak Akses Aman Ala OpenBSD doas) ===",
   "doas_verified": "Konfigurasi /etc/doas.conf valid dan memiliki izin aman!",
   "wx_header": "=== Kalacakra W^X (Auditor Mitigasi Memori Ala OpenBSD W^X) ===",
-  "wx_compliant": "Biner dan proteksi memori sistem patuh pada standar W^X (Write XOR Execute)!"
+  "wx_compliant": "Biner dan proteksi memori sistem patuh pada standar W^X (Write XOR Execute)!",
+  "voice_header": "=== Kalacakra Voice (Diktir Suara Offline via whisper.cpp - Tanpa Cloud) ===",
+  "voice_copied": "[k-voice] Teks disalin ke clipboard (tempel dengan Ctrl+V)."
 }

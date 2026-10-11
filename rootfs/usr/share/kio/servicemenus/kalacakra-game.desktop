@@ -1,9 +1,10 @@
 [Desktop Entry]
 Type=Service
-ServiceTypes=KonqPopupMenu/Plugin
 MimeType=application/x-ms-dos-executable;application/x-msdownload;application/x-dosexec;
 Actions=LaunchProton;
 X-KDE-Priority=TopLevel
+Name=Kalacakra Game Launcher
+Name[id]=Peluncur Game Kalacakra
 
 [Desktop Action LaunchProton]
 Name=Run with Kalacakra Game Launcher (Proton UMU)

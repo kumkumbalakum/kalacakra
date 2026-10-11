@@ -85,12 +85,12 @@ def action_panic():
     print("=" * 68)
 
     nft_bin = shutil.which("nft")
-    os.makedirs(os.path.dirname(PANIC_STATE_FILE), exist_ok=True)
-    with open(PANIC_STATE_FILE, "w", encoding="utf-8") as f:
-        f.write("PANIC_ACTIVE=1\n")
+    if not nft_bin:
+        print(" [GAGAL] 'nft' (nftables) tidak terpasang - killswitch TIDAK dapat diaktifkan.")
+        print(" Pasang nftables terlebih dahulu, atau putus Wi-Fi manual.")
+        return 1
 
-    if nft_bin:
-        panic_script = """
+    panic_script = """
 table inet kalacakra_panic {
     chain input {
         type filter hook input priority -10; policy drop;
@@ -102,10 +102,20 @@ table inet kalacakra_panic {
     }
 }
 """
-        res = subprocess.run([nft_bin, "-f", "-"], input=panic_script, text=True, capture_output=True)
-        if res.returncode != 0 and os.geteuid() != 0:
-            # Fallback jika bukan root
-            subprocess.run(["sudo", nft_bin, "-f", "-"], input=panic_script, text=True)
+    res = subprocess.run([nft_bin, "-f", "-"], input=panic_script, text=True, capture_output=True)
+    if res.returncode != 0:
+        # Fallback jika bukan root
+        res = subprocess.run(["sudo", nft_bin, "-f", "-"], input=panic_script, text=True, capture_output=True)
+
+    if res.returncode != 0:
+        print(" [GAGAL] nft menolak aturan panik (butuh root?). Killswitch TIDAK aktif.")
+        print(f" Output nft: {res.stderr.strip() or 'tanpa pesan'}")
+        return 1
+
+    # State file hanya ditulis setelah nftables benar-benar menerima aturan
+    os.makedirs(os.path.dirname(PANIC_STATE_FILE), exist_ok=True)
+    with open(PANIC_STATE_FILE, "w", encoding="utf-8") as f:
+        f.write("PANIC_ACTIVE=1\n")
 
     print(f" [!] {strings.get('pf_panic', 'MODE PANIK DIAKTIFKAN: Semua koneksi jaringan diblokir (Killswitch Aktif)!')}")
     print(" Hanya interface loopback (localhost) yang diizinkan.")
@@ -147,13 +157,15 @@ def action_block_app(app_name: str):
         for a in sorted(apps):
             f.write(f"{a}\n")
 
-    print(f" [+] Aplikasi '{app_name}' dimasukkan ke daftar isolasi jaringan.")
-    print(" Akses outgoing internet untuk aplikasi ini diblokir.")
+    print(f" [+] Aplikasi '{app_name}' ditambahkan ke daftar isolasi jaringan.")
+    print(" CARA KERJA JUJUR: nft TIDAK bisa memblokir per-binary tanpa cgroup tagging.")
+    print(f" Maka: jalankan aplikasi TERBLOKIR via 'k-pf run {app_name}' —")
+    print(" itu menjalankannya di network namespace khusus (hanya loopback, tanpa internet).")
     return 0
 
 def action_allow_app(app_name: str):
     if not os.path.isfile(BLOCKED_APPS_FILE):
-        print(f" Tidak ada aplikasi yang terdaftar diblokir.")
+        print(" Tidak ada aplikasi yang terdaftar diblokir.")
         return 0
     with open(BLOCKED_APPS_FILE, "r", encoding="utf-8") as f:
         apps = set(l.strip() for l in f if l.strip() and not l.startswith("#"))
@@ -167,6 +179,24 @@ def action_allow_app(app_name: str):
     else:
         print(f" Aplikasi '{app_name}' tidak ditemukan di daftar blokir.")
     return 0
+
+def action_run(cmd_list: list):
+    """Jalankan aplikasi di network namespace terisolasi (unshare -n).
+    Ini eksekusi NYATA dari daftar block-app: aplikasi hanya punya loopback."""
+    if not cmd_list:
+        print("[GAGAL] Tidak ada perintah. Contoh: k-pf run firefox", file=sys.stderr)
+        return 1
+
+    unshare_bin = shutil.which("unshare")
+    if not unshare_bin:
+        print("[GAGAL] 'unshare' (util-linux) tidak tersedia - isolasi namespace mustahil.", file=sys.stderr)
+        return 1
+
+    print(f" [PF] Menjalankan '{cmd_list[0]}' di network namespace TERISOLASI (tanpa internet)...")
+    res = subprocess.run([unshare_bin, "--net"] + cmd_list)
+    if res.returncode != 0:
+        print(f" [PF] Aplikasi selesai dengan kode {res.returncode}.")
+    return res.returncode
 
 def action_load(rulefile: str = None):
     strings, _ = get_locale_strings()
@@ -229,6 +259,9 @@ def main():
     p_allow = sub.add_parser("allow-app", help="Izinkan kembali akses internet untuk aplikasi")
     p_allow.add_argument("app", help="Nama binary aplikasi")
 
+    p_run = sub.add_parser("run", help="Jalankan aplikasi TERISOLASI (network namespace, tanpa internet)")
+    p_run.add_argument("cmd", nargs=argparse.REMAINDER, help="Perintah aplikasi yang akan dijalankan")
+
     p_load = sub.add_parser("load", help="Muat aturan deklaratif pf.rules ke nftables")
     p_load.add_argument("rulefile", nargs="?", default=None, help="File aturan nftables/pf")
 
@@ -247,6 +280,11 @@ def main():
         sys.exit(action_block_app(args.app))
     elif args.command == "allow-app":
         sys.exit(action_allow_app(args.app))
+    elif args.command == "run":
+        cmd = args.cmd
+        if cmd and cmd[0] == "--":
+            cmd = cmd[1:]
+        sys.exit(action_run(cmd))
     elif args.command == "load":
         sys.exit(action_load(args.rulefile))
 

@@ -87,5 +87,7 @@
   "doas_header": "=== Kalacakra doas (OpenBSD-Style Safe Privilege Elevation) ===",
   "doas_verified": "Configuration /etc/doas.conf is valid and has secure permissions!",
   "wx_header": "=== Kalacakra W^X (OpenBSD W^X Memory Exploit Mitigation Auditor) ===",
-  "wx_compliant": "Binary and memory protections comply with W^X (Write XOR Execute) standards!"
+  "wx_compliant": "Binary and memory protections comply with W^X (Write XOR Execute) standards!",
+  "voice_header": "=== Kalacakra Voice (Offline Dictation via whisper.cpp - No Cloud) ===",
+  "voice_copied": "[k-voice] Text copied to clipboard (paste with Ctrl+V)."
 }

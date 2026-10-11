@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Name=Kalacakra AI Smart Screenshot OCR
+Name[id]=Kalacakra Screenshot Cerdas OCR
+Comment=Select a screen area, OCR it locally, copy text to clipboard
+Comment[id]=Pilih area layar, OCR lokal, salin teks ke clipboard
+Icon=camera-text
+Exec=/usr/bin/k-ocr
+Terminal=false
+NoDisplay=true
+X-KDE-Shortcuts=Meta+Shift+T
+X-KDE-StartupNotify=false

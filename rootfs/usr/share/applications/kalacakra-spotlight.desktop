@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=Kalacakra Spotlight
+Comment=Instant math, currency/unit conversion and AI query router (Super+Space)
+Comment[id]=Kalkulasi, konversi kurs/satuan, dan router pertanyaan AI instan (Super+Space)
+Icon=preferences-desktop-search
+Exec=/usr/bin/k-spotlight
+Terminal=false
+NoDisplay=true
+X-KDE-Shortcuts=Meta+Space
+X-KDE-StartupNotify=false

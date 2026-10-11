@@ -1,12 +1,13 @@
 [Desktop Entry]
 Type=Service
-ServiceTypes=KonqPopupMenu/Plugin
-MimeType=application/octet-stream;all/allfiles;
+MimeType=all/allfiles;application/octet-stream;
 Actions=QuickLookPreview;
 X-KDE-Priority=TopLevel
+Name=Kalacakra Quick Look
+Name[id]=Kalacakra Quick Look
 
 [Desktop Action QuickLookPreview]
-Name=Quick Look Preview (Space)
-Name[id]=Quick Look Pratinjau (Spasi)
+Name=Quick Look Preview (Kalacakra)
+Name[id]=Quick Look Pratinjau (Kalacakra)
 Icon=quickview
 Exec=/usr/bin/k-preview %f
