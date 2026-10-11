@@ -35,11 +35,15 @@ TARGET_PATHS = ["/", "/home", "/var"]
 
 def start_scrub(path: str = "/"):
     print(f"[Kalacakra Scrub] Memulai pemeriksaan integritas checksum Btrfs pada '{path}'...")
-    if shutil.which("btrfs"):
-        subprocess.run(["btrfs", "scrub", "start", path], check=False)
-    else:
-        print(f"[k-scrub INFO] Simulasi verifikasi blok data pada {path}...")
-    print(f"[Kalacakra Scrub] Pemeriksaan berjalan di latar belakang (I/O ramah daya).")
+    if not shutil.which("btrfs"):
+        print("[k-scrub Error] 'btrfs' (btrfs-progs) tidak terpasang - scrub TIDAK dijalankan.")
+        sys.exit(1)
+    # 'btrfs scrub start' berjalan di background secara default; scrub dimulai sebagai root
+    res = subprocess.run(["btrfs", "scrub", "start", path], check=False)
+    if res.returncode != 0:
+        print(f"[k-scrub Error] 'btrfs scrub start' gagal (kode {res.returncode}) - mungkin butuh sudo.")
+        sys.exit(res.returncode)
+    print(f"[Kalacakra Scrub] Scrub berjalan di latar belakang (I/O ramah daya).")
     print("Gunakan 'k-scrub status' untuk memantau kemajuan verifikasi.")
 
 def check_status(path: str = "/"):
@@ -62,11 +66,14 @@ def check_status(path: str = "/"):
             pass
 
     if not has_real_btrfs:
-        print(" Status          : SELESAI / COMPLETED")
-        print(" Blok Diperiksa  : 142.60 GiB (Data & Metadata)")
-        print(" Error Bitrot    : 0 errors (Bebas Korupsi Data)")
-        print(" Koreksi Salinan : 0 csum errors, 0 uncorrectable")
-        print("-" * 70)
+        print(" Status          : TIDAK DIKETAHUI")
+        if not shutil.which("btrfs"):
+            print(" Penyebab        : perintah 'btrfs' tidak terpasang di sistem ini.")
+        else:
+            print(" Penyebab        : 'btrfs scrub status' gagal - '{path}' mungkin bukan Btrfs.".format(path=path))
+        print("                  Tidak ada data scrub untuk ditampilkan (tanpa nilai simulasi).")
+        print(" Langkah         : pasang btrfs-progs & pastikan partisi root memakai Btrfs.")
+    else:
         print(strings.get("scrub_healthy", "Integritas blok data Btrfs dalam kondisi prima (0 checksum error)!"))
 
     print("=" * 70)
@@ -74,8 +81,13 @@ def check_status(path: str = "/"):
 
 def cancel_scrub(path: str = "/"):
     print(f"[Kalacakra Scrub] Membatalkan proses scrub pada '{path}'...")
-    if shutil.which("btrfs"):
-        subprocess.run(["btrfs", "scrub", "cancel", path], check=False)
+    if not shutil.which("btrfs"):
+        print("[k-scrub Error] 'btrfs' tidak terpasang - tidak ada proses scrub untuk dibatalkan.")
+        sys.exit(1)
+    res = subprocess.run(["btrfs", "scrub", "cancel", path], check=False)
+    if res.returncode != 0:
+        print(f"[k-scrub Error] Gagal membatalkan (kode {res.returncode}) - mungkin tidak ada scrub aktif.")
+        sys.exit(res.returncode)
     print("[Kalacakra Scrub] Proses verifikasi dihentikan.")
 
 def main():

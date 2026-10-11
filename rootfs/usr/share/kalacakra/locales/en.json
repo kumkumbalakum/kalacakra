@@ -77,5 +77,15 @@
   "scrub_healthy": "Btrfs data block integrity is optimal (0 checksum errors)!",
   "trace_header": "=== Kalacakra Dynamic Trace (DTrace-Style System Profiler) ===",
   "sysrc_header": "=== Kalacakra sysrc (Safe System Configuration Manager) ===",
-  "sysrc_updated": "Configuration variable '{key}' successfully updated to '{val}'!"
+  "sysrc_updated": "Configuration variable '{key}' successfully updated to '{val}'!",
+  "unveil_header": "=== Kalacakra Unveil (OpenBSD unveil/pledge Filesystem Restriction) ===",
+  "unveil_running": "Launching application with strict filesystem path unveil restrictions...",
+  "signify_header": "=== Kalacakra Signify (OpenBSD-Style Ed25519 Cryptographic Verifier) ===",
+  "signify_verified": "Cryptographic signature verification SUCCEEDED (Signature Verified OK)!",
+  "pf_header": "=== Kalacakra Packet Filter (OpenBSD pf-Style Desktop Firewall) ===",
+  "pf_panic": "PANIC MODE ENGAGED: All network connections blocked (Killswitch Active)!",
+  "doas_header": "=== Kalacakra doas (OpenBSD-Style Safe Privilege Elevation) ===",
+  "doas_verified": "Configuration /etc/doas.conf is valid and has secure permissions!",
+  "wx_header": "=== Kalacakra W^X (OpenBSD W^X Memory Exploit Mitigation Auditor) ===",
+  "wx_compliant": "Binary and memory protections comply with W^X (Write XOR Execute) standards!"
 }

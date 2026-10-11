@@ -35,14 +35,46 @@ jobs:
       - name: Run Unit Tests
         run: python -m unittest discover -s tests -v
 
-      - name: Syntax-check Python CLI Scripts
+      - name: Install lint tools
+        run: pip install pyflakes
+
+      - name: Syntax-check Python CLI Scripts (all)
         run: |
-          python -m py_compile \
-            rootfs/usr/bin/kalacakra \
-            rootfs/usr/bin/k-ai \
-            rootfs/usr/bin/k-doctor \
-            rootfs/usr/bin/k-interceptor \
-            rootfs/usr/share/kalacakra/lib/kalacakra_common.py
+          python - <<'EOF'
+          import os, sys, py_compile, tempfile
+          bin_dir = "rootfs/usr/bin"
+          failures = []
+          with tempfile.TemporaryDirectory() as tmp:
+              for name in sorted(os.listdir(bin_dir)):
+                  path = os.path.join(bin_dir, name)
+                  if not os.path.isfile(path):
+                      continue
+                  with open(path, "rb") as fh:
+                      if b"python" not in fh.readline():
+                          continue  # bukan script Python (mis. bash)
+                  try:
+                      py_compile.compile(path, cfile=os.path.join(tmp, name + ".pyc"), doraise=True)
+                  except py_compile.PyCompileError as e:
+                      failures.append(str(e))
+          if failures:
+              print("Script gagal compile:\n" + "\n".join(failures))
+              sys.exit(1)
+          print("Semua script Python lolos py_compile")
+          EOF
+
+      - name: Pyflakes (undefined names)
+        run: |
+          set -e
+          status=0
+          for f in rootfs/usr/bin/*; do
+            head -1 "$f" | grep -q python || continue
+            out=$(pyflakes "$f" 2>&1 | grep "undefined name" || true)
+            if [ -n "$out" ]; then
+              echo "$out"
+              status=1
+            fi
+          done
+          exit $status
 
       - name: Syntax-check Bash Scripts
         run: |

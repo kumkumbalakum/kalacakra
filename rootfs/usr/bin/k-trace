@@ -1,15 +1,14 @@
 #!/usr/bin/env python3
 """
 Kalacakra OS - k-trace (Dynamic System Performance Tracing)
-DTrace-inspired performance diagnostics powered by eBPF, procfs, and perf.
-Identifies I/O bottlenecks, game frame stutter causes, and battery-draining timer wakeups.
+DTrace-inspired performance diagnostics powered by real /proc sampling.
+Identifies I/O bottlenecks, top CPU consumers (frame stutter causes),
+and context-switch activity (proxy for battery-draining wakeups).
 """
 
 import os
 import sys
 import time
-import shutil
-import subprocess
 import argparse
 
 if hasattr(sys.stdout, "reconfigure"):
@@ -31,58 +30,185 @@ except ImportError:
     def get_locale_strings(lang_override=None):
         return {}, "en"
 
+
+def _proc_name(pid: str) -> str:
+    try:
+        with open(f"/proc/{pid}/comm", "r") as f:
+            return f.read().strip()
+    except OSError:
+        return "?"
+
+
+def _read_io(pid: str):
+    """Kembalikan (rchar, wchar) dalam byte, atau None."""
+    try:
+        rchar = wchar = 0
+        with open(f"/proc/{pid}/io", "r") as f:
+            for line in f:
+                if line.startswith("rchar:"):
+                    rchar = int(line.split()[1])
+                elif line.startswith("wchar:"):
+                    wchar = int(line.split()[1])
+        return rchar, wchar
+    except (OSError, ValueError):
+        return None
+
+
+def _read_cpu(pid: str):
+    """Kembalikan (utime+stime) dalam jiffies, atau None."""
+    try:
+        with open(f"/proc/{pid}/stat", "r") as f:
+            parts = f.read().rsplit(")", 1)[1].split()
+        # Setelah comm: field index 11 (utime) & 12 (stime) di /proc/pid/stat
+        utime, stime = int(parts[11]), int(parts[12])
+        return utime + stime
+    except (OSError, ValueError, IndexError):
+        return None
+
+
+def _read_ctxt_switches(pid: str):
+    try:
+        with open(f"/proc/{pid}/status", "r") as f:
+            for line in f:
+                if line.startswith("voluntary_ctxt_switches:"):
+                    return int(line.split()[1])
+    except (OSError, ValueError):
+        pass
+    return None
+
+
+def _list_pids():
+    return [d for d in os.listdir("/proc") if d.isdigit()]
+
+
+def _sample(field_reader):
+    """Ambil snapshot {pid: nilai} untuk semua proses."""
+    snap = {}
+    for pid in _list_pids():
+        val = field_reader(pid)
+        if val is not None:
+            snap[pid] = val
+    return snap
+
+
 def trace_io(duration: int = 3):
     print(f"[k-trace] Menganalisis I/O bottleneck penyimpanan selama {duration} detik...")
-    time.sleep(1)
+    before = _sample(_read_io)
+    time.sleep(duration)
+    after = _sample(_read_io)
+
+    rows = []
+    for pid, (r2, w2) in after.items():
+        if pid in before:
+            r1, w1 = before[pid]
+            dr, dw = max(0, r2 - r1), max(0, w2 - w1)
+            if dr or dw:
+                rows.append((dr / duration, dw / duration, pid))
+    rows.sort(key=lambda r: r[0] + r[1], reverse=True)
+
     print()
     print("=" * 72)
     print("=== [Kalacakra Trace] Profil Bottleneck Disk & SSD (I/O Profiler) ===")
     print("=" * 72)
-    print(f" {'PID':<8} {'PROSES':<24} {'READ (MB/s)':<14} {'WRITE (MB/s)':<14} {'LATENSI':<10}")
+    if not rows:
+        print(" Tidak terdeteksi aktivitas I/O proses selama jendela sampling.")
+        print("=" * 72)
+        print()
+        return
+    print(f" {'PID':<8} {'PROSES':<24} {'READ (MB/s)':<14} {'WRITE (MB/s)':<14}")
     print("-" * 72)
-    print(f" {'1842':<8} {'btrfs-cleaner':<24} {'0.00':<14} {'18.42':<14} {'0.2 ms':<10}")
-    print(f" {'3104':<8} {'kwrite':<24} {'0.05':<14} {'0.12':<14} {'0.1 ms':<10}")
-    print(f" {'4512':<8} {'flatpak':<24} {'1.20':<14} {'24.50':<14} {'0.4 ms':<10}")
+    for r_bps, w_bps, pid in rows[:8]:
+        print(f" {pid:<8} {_proc_name(pid):<24} {r_bps / 1e6:<14.2f} {w_bps / 1e6:<14.2f}")
     print("-" * 72)
-    print(" Diagnosa: Throughput I/O SSD normal, antrean operasi write optimal.")
+    print(" Catatan: sampling via /proc/[pid]/io (delta rchar/wchar per detik).")
     print("=" * 72)
     print()
+
 
 def trace_game(duration: int = 3):
-    print(f"[k-trace] Menganalisis latensi frame dan penjadwalan CPU eBPF selama {duration} detik...")
-    time.sleep(1)
+    print(f"[k-trace] Menganalisis pemakaian CPU & scheduler selama {duration} detik...")
+    # Deteksi scheduler eBPF SCX yang berjalan (nyata, bukan asumsi)
+    scx_active = []
+    try:
+        for entry in os.listdir("/proc"):
+            if not entry.isdigit():
+                continue
+            comm = _proc_name(entry)
+            if comm.startswith("scx_"):
+                scx_active.append(comm)
+    except OSError:
+        pass
+
+    before = _sample(_read_cpu)
+    time.sleep(duration)
+    after = _sample(_read_cpu)
+    try:
+        clk = os.sysconf("SC_CLK_TCK")
+    except (ValueError, OSError):
+        clk = 100
+
+    rows = []
+    for pid, c2 in after.items():
+        if pid in before:
+            dc = c2 - before[pid]
+            if dc > 0:
+                rows.append((dc / clk / duration * 100.0, pid))
+    rows.sort(reverse=True)
+
     print()
     print("=" * 72)
-    print("=== [Kalacakra Trace] Profil Latensi Game & Context Switches ===")
+    print("=== [Kalacakra Trace] Pemakaian CPU Proses Aktif (Frame Loop Profiler) ===")
     print("=" * 72)
-    print(" Scheduler Aktif : scx_lavd (eBPF Gaming Low-Latency)")
-    print(" Status Core     : Core 0-7 Unparked, GPU Governor: Performance")
+    print(f" Scheduler Aktif : {', '.join(sorted(set(scx_active))) if scx_active else 'Default kernel (tanpa scx_*)'}")
+    if not rows:
+        print(" Tidak terdeteksi aktivitas CPU proses selama jendela sampling.")
+        print("=" * 72)
+        print()
+        return
+    print(f" {'PID':<8} {'PROSES':<28} {'CPU (%)':<10}")
     print("-" * 72)
-    print(f" {'PROSES':<24} {'CPU (%)':<10} {'CTX SWITCH/s':<16} {'STATUS FRAME'}")
-    print(f" {'gamescope':<24} {'14.2%':<10} {'4,210':<16} {'60/144 FPS Lock (Mulus)'}")
-    print(f" {'wine64-preloader':<24} {'68.5%':<10} {'12,480':<16} {'Prioritas Tinggi (LAVD)'}")
-    print(f" {'pipewire':<24} {'1.1%':<10} {'1,050':<16} {'Audio Buffer 64-sample'}")
+    for cpu_pct, pid in rows[:8]:
+        print(f" {pid:<8} {_proc_name(pid):<28} {cpu_pct:<10.1f}")
     print("-" * 72)
-    print(" Rekomendasi: Tidak terdeteksi thread background yang mencuri frame loop!")
+    print(" Catatan: sampling delta utime+stime dari /proc/[pid]/stat.")
     print("=" * 72)
     print()
 
+
 def trace_battery(duration: int = 3):
-    print(f"[k-trace] Menganalisis timer wakeups penguras baterai laptop ({duration}s)...")
-    time.sleep(1)
+    print(f"[k-trace] Menganalisis aktivitas konteks proses (proksi wakeups) selama {duration}s...")
+    before = _sample(_read_ctxt_switches)
+    time.sleep(duration)
+    after = _sample(_read_ctxt_switches)
+
+    rows = []
+    for pid, c2 in after.items():
+        if pid in before:
+            dc = c2 - before[pid]
+            if dc > 0:
+                rows.append((dc / duration, pid))
+    rows.sort(reverse=True)
+
     print()
     print("=" * 72)
-    print("=== [Kalacakra Trace] Profil Timer Wakeups & Daya Baterai ===")
+    print("=== [Kalacakra Trace] Profil Konteks-Proses (Proksi Timer Wakeups) ===")
     print("=" * 72)
-    print(f" {'WAKEUPS/s':<12} {'KOMPONEN':<28} {'KONSUMSI PERKIRAAN'}")
+    if not rows:
+        print(" Tidak terdeteksi aktivitas konteks proses selama jendela sampling.")
+        print("=" * 72)
+        print()
+        return
+    total = sum(r[0] for r in rows)
+    print(f" {'CTX SWITCH/s':<16} {'PROSES':<30} {'% TOTAL'}")
     print("-" * 72)
-    print(f" {'42/s':<12} {'kwin_wayland':<28} {'~0.4 Watt (Compositor)'}")
-    print(f" {'18/s':<12} {'ollama-daemon':<28} {'~0.1 Watt (Idle / NPU Sleep)'}")
-    print(f" {'8/s':<12} {'systemd-resolved':<28} {'~0.05 Watt (DoT Cache)'}")
+    for rate, pid in rows[:8]:
+        print(f" {rate:<16.1f} {_proc_name(pid):<30} {rate / total * 100:<6.1f}%")
     print("-" * 72)
-    print(" Efisiensi: Total wakeups < 100/s (Sangat Hemat / Deep C-State Aktif).")
+    print(f" Total terukur: {total:.0f} konteks-switch/detik pada jendela sampling.")
+    print(" Catatan: gunakan 'powertop' untuk profil wakeups eBPF/baterai mendetail.")
     print("=" * 72)
     print()
+
 
 def main():
     parser = argparse.ArgumentParser(
@@ -91,18 +217,23 @@ def main():
     )
     subparsers = parser.add_subparsers(dest="command")
 
-    subparsers.add_parser("io", help="Profile disk and storage I/O bottlenecks")
-    subparsers.add_parser("game", help="Profile game latency, frame jitter, and CPU scheduling")
-    subparsers.add_parser("battery", help="Profile CPU timer wakeups draining laptop battery")
+    p_io = subparsers.add_parser("io", help="Profile disk and storage I/O bottlenecks")
+    p_io.add_argument("--duration", type=int, default=3, help="Sampling window in seconds")
+
+    p_game = subparsers.add_parser("game", help="Profile game latency, frame jitter, and CPU scheduling")
+    p_game.add_argument("--duration", type=int, default=3, help="Sampling window in seconds")
+
+    p_bat = subparsers.add_parser("battery", help="Profile process activity draining laptop battery")
+    p_bat.add_argument("--duration", type=int, default=3, help="Sampling window in seconds")
 
     args = parser.parse_args()
 
     if not args.command or args.command == "io":
-        trace_io()
+        trace_io(getattr(args, "duration", 3))
     elif args.command == "game":
-        trace_game()
+        trace_game(args.duration)
     elif args.command == "battery":
-        trace_battery()
+        trace_battery(args.duration)
 
 if __name__ == "__main__":
     main()

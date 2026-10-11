@@ -352,6 +352,26 @@ kalacakra doctor            # Menjalankan diagnostik menyeluruh sistem
 * Pengelola variabel konfigurasi sistem bertipe dan atomik terinspirasi dari `sysrc` FreeBSD.
 * Mencegah kesalahan ketik atau kerusakan berkas konfigurasi di `/etc` dengan menyediakan antarmuka CLI terstruktur untuk memodifikasi batas baterai, sakelar kill-switch AI, penjadwal CPU eBPF, dan kebijakan USBGuard.
 
+### **6.28 Kalacakra Unveil: Path & Namespace Restriction Ala OpenBSD unveil/pledge (`k-unveil`)**
+* Mekanisme pembatasan path filesystem dan isolasi namespace proses terinspirasi dari inovasi OpenBSD `unveil(2)` dan `pledge(2)`.
+* Memungkinkan eksekusi aplikasi atau script hanya dengan akses path yang diizinkan secara eksplisit (`--ro <path>` atau `--rw <path>`), menyembunyikan direktori privat (`~/.ssh`, `~/.gnupg`, browser cookies) dengan tmpfs (`--hide-home`), serta opsi pemutusan jaringan penuh (`--no-net`).
+
+### **6.29 Kalacakra Signify: Lightweight Ed25519 Cryptographic Verifier (`k-signify`)**
+* Utilitas penandatanganan dan verifikasi tanda tangan kriptografis berbasis kurva Edwards25519 terinspirasi dari OpenBSD `signify(1)`.
+* Menyediakan verifikasi instan (<5ms) dan kebal eksploitasi untuk integritas snapshot Btrfs, manifes aplikasi, skrip sistem, dan berkas pembaruan tanpa kompleksitas atau overhead PGP/GPG.
+
+### **6.30 Kalacakra PF: Minimalist Declarative Desktop Firewall & Panic Killswitch (`k-pf`)**
+* Antarmuka firewall desktop deklaratif minimalis di atas `nftables` Linux terinspirasi dari standar emas OpenBSD Packet Filter (`pf` / `pfctl`).
+* Dilengkapi fitur darurat **Wi-Fi Panic Killswitch** (`kalacakra pf panic`) untuk memutus seketika semua koneksi internet luar selain loopback saat berada di jaringan publik tidak terpercaya, serta isolasi aplikasi per-program (*App Anchors*).
+
+### **6.31 Kalacakra doas: Safe Minimalist Privilege Elevation (`k-doas`)**
+* Engine elevasi hak akses administratif minimalis terinspirasi dari OpenBSD `doas(1)` sebagai alternatif `sudo` yang ringan dan bebas celah kompleksitas.
+* Dilengkapi validator konfigurasi otomatis (`/etc/doas.conf`), mode timeout autentikasi persisten, dan pencatatan audit terpusat di `/var/log/kalacakra/doas.log`.
+
+### **6.32 Kalacakra W^X: Memory Exploit Mitigation & Binary Auditor (`k-wx`)**
+* Alat inspeksi mitigasi eksploitasi memori dan kepatuhan biner terinspirasi dari prinsip fundamental OpenBSD *Write XOR Execute* (W^X) dan `kern.wxabort`.
+* Mengaudit header binary ELF langsung (memverifikasi ketiadaan segmen memori RWX simultan, proteksi NX `PT_GNU_STACK`, Stack Canary, PIE) serta memantau parameter kernel Linux (ASLR, YAMA ptrace scope, kptr restrict).
+
 ---
 
 ## **7. Arsitektur Keamanan Sistem (Enterprise-Grade Security Hardening)**
@@ -539,6 +559,11 @@ Membangun utilitas inti dengan arsitektur i18n (menggunakan Rust / Go untuk perf
 26. `k-scrub`: Btrfs data integrity verification daemon terinspirasi ZFS periodic scrub.
 27. `k-trace`: DTrace-style dynamic system & game performance profiler via eBPF.
 28. `k-sysrc`: Safe atomic system configuration manager terinspirasi FreeBSD sysrc.
+29. `k-unveil`: Path & namespace restriction engine terinspirasi OpenBSD unveil/pledge.
+30. `k-signify`: Lightweight Ed25519 cryptographic signing & verification terinspirasi OpenBSD signify.
+31. `k-pf`: Minimalist declarative desktop packet filter & panic killswitch terinspirasi OpenBSD pf.
+32. `k-doas`: Safe minimalist privilege elevation & config validator terinspirasi OpenBSD doas.
+33. `k-wx`: Memory exploit mitigation auditor & W^X enforcer terinspirasi OpenBSD W^X.
 
 ### **Fase 3: Media Installer ISO & Delivery Pipeline**
 

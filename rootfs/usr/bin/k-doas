@@ -1,0 +1,197 @@
+#!/usr/bin/env python3
+"""
+Kalacakra OS - k-doas (Safe & Minimalist Privilege Elevation)
+OpenBSD doas-inspired lightweight alternative to sudo.
+Executes administrative tasks with minimal memory footprint, zero bloat,
+strict rule validation, and centralized audit logging in /var/log/kalacakra/doas.log.
+"""
+
+import os
+import sys
+import shutil
+import datetime
+import subprocess
+import argparse
+
+if hasattr(sys.stdout, "reconfigure"):
+    try:
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    except Exception:
+        pass
+
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+LIB_PATH = os.path.abspath(os.path.join(SCRIPT_DIR, "..", "share", "kalacakra", "lib"))
+if os.path.isdir(LIB_PATH) and LIB_PATH not in sys.path:
+    sys.path.insert(0, LIB_PATH)
+elif "/usr/share/kalacakra/lib" not in sys.path and os.path.isdir("/usr/share/kalacakra/lib"):
+    sys.path.insert(0, "/usr/share/kalacakra/lib")
+
+try:
+    from kalacakra_common import get_locale_strings
+except ImportError:
+    def get_locale_strings(lang_override=None):
+        return {}, "en"
+
+DOAS_CONF_PATH = "/etc/doas.conf"
+DOAS_LOG_PATH = "/var/log/kalacakra/doas.log"
+
+def log_elevation(cmd_list: list, method: str):
+    try:
+        os.makedirs(os.path.dirname(DOAS_LOG_PATH), exist_ok=True)
+        now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        user = os.environ.get("USER", "unknown")
+        entry = f"[{now}] USER={user} METHOD={method} CMD={' '.join(cmd_list)}\n"
+        with open(DOAS_LOG_PATH, "a", encoding="utf-8") as f:
+            f.write(entry)
+    except Exception:
+        pass
+
+def action_status():
+    strings, _ = get_locale_strings()
+    print("=" * 68)
+    print(strings.get("doas_header", "=== Kalacakra doas (Elevasi Hak Akses Aman Ala OpenBSD doas) ==="))
+    print("=" * 68)
+
+    doas_bin = shutil.which("doas")
+    sudo_bin = shutil.which("sudo")
+
+    print(f" Binary 'doas' Terpasang   : {'YA (' + doas_bin + ')' if doas_bin else 'Tidak (Fallback ke sudo)'}")
+    print(f" Binary 'sudo' Terpasang   : {'YA (' + sudo_bin + ')' if sudo_bin else 'Tidak'}")
+    print(f" File Konfigurasi         : {DOAS_CONF_PATH}")
+
+    if os.path.isfile(DOAS_CONF_PATH):
+        mode = oct(os.stat(DOAS_CONF_PATH).st_mode & 0o777)
+        print(f" Status Konfigurasi       : DITEMUKAN (Izin: {mode})")
+    else:
+        print(" Status Konfigurasi       : Belum dibuat. Jalankan 'kalacakra doas init'.")
+    return 0
+
+def action_check():
+    strings, _ = get_locale_strings()
+    print("=" * 68)
+    print(strings.get("doas_header", "=== Kalacakra doas (Elevasi Hak Akses Aman Ala OpenBSD doas) ==="))
+    print("=" * 68)
+
+    if not os.path.isfile(DOAS_CONF_PATH):
+        print(f" [GAGAL] File '{DOAS_CONF_PATH}' belum ada. Jalankan: 'kalacakra doas init'")
+        return 1
+
+    mode = os.stat(DOAS_CONF_PATH).st_mode & 0o777
+    # Izin aman: 0600 atau 0640 atau 0644
+    if mode not in (0o600, 0o640, 0o644):
+        print(f" [PERINGATAN] Izin file {oct(mode)} terlalu longgar. Standar aman adalah 0600.")
+        try:
+            os.chmod(DOAS_CONF_PATH, 0o600)
+            print(" [+] Izin otomatis diperbaiki menjadi 0600.")
+        except Exception:
+            pass
+
+    # Validasi sintaks dasar
+    errors = []
+    with open(DOAS_CONF_PATH, "r", encoding="utf-8") as f:
+        for idx, line in enumerate(f, 1):
+            s = line.strip()
+            if not s or s.startswith("#"):
+                continue
+            tokens = s.split()
+            if tokens[0] not in ("permit", "deny"):
+                errors.append(f"Baris {idx}: Aturan harus dimulai dengan 'permit' atau 'deny': '{s}'")
+
+    if errors:
+        for e in errors:
+            print(f" [FAIL] {e}")
+        return 1
+
+    print(f" [PASS] {strings.get('doas_verified', 'Konfigurasi /etc/doas.conf valid dan memiliki izin aman!')}")
+    print(" Seluruh aturan privilege elevation siap digunakan.")
+    return 0
+
+def action_init():
+    strings, _ = get_locale_strings()
+    print("=" * 68)
+    print(strings.get("doas_header", "=== Kalacakra doas (Elevasi Hak Akses Aman Ala OpenBSD doas) ==="))
+    print("=" * 68)
+
+    default_template = """# /etc/doas.conf - Kalacakra OS OpenBSD Privilege Rules
+# Sintaks: permit|deny [options] identity [as target] [cmd command [args ...]]
+
+# Izinkan grup wheel untuk eksekusi perintah dengan kata sandi persisten (timeout)
+permit persist :wheel
+
+# Izinkan eksekusi tool esensial tanpa kata sandi untuk grup wheel
+permit nopass :wheel as root cmd /usr/bin/k-rewind
+permit nopass :wheel as root cmd /usr/bin/k-be
+permit nopass :wheel as root cmd /usr/bin/k-scrub
+permit nopass :wheel as root cmd /usr/bin/k-pf
+permit nopass :wheel as root cmd /usr/bin/bootc
+"""
+    try:
+        os.makedirs(os.path.dirname(DOAS_CONF_PATH), exist_ok=True)
+        with open(DOAS_CONF_PATH, "w", encoding="utf-8") as f:
+            f.write(default_template)
+        os.chmod(DOAS_CONF_PATH, 0o600)
+        print(f" [+] Template konfigurasi aman ditulis ke: {DOAS_CONF_PATH}")
+        print(" [+] Izin akses dikunci ke mode 0600 (khusus root).")
+        return 0
+    except PermissionError:
+        print(f" [GAGAL] Memerlukan hak akses root untuk menulis {DOAS_CONF_PATH}.")
+        print(" Jalankan: sudo kalacakra doas init")
+        return 1
+
+def action_exec(cmd_list: list):
+    if not cmd_list:
+        print("[GAGAL] Tidak ada perintah yang ditentukan untuk dieksekusi.", file=sys.stderr)
+        return 1
+
+    doas_bin = shutil.which("doas")
+    sudo_bin = shutil.which("sudo")
+
+    if doas_bin:
+        log_elevation(cmd_list, "doas")
+        res = subprocess.run([doas_bin] + cmd_list)
+        return res.returncode
+    elif sudo_bin:
+        log_elevation(cmd_list, "sudo")
+        res = subprocess.run([sudo_bin] + cmd_list)
+        return res.returncode
+    else:
+        print("[GAGAL] Baik 'doas' maupun 'sudo' tidak ditemukan di sistem host.", file=sys.stderr)
+        return 1
+
+def main():
+    parser = argparse.ArgumentParser(
+        prog="k-doas",
+        description="Kalacakra doas - OpenBSD-inspired lightweight safe privilege elevation engine."
+    )
+    sub = parser.add_subparsers(dest="subcommand", help="Subcommand doas")
+
+    sub.add_parser("status", help="Periksa status ketersediaan doas dan konfigurasi")
+    sub.add_parser("check", help="Validasi sintaks dan izin keamanan /etc/doas.conf")
+    sub.add_parser("init", help="Inisialisasi template default /etc/doas.conf")
+
+    p_exec = sub.add_parser("exec", help="Jalankan perintah dengan hak akses elevated")
+    p_exec.add_argument("cmd", nargs=argparse.REMAINDER, help="Perintah yang akan dijalankan")
+
+    # Jika argumen pertama bukan subcommand, perlakukan sebagai perintah yang langsung dieksekusi
+    if len(sys.argv) > 1 and sys.argv[1] not in ("status", "check", "init", "exec", "-h", "--help"):
+        cmd_args = sys.argv[1:]
+        if cmd_args and cmd_args[0] == "--":
+            cmd_args = cmd_args[1:]
+        sys.exit(action_exec(cmd_args))
+
+    args = parser.parse_args()
+
+    if not args.subcommand:
+        sys.exit(action_status())
+
+    if args.subcommand == "status":
+        sys.exit(action_status())
+    elif args.subcommand == "check":
+        sys.exit(action_check())
+    elif args.subcommand == "init":
+        sys.exit(action_init())
+    elif args.subcommand == "exec":
+        sys.exit(action_exec(args.cmd))
+
+if __name__ == "__main__":
+    main()

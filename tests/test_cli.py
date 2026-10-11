@@ -7,6 +7,22 @@ LIB_PATH = os.path.join(ROOTFS_DIR, "usr", "share", "kalacakra", "lib")
 if LIB_PATH not in sys.path:
     sys.path.insert(0, LIB_PATH)
 
+
+def iter_python_cli_scripts():
+    """Kembalikan path script Python di rootfs/usr/bin (lewati yang shebang bash/dll)."""
+    bin_dir = os.path.join(ROOTFS_DIR, "usr", "bin")
+    for name in sorted(os.listdir(bin_dir)):
+        path = os.path.join(bin_dir, name)
+        if not os.path.isfile(path):
+            continue
+        try:
+            with open(path, "r", encoding="utf-8") as f:
+                first = f.readline()
+        except (UnicodeDecodeError, OSError):
+            continue
+        if first.startswith("#!") and "python" in first:
+            yield path
+
 from kalacakra_common import (
     get_locale_strings,
     redact_secrets,
@@ -55,7 +71,17 @@ class TestKalacakraCommon(unittest.TestCase):
             "scrub_healthy",
             "trace_header",
             "sysrc_header",
-            "sysrc_updated"
+            "sysrc_updated",
+            "unveil_header",
+            "unveil_running",
+            "signify_header",
+            "signify_verified",
+            "pf_header",
+            "pf_panic",
+            "doas_header",
+            "doas_verified",
+            "wx_header",
+            "wx_compliant"
         ]
 
         for lang in ["id", "en"]:

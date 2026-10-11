@@ -32,6 +32,16 @@ except ImportError:
     def get_locale_strings(lang_override=None):
         return {}, "en"
 
+def args_confirm_bypass() -> bool:
+    """Minta konfirmasi user sebelum menjalankan tanpa sandbox bwrap."""
+    if not sys.stdin.isatty():
+        return False
+    try:
+        ans = input("Tetap jalankan TANPA sandbox? [y/N]: ").strip().lower()
+        return ans in ("y", "yes", "ya")
+    except (EOFError, KeyboardInterrupt):
+        return False
+
 def run_in_jail(command: list, no_net: bool = False, pure_home: bool = False, ro_home: bool = True, timeout: int = None):
     strings, current_lang = get_locale_strings()
     
@@ -84,14 +94,18 @@ def run_in_jail(command: list, no_net: bool = False, pure_home: bool = False, ro
             shutil.rmtree(temp_dir, ignore_errors=True)
 
     else:
-        # Fallback simulator jika berjalan di lingkungan non-Linux/dev
-        print("[k-jail INFO] Menggunakan modul proteksi lingkungan proses Python...")
-        env = os.environ.copy()
+        # Fallback: TANPA bwrap TIDAK ada isolasi nyata - jangan menyesatkan
+        print("[k-jail WARN] 'bwrap' tidak terpasang - sandbox TIDAK aktif!")
         if no_net:
-            env["http_proxy"] = "http://127.0.0.1:0"
-            env["https_proxy"] = "http://127.0.0.1:0"
+            print("[k-jail WARN] --no-net TIDAK dapat dijalankan tanpa bwrap (proxy env bukan isolasi).")
+            print("             Jalankan perintah tanpa jaringan MANUAL atau pasang bubblewrap.")
+            sys.exit(1)
+        print("[k-jail WARN] Perintah akan dijalankan LANGSUNG tanpa perlindungan apapun.")
+        if not args_confirm_bypass():
+            print("[k-jail] Dibatalkan.")
+            sys.exit(1)
         try:
-            res = subprocess.run(command, env=env, timeout=timeout)
+            res = subprocess.run(command, timeout=timeout)
             ret_code = res.returncode
         except subprocess.TimeoutExpired:
             print("[k-jail Error] Timeout!")

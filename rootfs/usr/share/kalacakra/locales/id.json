@@ -77,5 +77,15 @@
   "scrub_healthy": "Integritas blok data Btrfs dalam kondisi prima (0 checksum error)!",
   "trace_header": "=== Kalacakra Dynamic Trace (Profiler Kinerja Ala DTrace) ===",
   "sysrc_header": "=== Kalacakra sysrc (Pengelola Konfigurasi Sistem Aman) ===",
-  "sysrc_updated": "Variabel konfigurasi '{key}' berhasil diperbarui menjadi '{val}'!"
+  "sysrc_updated": "Variabel konfigurasi '{key}' berhasil diperbarui menjadi '{val}'!",
+  "unveil_header": "=== Kalacakra Unveil (Isolasi Path Filesystem Ala OpenBSD unveil/pledge) ===",
+  "unveil_running": "Menjalankan aplikasi dengan pembatasan path filesystem ketat...",
+  "signify_header": "=== Kalacakra Signify (Kriptografi Ed25519 Ala OpenBSD signify) ===",
+  "signify_verified": "Verifikasi tanda tangan kriptografi BERHASIL (Signature Verified OK)!",
+  "pf_header": "=== Kalacakra Packet Filter (Desktop Firewall Ala OpenBSD pf) ===",
+  "pf_panic": "MODE PANIK DIAKTIFKAN: Semua koneksi jaringan diblokir (Killswitch Aktif)!",
+  "doas_header": "=== Kalacakra doas (Elevasi Hak Akses Aman Ala OpenBSD doas) ===",
+  "doas_verified": "Konfigurasi /etc/doas.conf valid dan memiliki izin aman!",
+  "wx_header": "=== Kalacakra W^X (Auditor Mitigasi Memori Ala OpenBSD W^X) ===",
+  "wx_compliant": "Biner dan proteksi memori sistem patuh pada standar W^X (Write XOR Execute)!"
 }

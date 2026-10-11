@@ -15,18 +15,19 @@
 3. [5 Fitur Ergonomi macOS (macOS-Inspired Ergonomics)](#-5-fitur-ergonomi-macos-macos-inspired-ergonomics)
 4. [5 Fitur Keandalan openSUSE (openSUSE-Inspired Engineering)](#-5-fitur-keandalan-opensuse-opensuse-inspired-engineering)
 5. [5 Fitur Ketangguhan UNIX FreeBSD (FreeBSD-Inspired Engineering)](#-5-fitur-ketangguhan-unix-freebsd-freebsd-inspired-engineering)
-6. [Panduan Instalasi & Deployment](#-panduan-instalasi--deployment)
-7. [Panduan Penggunaan Sehari-Hari](#-panduan-penggunaan-sehari-hari)
+6. [5 Fitur Keamanan Legendaris OpenBSD (OpenBSD-Inspired Security)](#-5-fitur-keamanan-legendaris-openbsd-openbsd-inspired-security)
+7. [Panduan Instalasi & Deployment](#-panduan-instalasi--deployment)
+8. [Panduan Penggunaan Sehari-Hari](#-panduan-penggunaan-sehari-hari)
    * [Perintah Kalacakra CLI](#1-perintah-kalacakra-cli)
    * [Universal Command Interceptor](#2-universal-command-interceptor-k-interceptor)
    * [AI Terminal Companion](#3-ai-terminal-companion-k-ai)
    * [Arch Linux AUR Integration](#4-arch-linux-aur-integration-k-aur)
    * [Dikte Suara & Pintasan Keyboard](#5-dikte-suara--pintasan-keyboard)
-8. [Panduan Build Image & ISO](#-panduan-build-image--iso)
+9. [Panduan Build Image & ISO](#-panduan-build-image--iso)
    * [Build via CI/CD Otomatis](#opsi-a-build-via-cicd-github-actions--gitea-actions)
    * [Build 100% Lokal di Komputer](#opsi-b-build-100-lokal-di-komputer-podman)
-9. [Struktur Repositori](#-struktur-repositori)
-10. [Lisensi & Spesifikasi](#-lisensi--spesifikasi)
+10. [Struktur Repositori](#-struktur-repositori)
+11. [Lisensi & Spesifikasi](#-lisensi--spesifikasi)
 
 ---
 
@@ -234,6 +235,56 @@ kalacakra sysrc ai.killswitch=true      # Matikan seluruh daemon AI instan
 
 ---
 
+## 🔒 5 Fitur Keamanan Legendaris OpenBSD (OpenBSD-Inspired Security)
+
+Terinspirasi dari moto *"Secure by Default, Proactive Auditing & Simplicity"* OpenBSD, Kalacakra mengintegrasikan proteksi tingkat sistem pertahanan dan isolasi path:
+
+### 🛡️ 1. Kalacakra Unveil: Path & Namespace Isolation (`k-unveil`)
+Isolasi aplikasi ketat ala `unveil(2)` dan `pledge(2)` OpenBSD. Membuka hanya path direktori yang ditentukan secara eksplisit dan menyembunyikan direktori privat (`~/.ssh`, `~/.gnupg`) dengan tmpfs sekali pakai:
+```bash
+kalacakra unveil --ro /usr --rw ~/Documents --hide-home libreoffice doc.odt
+kalacakra unveil --ro ~/Photos --no-net feh ~/Photos/sample.png  # Isolasi offline total
+kalacakra unveil --dry-run --ro /usr bash                        # Pratinjau susunan isolasi bwrap
+```
+
+### 🔑 2. Kalacakra Signify: Ed25519 Cryptographic Verifier (`k-signify`)
+Penandatanganan dan verifikasi tanda tangan kriptografis berbasis kurva Edwards25519 ala `signify(1)` OpenBSD dengan kecepatan ultra-tinggi (<5ms) dan kebal celah tanpa kompleksitas PGP/GPG:
+```bash
+kalacakra signify generate              # Buat pasangan kunci Ed25519 baru (Mode 0600)
+kalacakra signify sign -s key.sec -m update.tar.gz    # Tandatangani berkas/manifes
+kalacakra signify verify -p key.pub -m update.tar.gz  # Verifikasi integritas instan
+kalacakra signify status                # Periksa kunci yang tersedia di sistem
+```
+
+### 🧱 3. Kalacakra PF: Declarative Desktop Firewall & Panic Killswitch (`k-pf`)
+Firewall desktop deklaratif ala OpenBSD Packet Filter (`pf` / `pfctl`) di atas Linux `nftables` dengan tombol darurat pemutus jaringan (*Panic Killswitch*):
+```bash
+kalacakra pf status                     # Tampilkan ringkasan aturan tabel firewall aktif
+kalacakra pf panic                      # Mode Panik Darurat: Putus semua trafik internet luar!
+kalacakra pf unpanic                    # Pulihkan koneksi normal kembali
+kalacakra pf block-app untrusted-app    # Blokir akses internet keluar per-aplikasi (Anchor)
+kalacakra pf allow-app untrusted-app    # Cabut blokir akses internet aplikasi
+```
+
+### ⚡ 4. Kalacakra doas: Safe Minimalist Privilege Elevation (`k-doas`)
+Alternatif eksekusi hak istimewa administratif minimalis ala OpenBSD `doas(1)` dengan konfigurasi deklaratif ringkas di `/etc/doas.conf` dan pencatatan audit di `/var/log/kalacakra/doas.log`:
+```bash
+kalacakra doas check                    # Validasi sintaks & izin keamanan doas.conf
+kalacakra doas init                     # Buat template aturan aman untuk grup wheel
+kalacakra doas k-rewind list            # Eksekusi perintah administratif cepat
+```
+
+### 🧬 5. Kalacakra W^X: Memory Exploit Mitigation Auditor (`k-wx`)
+Auditor kepatuhan proteksi memori biner dan pengerasan kernel ala OpenBSD *Write XOR Execute* (W^X):
+```bash
+kalacakra wx audit /usr/bin/firefox     # Audit segmen RWX & proteksi NX stack binary ELF
+kalacakra wx scan --dir ~/.local/bin     # Pindai seluruh biner lokal pengguna
+kalacakra wx check-kernel               # Periksa proteksi eksploitasi kernel (ASLR, YAMA, Ptrace)
+kalacakra wx enforce                    # Terapkan konfigurasi pengerasan memori sysctl
+```
+
+---
+
 ## 💿 Panduan Instalasi & Deployment
 
 ### Metode 1: Instalasi Baru via File ISO
@@ -289,6 +340,11 @@ kalacakra be list           # Kelola Boot Environments & kloning deployment (bec
 kalacakra scrub status      # Periksa integritas data & deteksi bitrot Btrfs (ZFS)
 kalacakra trace io          # Analisis bottleneck disk & latensi game eBPF (DTrace)
 kalacakra sysrc battery=85  # Atur konfigurasi sistem secara aman & atomik (sysrc)
+kalacakra unveil --ro /usr app  # Isolasi path & namespace filesystem (OpenBSD unveil)
+kalacakra signify verify -p key.pub -m pkg # Verifikasi Ed25519 ultra-cepat (signify)
+kalacakra pf panic              # Mode panik killswitch darurat pemutus jaringan (pf)
+kalacakra doas check            # Validasi aturan elevasi hak akses aman (doas)
+kalacakra wx audit /usr/bin/app # Audit kepatuhan memori biner W^X & mitigasi exploit
 ```
 
 ---
@@ -409,7 +465,8 @@ kalacakra/
 │       │                   # k-rewind, k-beam, k-portal, k-ocr, k-survival, k-precache,
 │       │                   # k-preview, k-spotlight, k-flow, k-snippet, k-keyring,
 │       │                   # k-hub, k-qa, k-snapboot, k-profile, k-pkg,
-│       │                   # k-jail, k-be, k-scrub, k-trace, k-sysrc
+│       │                   # k-jail, k-be, k-scrub, k-trace, k-sysrc,
+│       │                   # k-unveil, k-signify, k-pf, k-doas, k-wx
 │       └── share/
 │           ├── applications/ # Desktop entries & scheme handler (.kpkg / kalacakra://)
 │           ├── kalacakra/  # Fastfetch config, i18n locales (id/en), Justfile, shared lib

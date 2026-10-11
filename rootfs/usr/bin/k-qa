@@ -69,7 +69,8 @@ def run_qa_tests():
         "k-rewind", "k-beam", "k-portal", "k-ocr", "k-survival", "k-precache",
         "k-preview", "k-spotlight", "k-flow", "k-snippet", "k-keyring",
         "k-hub", "k-qa", "k-snapboot", "k-profile", "k-pkg",
-        "k-jail", "k-be", "k-scrub", "k-trace", "k-sysrc"
+        "k-jail", "k-be", "k-scrub", "k-trace", "k-sysrc",
+        "k-unveil", "k-signify", "k-pf", "k-doas", "k-wx"
     ]
     missing_bins = []
     for b in expected_bins:

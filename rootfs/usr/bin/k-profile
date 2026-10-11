@@ -94,18 +94,25 @@ def apply_profile(name: str):
     print("=" * 70)
 
     # 1. Pasang Flatpak
+    skipped = []
     if profile["flatpaks"]:
         print(f"[k-profile] Menyiapkan {len(profile['flatpaks'])} aplikasi Flatpak...")
-        for fp in profile["flatpaks"]:
-            print(f"  └─ Memasang: {fp}")
-            if shutil.which("flatpak"):
+        if not shutil.which("flatpak"):
+            print("[k-profile WARN] 'flatpak' tidak terpasang - aplikasi Flatpak DIPERLEWATI.")
+            skipped.append("flatpak")
+        else:
+            for fp in profile["flatpaks"]:
+                print(f"  └─ Memasang: {fp}")
                 subprocess.run(["flatpak", "install", "-y", "flathub", fp], check=False)
 
     # 2. Siapkan Distrobox Space jika diperlukan
     if profile.get("space"):
         space_name = profile["space"]
-        print(f"[k-profile] Menyiapkan Kalacakra Space terisolasi '{space_name}'...")
-        if shutil.which("distrobox"):
+        if not shutil.which("distrobox"):
+            print(f"[k-profile WARN] 'distrobox' tidak terpasang - space '{space_name}' DIPERLEWATI.")
+            skipped.append(f"distrobox ({space_name})")
+        else:
+            print(f"[k-profile] Menyiapkan Kalacakra Space terisolasi '{space_name}'...")
             subprocess.run(["distrobox", "create", "--name", space_name, "--image", "ghcr.io/ublue-os/arch-distrobox:latest", "-Y"], check=False)
             if profile.get("space_packages"):
                 pkgs = " ".join(profile["space_packages"])
@@ -114,7 +121,11 @@ def apply_profile(name: str):
 
     print("-" * 70)
     msg = strings.get("profile_applied", "Profil lingkungan '{name}' berhasil dipasang dan dikonfigurasi!").format(name=name)
-    print(msg)
+    if skipped:
+        print(f"[k-profile WARN] Profil '{name}' SEBAGIAN aktif. Komponen dilewati: {', '.join(skipped)}")
+        print("   Pasang dependensi di atas lalu jalankan ulang: k-profile apply " + name)
+    else:
+        print(msg)
     print("=" * 70)
     print()
 

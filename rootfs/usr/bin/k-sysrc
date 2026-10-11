@@ -8,6 +8,7 @@ Safely inspects and modifies Kalacakra OS system variables without editing confi
 import os
 import sys
 import json
+import copy
 import argparse
 
 if hasattr(sys.stdout, "reconfigure"):
@@ -41,7 +42,8 @@ DEFAULT_CONFIG = {
 }
 
 def load_config() -> dict:
-    cfg = DEFAULT_CONFIG.copy()
+    # deepcopy agar mutasi tidak mengubah DEFAULT_CONFIG di memori (aman dipanggil berulang)
+    cfg = copy.deepcopy(DEFAULT_CONFIG)
     if os.path.isfile(CONFIG_FILE):
         try:
             with open(CONFIG_FILE, "r", encoding="utf-8") as f:
@@ -105,10 +107,18 @@ def set_variable(assignment: str):
         val = val.lower()
     elif entry["type"] == "int":
         try:
-            int(val)
+            n = int(val)
         except ValueError:
             print(f"[k-sysrc Error] Nilai untuk '{key}' harus berupa angka bulat.")
             sys.exit(1)
+        # Validasi rentang untuk variabel terikat hardware
+        if key == "battery.limit" and not (10 <= n <= 100):
+            print("[k-sysrc Error] 'battery.limit' harus antara 10 dan 100 (%).")
+            sys.exit(1)
+        if key == "btrfs.autocommit" and n < 1:
+            print("[k-sysrc Error] 'btrfs.autocommit' harus >= 1 detik.")
+            sys.exit(1)
+        val = str(n)
 
     entry["val"] = val
     save_config(cfg)

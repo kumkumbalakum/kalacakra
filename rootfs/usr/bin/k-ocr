@@ -37,7 +37,7 @@ def capture_screen_area() -> bool:
 
     # 2. Coba Spectacle (KDE native)
     if shutil_which("spectacle"):
-        res = subprocess.run(["spectacle", "--region", "--background", "--nonotify", "-o", TMP_IMG], check=False)
+        subprocess.run(["spectacle", "--region", "--background", "--nonotify", "-o", TMP_IMG], check=False)
         return os.path.isfile(TMP_IMG)
 
     return False

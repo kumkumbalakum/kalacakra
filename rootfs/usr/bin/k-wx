@@ -1,0 +1,285 @@
+#!/usr/bin/env python3
+"""
+Kalacakra OS - k-wx (W^X Memory Exploit Mitigation Auditor)
+OpenBSD W^X (Write XOR Execute) & kern.wxabort-inspired security engine.
+Audits binary executables for memory protection compliance (no RWX segments,
+no executable stack PT_GNU_STACK, PIE, Canary, RELRO) and monitors kernel mitigations.
+"""
+
+import os
+import sys
+import struct
+import argparse
+
+if hasattr(sys.stdout, "reconfigure"):
+    try:
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    except Exception:
+        pass
+
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+LIB_PATH = os.path.abspath(os.path.join(SCRIPT_DIR, "..", "share", "kalacakra", "lib"))
+if os.path.isdir(LIB_PATH) and LIB_PATH not in sys.path:
+    sys.path.insert(0, LIB_PATH)
+elif "/usr/share/kalacakra/lib" not in sys.path and os.path.isdir("/usr/share/kalacakra/lib"):
+    sys.path.insert(0, "/usr/share/kalacakra/lib")
+
+try:
+    from kalacakra_common import get_locale_strings
+except ImportError:
+    def get_locale_strings(lang_override=None):
+        return {}, "en"
+
+# ==============================================================================
+# Pure-Python ELF Header & W^X Inspector
+# ==============================================================================
+PT_LOAD = 1
+PT_DYNAMIC = 2
+PT_GNU_STACK = 0x6474e551
+PF_X = 0x1
+PF_W = 0x2
+PF_R = 0x4
+
+def parse_elf(filepath: str) -> dict:
+    try:
+        with open(filepath, "rb") as f:
+            data = f.read(65536) # Baca header dan program headers pertama
+    except Exception as e:
+        return {"error": str(e), "is_elf": False}
+
+    if len(data) < 64 or data[:4] != b"\x7fELF":
+        return {"is_elf": False, "error": "Bukan binary berformat ELF"}
+
+    ei_class = data[4] # 1=32-bit, 2=64-bit
+    ei_data = data[5]  # 1=Little Endian, 2=Big Endian
+    endian = "<" if ei_data == 1 else ">"
+    is_64 = (ei_class == 2)
+
+    try:
+        if is_64:
+            e_type = struct.unpack_from(f"{endian}H", data, 16)[0]
+            e_phoff = struct.unpack_from(f"{endian}Q", data, 32)[0]
+            e_phentsize = struct.unpack_from(f"{endian}H", data, 54)[0]
+            e_phnum = struct.unpack_from(f"{endian}H", data, 56)[0]
+        else:
+            e_type = struct.unpack_from(f"{endian}H", data, 16)[0]
+            e_phoff = struct.unpack_from(f"{endian}I", data, 28)[0]
+            e_phentsize = struct.unpack_from(f"{endian}H", data, 42)[0]
+            e_phnum = struct.unpack_from(f"{endian}H", data, 44)[0]
+    except Exception as e:
+        return {"is_elf": False, "error": f"Header ELF korup: {e}"}
+
+    # e_type: 2=ET_EXEC, 3=ET_DYN (PIE / Shared Library)
+    is_pie = (e_type == 3)
+
+    wx_violations = []
+    exec_stack = False
+    has_gnu_stack = False
+
+    for i in range(e_phnum):
+        off = e_phoff + i * e_phentsize
+        if off + e_phentsize > len(data):
+            break
+        try:
+            if is_64:
+                p_type, p_flags = struct.unpack_from(f"{endian}II", data, off)
+            else:
+                p_type = struct.unpack_from(f"{endian}I", data, off)[0]
+                p_flags = struct.unpack_from(f"{endian}I", data, off + 24)[0]
+        except Exception:
+            continue
+
+        if p_type == PT_LOAD:
+            if (p_flags & PF_W) and (p_flags & PF_X):
+                wx_violations.append(f"Segment #{i} LOAD memiliki izin WRITE + EXECUTE bersamaan (RWX)")
+        elif p_type == PT_GNU_STACK:
+            has_gnu_stack = True
+            if p_flags & PF_X:
+                exec_stack = True
+
+    # Cek stack canary sederhana via pembacaan string binary
+    has_canary = b"__stack_chk_fail" in data
+
+    return {
+        "is_elf": True,
+        "is_64": is_64,
+        "is_pie": is_pie,
+        "has_canary": has_canary,
+        "has_gnu_stack": has_gnu_stack,
+        "exec_stack": exec_stack,
+        "wx_violations": wx_violations,
+        "compliant": len(wx_violations) == 0 and not exec_stack
+    }
+
+# ==============================================================================
+# Actions
+# ==============================================================================
+def action_audit(binary_path: str):
+    strings, _ = get_locale_strings()
+    print("=" * 70)
+    print(strings.get("wx_header", "=== Kalacakra W^X (Auditor Mitigasi Memori Ala OpenBSD W^X) ==="))
+    print("=" * 70)
+    print(f" Target Binary : {binary_path}")
+
+    if not os.path.isfile(binary_path):
+        print(f" [GAGAL] File '{binary_path}' tidak ditemukan!", file=sys.stderr)
+        return 1
+
+    res = parse_elf(binary_path)
+    if not res["is_elf"]:
+        print(f" [INFO] File bukan binary ELF ({res.get('error')}).")
+        return 0
+
+    print(f" Arsitektur    : {'64-bit (ELF64)' if res['is_64'] else '32-bit (ELF32)'}")
+    print(f" Format Posisi : {'PIE (Position Independent Executable)' if res['is_pie'] else 'No-PIE'}")
+    print(f" Stack Canary  : {'TERLINDUNGI (__stack_chk_fail aktif)' if res['has_canary'] else 'Tidak terdeteksi'}")
+    print(f" Non-Exec Stack: {'AMAN (PT_GNU_STACK RW-)' if res['has_gnu_stack'] and not res['exec_stack'] else 'BAHAYA (Executable Stack!)'}")
+    print("-" * 70)
+
+    if res["wx_violations"]:
+        print(" [PELANGGARAN W^X DITEMUKAN]:")
+        for v in res["wx_violations"]:
+            print(f"  ❌ {v}")
+    else:
+        print(" [OK] 0 Segmen Memori RWX (Tidak ada segmen simultan Write + Execute)")
+
+    if res["exec_stack"]:
+        print("  ❌ PT_GNU_STACK mengizinkan eksekusi kode di stack!")
+
+    print("-" * 70)
+    if res["compliant"]:
+        print(f" [PASS] {strings.get('wx_compliant', 'Biner dan proteksi memori sistem patuh pada standar W^X (Write XOR Execute)!')}")
+        return 0
+    else:
+        print(" [FAIL] Binary TIDAK PATUH pada standar keamanan OpenBSD W^X!", file=sys.stderr)
+        return 1
+
+def action_scan(directory: str):
+    strings, _ = get_locale_strings()
+    print("=" * 70)
+    print(strings.get("wx_header", "=== Kalacakra W^X (Auditor Mitigasi Memori Ala OpenBSD W^X) ==="))
+    print("=" * 70)
+    print(f" Memindai direktori: {directory}")
+
+    if not os.path.isdir(directory):
+        print(f" Direktori '{directory}' tidak ditemukan.")
+        return 1
+
+    files = [os.path.join(directory, f) for f in os.listdir(directory) if os.path.isfile(os.path.join(directory, f))]
+    total_elf = 0
+    compliant_count = 0
+    violations = []
+
+    for fpath in files[:100]: # Batasi 100 binary pertama untuk efisiensi
+        res = parse_elf(fpath)
+        if res["is_elf"]:
+            total_elf += 1
+            if res["compliant"]:
+                compliant_count += 1
+            else:
+                violations.append((fpath, res["wx_violations"], res["exec_stack"]))
+
+    print(f" Total Binary ELF Diperiksa : {total_elf}")
+    print(f" Patuh W^X & NX Stack       : {compliant_count} / {total_elf}")
+
+    if violations:
+        print("\n [DAFTAR PELANGGARAN W^X]:")
+        for v_path, v_list, ex_st in violations:
+            print(f"  ❌ {os.path.basename(v_path)}:")
+            for item in v_list:
+                print(f"     - {item}")
+            if ex_st:
+                print("     - Executable Stack")
+    else:
+        print("\n [PASS] Seluruh binary yang dipindai patuh penuh pada proteksi W^X!")
+    return 0
+
+def action_check_kernel():
+    strings, _ = get_locale_strings()
+    print("=" * 70)
+    print(strings.get("wx_header", "=== Kalacakra W^X (Auditor Mitigasi Memori Ala OpenBSD W^X) ==="))
+    print("=" * 70)
+    print(" Pemeriksaan Mitigasi Kernel Memory & Exploitation:")
+    print("-" * 70)
+
+    checks = [
+        ("/proc/sys/kernel/randomize_va_space", "Full ASLR (Address Space Layout Randomization)", "2"),
+        ("/proc/sys/kernel/yama/ptrace_scope", "YAMA Ptrace Scope Restriction", "1"),
+        ("/proc/sys/kernel/kptr_restrict", "Kernel Pointer Restriction", "1"),
+        ("/proc/sys/vm/mmap_min_addr", "Mmap Min Addr (Null Pointer Deref Guard)", "65536"),
+        ("/proc/sys/fs/protected_fifos", "Protected FIFOs in Sticky Dirs", "2"),
+        ("/proc/sys/fs/protected_regular", "Protected Regular Files in Sticky Dirs", "2"),
+    ]
+
+    for path, desc, ideal in checks:
+        if os.path.isfile(path):
+            try:
+                with open(path, "r") as f:
+                    val = f.read().strip()
+                status = "PASS" if val >= ideal else "WARN"
+                print(f"  [{status}] {desc:<45} : Nilai={val} (Ideal>={ideal})")
+            except Exception:
+                print(f"  [WARN] {desc:<45} : Tidak dapat dibaca")
+        else:
+            print(f"  [INFO] {desc:<45} : Path tidak ada di environment ini")
+
+    print("-" * 70)
+    print(" Seluruh mitigasi aktif memperkuat ketahanan Kalacakra OS dari exploit ROP/buffer overflow.")
+    return 0
+
+def action_enforce():
+    target_conf = "/etc/sysctl.d/99-kalacakra-wx.conf"
+    conf_content = """# Kalacakra OS - OpenBSD W^X & Kernel Memory Hardening
+kernel.randomize_va_space = 2
+kernel.yama.ptrace_scope = 2
+kernel.kptr_restrict = 2
+vm.mmap_min_addr = 65536
+fs.protected_fifos = 2
+fs.protected_regular = 2
+fs.protected_symlinks = 1
+fs.protected_hardlinks = 1
+"""
+    try:
+        os.makedirs(os.path.dirname(target_conf), exist_ok=True)
+        with open(target_conf, "w", encoding="utf-8") as f:
+            f.write(conf_content)
+        print(f" [OK] Konfigurasi W^X kernel ditulis ke: {target_conf}")
+        print(" Terapkan dengan: sudo sysctl --system")
+        return 0
+    except PermissionError:
+        print(" [GAGAL] Memerlukan hak akses root untuk menulis konfigurasi sysctl.")
+        print(" Jalankan: sudo kalacakra wx enforce")
+        return 1
+
+def main():
+    parser = argparse.ArgumentParser(
+        prog="k-wx",
+        description="Kalacakra W^X - OpenBSD W^X memory exploit mitigation and binary auditor."
+    )
+    sub = parser.add_subparsers(dest="command", help="Perintah wx")
+
+    p_audit = sub.add_parser("audit", help="Audit binary ELF terhadap kepatuhan W^X dan NX stack")
+    p_audit.add_argument("binary", help="Path ke executable binary")
+
+    p_scan = sub.add_parser("scan", help="Pindai seluruh binary di direktori")
+    p_scan.add_argument("--dir", default="/usr/bin", help="Direktori yang dipindai (default: /usr/bin)")
+
+    sub.add_parser("check-kernel", help="Periksa mitigasi memori kernel (ASLR, YAMA, Ptrace)")
+    sub.add_parser("enforce", help="Terapkan sysctl proteksi memori W^X ke /etc/sysctl.d")
+
+    args = parser.parse_args()
+
+    if not args.command:
+        sys.exit(action_check_kernel())
+
+    if args.command == "audit":
+        sys.exit(action_audit(args.binary))
+    elif args.command == "scan":
+        sys.exit(action_scan(args.dir))
+    elif args.command == "check-kernel":
+        sys.exit(action_check_kernel())
+    elif args.command == "enforce":
+        sys.exit(action_enforce())
+
+if __name__ == "__main__":
+    main()

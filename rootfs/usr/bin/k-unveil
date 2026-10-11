@@ -1,0 +1,170 @@
+#!/usr/bin/env python3
+"""
+Kalacakra OS - k-unveil (Filesystem Path & Namespace Restriction)
+OpenBSD unveil(2) & pledge(2) inspired selective path exposure engine.
+Executes processes in a sandbox where ONLY explicitly specified paths are unveiled
+(either read-only or read-write), while all other directories and private data (like ~/.ssh, ~/.gnupg)
+are rendered completely invisible and unreadable.
+"""
+
+import os
+import sys
+import shutil
+import tempfile
+import subprocess
+import argparse
+
+if hasattr(sys.stdout, "reconfigure"):
+    try:
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    except Exception:
+        pass
+
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+LIB_PATH = os.path.abspath(os.path.join(SCRIPT_DIR, "..", "share", "kalacakra", "lib"))
+if os.path.isdir(LIB_PATH) and LIB_PATH not in sys.path:
+    sys.path.insert(0, LIB_PATH)
+elif "/usr/share/kalacakra/lib" not in sys.path and os.path.isdir("/usr/share/kalacakra/lib"):
+    sys.path.insert(0, "/usr/share/kalacakra/lib")
+
+try:
+    from kalacakra_common import get_locale_strings
+except ImportError:
+    def get_locale_strings(lang_override=None):
+        return {}, "en"
+
+def run_unveiled(command: list, ro_paths: list, rw_paths: list, hide_home: bool, no_net: bool, dry_run: bool):
+    strings, current_lang = get_locale_strings()
+    
+    print()
+    print("=" * 70)
+    print(strings.get("unveil_header", "=== Kalacakra Unveil (Isolasi Path Filesystem Ala OpenBSD unveil/pledge) ==="))
+    print("=" * 70)
+    print(f" Target Perintah    : {' '.join(command)}")
+    print(f" Akses Jaringan     : {'TERBLOKIR (Offline / pledge no-net)' if no_net else 'Akses Aktif'}")
+    print(f" Proteksi Home Dir  : {'TERSEMBUNYI TOTAL (~/.ssh, ~/.gnupg ghaib)' if hide_home else 'Standar Terbuka'}")
+    if ro_paths:
+        print(f" Unveiled Read-Only : {', '.join(ro_paths)}")
+    if rw_paths:
+        print(f" Unveiled Read-Write: {', '.join(rw_paths)}")
+    print("-" * 70)
+
+    # Validasi keberadaan path yang di-unveil
+    for p in ro_paths + rw_paths:
+        expanded = os.path.abspath(os.path.expanduser(p))
+        if not os.path.exists(expanded):
+            print(f"[PERINGATAN] Path '{p}' tidak ditemukan di sistem host. Melewati mount...")
+
+    # Cek ketersediaan bwrap
+    bwrap_bin = shutil.which("bwrap")
+    if not bwrap_bin:
+        print("[PERINGATAN] Bubblewrap ('bwrap') tidak terdeteksi.")
+        print("Untuk memanfaatkan fitur OpenBSD unveil di Linux, Bubblewrap diperlukan.")
+        if dry_run:
+            return 0
+        return subprocess.run(command).returncode
+
+    # Susun isolasi namespace ala OpenBSD unveil
+    bwrap_cmd = [bwrap_bin]
+
+    # Minimal system mount (read-only)
+    for sys_dir in ["/usr", "/lib", "/lib64", "/bin", "/sbin"]:
+        if os.path.isdir(sys_dir):
+            bwrap_cmd.extend(["--ro-bind", sys_dir, sys_dir])
+
+    # Minimal devices & system pseudo-filesystems
+    bwrap_cmd.extend([
+        "--proc", "/proc",
+        "--dev", "/dev",
+        "--tmpfs", "/tmp",
+    ])
+
+    if not no_net:
+        if os.path.exists("/etc/resolv.conf"):
+            bwrap_cmd.extend(["--ro-bind", "/etc/resolv.conf", "/etc/resolv.conf"])
+        if os.path.exists("/etc/hosts"):
+            bwrap_cmd.extend(["--ro-bind", "/etc/hosts", "/etc/hosts"])
+        if os.path.exists("/etc/ssl"):
+            bwrap_cmd.extend(["--ro-bind", "/etc/ssl", "/etc/ssl"])
+        if os.path.exists("/etc/pki"):
+            bwrap_cmd.extend(["--ro-bind", "/etc/pki", "/etc/pki"])
+    else:
+        bwrap_cmd.append("--unshare-net")
+
+    # Handle home directory isolation
+    user_home = os.path.expanduser("~")
+    if hide_home:
+        # Tutup home dengan empty tmpfs
+        bwrap_cmd.extend(["--tmpfs", user_home])
+    else:
+        # Default fallback home read-only jika tidak disembunyikan
+        if os.path.isdir(user_home):
+            bwrap_cmd.extend(["--ro-bind-try", user_home, user_home])
+
+    # Bind explicitly unveiled Read-Only paths
+    for p in ro_paths:
+        expanded = os.path.abspath(os.path.expanduser(p))
+        if os.path.exists(expanded):
+            bwrap_cmd.extend(["--ro-bind", expanded, expanded])
+
+    # Bind explicitly unveiled Read-Write paths
+    for p in rw_paths:
+        expanded = os.path.abspath(os.path.expanduser(p))
+        if os.path.exists(expanded):
+            bwrap_cmd.extend(["--bind", expanded, expanded])
+
+    # Set working directory & drop capabilities
+    cwd = os.getcwd()
+    bwrap_cmd.extend(["--chdir", cwd])
+    bwrap_cmd.extend(["--die-with-parent"])
+    bwrap_cmd.extend(command)
+
+    if dry_run:
+        print("[DRY-RUN] Perintah simulasi isolasi bwrap:")
+        print(" ".join(bwrap_cmd))
+        print("[DRY-RUN] Selesai tanpa menjalankan perintah.")
+        return 0
+
+    print(strings.get("unveil_running", "Menjalankan aplikasi dengan pembatasan path filesystem ketat..."))
+    try:
+        res = subprocess.run(bwrap_cmd)
+        return res.returncode
+    except Exception as e:
+        print(f"[GAGAL] Eksekusi unveil gagal: {e}", file=sys.stderr)
+        return 1
+
+def main():
+    parser = argparse.ArgumentParser(
+        prog="k-unveil",
+        description="Kalacakra Unveil - OpenBSD unveil(2) & pledge(2) style filesystem path restriction engine."
+    )
+    parser.add_argument("--ro", action="append", default=[], help="Path yang dibuka sebagai READ-ONLY (dapat diulang)")
+    parser.add_argument("--rw", action="append", default=[], help="Path yang dibuka sebagai READ-WRITE (dapat diulang)")
+    parser.add_argument("--hide-home", action="store_true", help="Sembunyikan seluruh isi home user (~/.ssh dll tidak terlihat)")
+    parser.add_argument("--no-net", action="store_true", help="Matikan seluruh akses jaringan (pledge network restriction)")
+    parser.add_argument("--dry-run", action="store_true", help="Tampilkan konfigurasi mount bwrap tanpa mengeksekusi")
+    parser.add_argument("command", nargs=argparse.REMAINDER, help="Perintah dan argumen yang akan dijalankan")
+
+    args = parser.parse_args()
+
+    if not args.command:
+        parser.print_help()
+        print("\nContoh Penggunaan:")
+        print("  kalacakra unveil --ro /usr --rw ~/Documents --hide-home libreoffice document.odt")
+        print("  kalacakra unveil --ro ~/Photos --no-net feh ~/Photos/sample.png")
+        sys.exit(1)
+
+    # Bersihkan jika ada pemisah '--'
+    cmd = args.command
+    if cmd and cmd[0] == "--":
+        cmd = cmd[1:]
+
+    if not cmd:
+        parser.print_help()
+        sys.exit(1)
+
+    code = run_unveiled(cmd, args.ro, args.rw, args.hide_home, args.no_net, args.dry_run)
+    sys.exit(code)
+
+if __name__ == "__main__":
+    main()

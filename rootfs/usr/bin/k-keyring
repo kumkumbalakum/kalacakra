@@ -84,18 +84,18 @@ def main():
         subprocess.run(["fprintd-enroll"], check=False)
     elif args.command == "setup":
         print("[k-keyring] Memeriksa & mengonfigurasi auto-unlock KWallet via PAM...")
-        pam_file = "/etc/pam.d/sddm"
         # PAM hanya bisa diubah oleh root - cek dulu, beri instruksi jujur
         if check_kwallet_pam().startswith("Aktif"):
             print("[k-keyring OK] pam_kwallet sudah aktif di /etc/pam.d/sddm. Tidak ada yang perlu diubah.")
+            print(strings.get("keyring_configured", "[Kalacakra Keyring] PAM auto-unlock berhasil dikonfigurasi!"))
         else:
             print("[k-keyring] pam_kwallet BELUM terkonfigurasi. Dibutuhkan root untuk menambahkannya:")
             print("            sudo sh -c 'grep -q pam_kwallet /etc/pam.d/sddm || \\")
             print("              sed -i \"s/^session.*pam_unix/session optional pam_kwallet.so\\n&/\" /etc/pam.d/sddm'")
             print("            (atau tambahkan 'session optional pam_kwallet.so' ke /etc/pam.d/sddm)")
             print("[k-keyring] Setelah itu, KWallet akan terbuka otomatis saat login SDDM.")
+            print("[k-keyring] (Pesan sukses hanya dikonfigurasi setelah PAM benar-benar aktif.)")
         print("[k-keyring] Catatan: konfigurasi ini TIDAK mengaktifkan TPM2/auto-unlock LUKS.")
-        print(strings.get("keyring_configured", "[Kalacakra Keyring] PAM auto-unlock berhasil dikonfigurasi!"))
 
     print()
 

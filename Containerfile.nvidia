@@ -95,6 +95,11 @@ RUN chmod 0755 \
     /usr/bin/k-scrub \
     /usr/bin/k-trace \
     /usr/bin/k-sysrc \
+    /usr/bin/k-unveil \
+    /usr/bin/k-signify \
+    /usr/bin/k-pf \
+    /usr/bin/k-doas \
+    /usr/bin/k-wx \
     /etc/profile.d/kalacakra-ssh-agent.sh \
     /usr/share/kalacakra/scripts/battery-cap.sh 2>/dev/null || true
 

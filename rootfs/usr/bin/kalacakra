@@ -136,6 +136,22 @@ def main():
     p_src = subparsers.add_parser("sysrc", help="Kalacakra sysrc - FreeBSD sysrc-style safe atomic config manager")
     p_src.add_argument("subaction", nargs="*", help="sysrc assignment (key=val or key)")
 
+    # 5 Fitur Keamanan Legendaris OpenBSD (unveil/pledge, signify, pf, doas, W^X)
+    p_unv = subparsers.add_parser("unveil", help="Kalacakra Unveil - OpenBSD unveil/pledge filesystem path restriction")
+    p_unv.add_argument("subaction", nargs="*", help="Unveil arguments (--ro/--rw/--hide-home/--no-net/command)")
+
+    p_sig = subparsers.add_parser("signify", help="Kalacakra Signify - OpenBSD signify Ed25519 cryptographic verifier")
+    p_sig.add_argument("subaction", nargs="*", help="Signify action (generate/sign/verify/status)")
+
+    p_pf = subparsers.add_parser("pf", help="Kalacakra PF - OpenBSD pf-style firewall and panic killswitch")
+    p_pf.add_argument("subaction", nargs="*", help="PF arguments (status/panic/unpanic/block-app/load)")
+
+    p_doas = subparsers.add_parser("doas", help="Kalacakra doas - OpenBSD doas safe privilege elevation")
+    p_doas.add_argument("subaction", nargs="*", help="doas arguments (exec/check/init/status)")
+
+    p_wx = subparsers.add_parser("wx", help="Kalacakra W^X - OpenBSD W^X memory exploit mitigation auditor")
+    p_wx.add_argument("subaction", nargs="*", help="W^X arguments (audit/scan/check-kernel/enforce)")
+
     args, unknown = parser.parse_known_args()
     strings, current_lang = get_locale_strings(args.lang)
 
@@ -197,6 +213,16 @@ def main():
         sys.exit(subprocess.run([find_bin("k-trace")] + args.subaction).returncode)
     elif args.command == "sysrc":
         sys.exit(subprocess.run([find_bin("k-sysrc")] + args.subaction).returncode)
+    elif args.command == "unveil":
+        sys.exit(subprocess.run([find_bin("k-unveil")] + args.subaction).returncode)
+    elif args.command == "signify":
+        sys.exit(subprocess.run([find_bin("k-signify")] + args.subaction).returncode)
+    elif args.command == "pf":
+        sys.exit(subprocess.run([find_bin("k-pf")] + args.subaction).returncode)
+    elif args.command == "doas":
+        sys.exit(subprocess.run([find_bin("k-doas")] + args.subaction).returncode)
+    elif args.command == "wx":
+        sys.exit(subprocess.run([find_bin("k-wx")] + args.subaction).returncode)
     elif args.command == "update":
         sys.exit(subprocess.run(["just", "--justfile", justfile, "update"]).returncode)
     elif args.command == "clean":

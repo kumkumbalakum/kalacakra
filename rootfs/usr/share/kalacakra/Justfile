@@ -162,5 +162,25 @@ trace target="io":
 sysrc assignment="":
     @/usr/bin/k-sysrc {{assignment}}
 
+# Kalacakra Unveil - Pembatasan Path Filesystem & Namespace Ala OpenBSD unveil/pledge
+unveil +args:
+    @/usr/bin/k-unveil {{args}}
+
+# Kalacakra Signify - Kriptografi Ed25519 Ringkas & Cepat Ala OpenBSD signify
+signify action="status":
+    @/usr/bin/k-signify {{action}}
+
+# Kalacakra PF - Minimalist Desktop Packet Filter & Panic Killswitch Ala OpenBSD pf
+pf action="status":
+    @/usr/bin/k-pf {{action}}
+
+# Kalacakra doas - Elevasi Hak Akses Minimalis & Aman Ala OpenBSD doas
+doas action="status":
+    @/usr/bin/k-doas {{action}}
+
+# Kalacakra W^X - Auditor Mitigasi Eksploitasi Memori & Binary Ala OpenBSD W^X
+wx action="check-kernel":
+    @/usr/bin/k-wx {{action}}
+
 
 

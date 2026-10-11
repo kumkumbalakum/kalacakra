@@ -1,0 +1,311 @@
+#!/usr/bin/env python3
+"""
+Kalacakra OS - k-signify (Ed25519 Cryptographic Verifier)
+OpenBSD signify(1)-inspired lightweight and robust signing & verification engine.
+Provides dead-simple, ultra-fast Ed25519 cryptographic signing for snapshots,
+manifests, custom scripts, and system updates without PGP/GPG bloat.
+"""
+
+import os
+import sys
+import base64
+import hashlib
+import argparse
+
+if hasattr(sys.stdout, "reconfigure"):
+    try:
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    except Exception:
+        pass
+
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+LIB_PATH = os.path.abspath(os.path.join(SCRIPT_DIR, "..", "share", "kalacakra", "lib"))
+if os.path.isdir(LIB_PATH) and LIB_PATH not in sys.path:
+    sys.path.insert(0, LIB_PATH)
+elif "/usr/share/kalacakra/lib" not in sys.path and os.path.isdir("/usr/share/kalacakra/lib"):
+    sys.path.insert(0, "/usr/share/kalacakra/lib")
+
+try:
+    from kalacakra_common import get_locale_strings
+except ImportError:
+    def get_locale_strings(lang_override=None):
+        return {}, "en"
+
+# ==============================================================================
+# Pure Python RFC 8032 Ed25519 Engine (Zero External Dependencies)
+# ==============================================================================
+_q = 2**255 - 19
+_l = 2**252 + 27742317777372353535851937790883648493
+
+def _H(m: bytes) -> bytes:
+    return hashlib.sha512(m).digest()
+
+def _inv(x: int) -> int:
+    return pow(x, _q - 2, _q)
+
+_d = -121665 * _inv(121666) % _q
+_I = pow(2, (_q - 1) // 4, _q)
+
+def _xrecover(y: int) -> int:
+    xx = (y * y - 1) * _inv(_d * y * y + 1)
+    x = pow(xx, (_q + 3) // 8, _q)
+    if (x * x - xx) % _q != 0:
+        x = (x * _I) % _q
+    if x % 2 != 0:
+        x = _q - x
+    return x
+
+_By = 4 * _inv(5) % _q
+_Bx = _xrecover(_By)
+_B = (_Bx % _q, _By % _q)
+
+def _edwards(P, Q):
+    x1, y1 = P
+    x2, y2 = Q
+    x3 = (x1 * y2 + x2 * y1) * _inv(1 + _d * x1 * x2 * y1 * y2) % _q
+    y3 = (y1 * y2 + x1 * x2) * _inv(1 - _d * x1 * x2 * y1 * y2) % _q
+    return (x3, y3)
+
+def _scalarmult(P, e: int):
+    if e == 0:
+        return (0, 1)
+    Q = _scalarmult(P, e // 2)
+    Q = _edwards(Q, Q)
+    if e & 1:
+        Q = _edwards(Q, P)
+    return Q
+
+def _encodepoint(P) -> bytes:
+    x, y = P
+    return ((y & ((1 << 255) - 1)) | ((x & 1) << 255)).to_bytes(32, "little")
+
+def _decodepoint(s: bytes):
+    v = int.from_bytes(s, "little")
+    y = v & ((1 << 255) - 1)
+    x_bit = (v >> 255) & 1
+    x = _xrecover(y)
+    if (x & 1) != x_bit:
+        x = _q - x
+    return (x, y)
+
+def ed25519_publickey(sk: bytes) -> bytes:
+    h = _H(sk)
+    a = 2**254 + sum(2**i * (h[i // 8] >> (i % 8) & 1) for i in range(3, 254))
+    A = _scalarmult(_B, a)
+    return _encodepoint(A)
+
+def ed25519_sign(m: bytes, sk: bytes, pk: bytes) -> bytes:
+    h = _H(sk)
+    a = 2**254 + sum(2**i * (h[i // 8] >> (i % 8) & 1) for i in range(3, 254))
+    r = int.from_bytes(_H(h[32:] + m), "little") % _l
+    R = _scalarmult(_B, r)
+    R_enc = _encodepoint(R)
+    k = int.from_bytes(_H(R_enc + pk + m), "little") % _l
+    S = (r + k * a) % _l
+    return R_enc + S.to_bytes(32, "little")
+
+def ed25519_verify(sig: bytes, m: bytes, pk: bytes) -> bool:
+    if len(sig) != 64 or len(pk) != 32:
+        return False
+    try:
+        R = _decodepoint(sig[:32])
+        A = _decodepoint(pk)
+        S = int.from_bytes(sig[32:], "little")
+        if S >= _l:
+            return False
+        k = int.from_bytes(_H(sig[:32] + pk + m), "little") % _l
+        v1 = _scalarmult(_B, S)
+        v2 = _edwards(R, _scalarmult(A, k))
+        return v1 == v2
+    except Exception:
+        return False
+
+# ==============================================================================
+# Helper I/O Format Signify
+# ==============================================================================
+def parse_signify_file(filepath: str) -> bytes:
+    with open(filepath, "r", encoding="utf-8") as f:
+        lines = [line.strip() for line in f if line.strip()]
+    for line in lines:
+        if line.startswith("untrusted comment:"):
+            continue
+        try:
+            return base64.b64decode(line)
+        except Exception:
+            continue
+    raise ValueError(f"Tidak dapat menemukan baris base64 valid di '{filepath}'")
+
+def write_signify_file(filepath: str, comment: str, data: bytes):
+    os.makedirs(os.path.dirname(os.path.abspath(filepath)), exist_ok=True)
+    b64 = base64.b64encode(data).decode("ascii")
+    with open(filepath, "w", encoding="utf-8") as f:
+        f.write(f"untrusted comment: {comment}\n")
+        f.write(f"{b64}\n")
+
+# ==============================================================================
+# Actions
+# ==============================================================================
+def action_generate(sec_path: str, pub_path: str):
+    strings, _ = get_locale_strings()
+    print("=" * 68)
+    print(strings.get("signify_header", "=== Kalacakra Signify (Kriptografi Ed25519 Ala OpenBSD signify) ==="))
+    print("=" * 68)
+
+    sk = os.urandom(32)
+    pk = ed25519_publickey(sk)
+
+    write_signify_file(sec_path, "signify secret key", sk)
+    write_signify_file(pub_path, "signify public key", pk)
+
+    # Batasi permission file kunci privat
+    try:
+        os.chmod(sec_path, 0o600)
+    except Exception:
+        pass
+
+    print(f" [+] Kunci Rahasia Dibuat : {sec_path} (Mode 0600)")
+    print(f" [+] Kunci Publik Dibuat  : {pub_path}")
+    print(" Selesai! Pasangan kunci Ed25519 siap digunakan untuk tanda tangan.")
+    return 0
+
+def action_sign(sec_path: str, msg_path: str, sig_path: str = None):
+    strings, _ = get_locale_strings()
+    if not os.path.isfile(sec_path):
+        print(f"[GAGAL] Kunci privat '{sec_path}' tidak ditemukan!", file=sys.stderr)
+        return 1
+    if not os.path.isfile(msg_path):
+        print(f"[GAGAL] File target '{msg_path}' tidak ditemukan!", file=sys.stderr)
+        return 1
+
+    if not sig_path:
+        sig_path = msg_path + ".sig"
+
+    sk = parse_signify_file(sec_path)
+    if len(sk) != 32:
+        print("[GAGAL] Ukuran kunci rahasia tidak valid (wajib 32-byte Ed25519)", file=sys.stderr)
+        return 1
+
+    pk = ed25519_publickey(sk)
+    with open(msg_path, "rb") as f:
+        message_bytes = f.read()
+
+    sig = ed25519_sign(message_bytes, sk, pk)
+    key_basename = os.path.basename(sec_path).replace(".sec", ".pub")
+    write_signify_file(sig_path, f"verify with {key_basename}", sig)
+
+    print("=" * 68)
+    print(strings.get("signify_header", "=== Kalacakra Signify (Kriptografi Ed25519 Ala OpenBSD signify) ==="))
+    print("=" * 68)
+    print(f" [+] File Ditandatangani : {msg_path}")
+    print(f" [+] File Tanda Tangan   : {sig_path}")
+    print(f" [+] Menggunakan Kunci   : {sec_path}")
+    print(" Tanda tangan kriptografi Ed25519 berhasil dibuat!")
+    return 0
+
+def action_verify(pub_path: str, msg_path: str, sig_path: str = None):
+    strings, _ = get_locale_strings()
+    if not os.path.isfile(pub_path):
+        print(f"[GAGAL] Kunci publik '{pub_path}' tidak ditemukan!", file=sys.stderr)
+        return 1
+    if not os.path.isfile(msg_path):
+        print(f"[GAGAL] File data '{msg_path}' tidak ditemukan!", file=sys.stderr)
+        return 1
+
+    if not sig_path:
+        sig_path = msg_path + ".sig"
+
+    if not os.path.isfile(sig_path):
+        print(f"[GAGAL] File tanda tangan '{sig_path}' tidak ditemukan!", file=sys.stderr)
+        return 1
+
+    pk = parse_signify_file(pub_path)
+    sig = parse_signify_file(sig_path)
+
+    with open(msg_path, "rb") as f:
+        message_bytes = f.read()
+
+    print("=" * 68)
+    print(strings.get("signify_header", "=== Kalacakra Signify (Kriptografi Ed25519 Ala OpenBSD signify) ==="))
+    print("=" * 68)
+    print(f" File Target       : {msg_path}")
+    print(f" File Tanda Tangan : {sig_path}")
+    print(f" Kunci Publik      : {pub_path}")
+    print("-" * 68)
+
+    valid = ed25519_verify(sig, message_bytes, pk)
+    if valid:
+        print(f" [PASS] {strings.get('signify_verified', 'Verifikasi tanda tangan kriptografi BERHASIL (Signature Verified OK)!')}")
+        print(" Integritas dan keaslian file terjamin 100% tanpa modifikasi.")
+        return 0
+    else:
+        print(" [FAIL] Tanda tangan KORUP atau file telah dimodifikasi (TAMPERED)!", file=sys.stderr)
+        return 1
+
+def action_status():
+    strings, _ = get_locale_strings()
+    print("=" * 68)
+    print(strings.get("signify_header", "=== Kalacakra Signify (Kriptografi Ed25519 Ala OpenBSD signify) ==="))
+    print("=" * 68)
+    search_dirs = [
+        os.path.expanduser("~/.config/kalacakra/signify"),
+        "/etc/kalacakra/signify",
+        "/usr/share/kalacakra/keys"
+    ]
+    found = False
+    for d in search_dirs:
+        if os.path.isdir(d):
+            keys = [f for f in os.listdir(d) if f.endswith((".pub", ".sec"))]
+            if keys:
+                found = True
+                print(f" Direktori: {d}")
+                for k in keys:
+                    print(f"  └─ {k}")
+    if not found:
+        print(" Belum ada kunci signify terdeteksi di direktori standar.")
+        print(" Jalankan: 'kalacakra signify generate' untuk membuat pasangan kunci baru.")
+    return 0
+
+def main():
+    parser = argparse.ArgumentParser(
+        prog="k-signify",
+        description="Kalacakra Signify - OpenBSD signify(1) style Ed25519 signing and verification utility."
+    )
+    sub = parser.add_subparsers(dest="command", help="Perintah signify")
+
+    # Generate
+    p_gen = sub.add_parser("generate", help="Buat pasangan kunci Ed25519 baru")
+    p_gen.add_argument("-s", "--sec", default=os.path.expanduser("~/.config/kalacakra/signify/kalacakra.sec"), help="Path kunci privat")
+    p_gen.add_argument("-p", "--pub", default=os.path.expanduser("~/.config/kalacakra/signify/kalacakra.pub"), help="Path kunci publik")
+
+    # Sign
+    p_sign = sub.add_parser("sign", help="Tandatangani file dengan kunci privat")
+    p_sign.add_argument("-s", "--sec", required=True, help="File kunci privat")
+    p_sign.add_argument("-m", "--msg", required=True, help="File target yang akan ditandatangani")
+    p_sign.add_argument("-x", "--sig", default=None, help="File output tanda tangan (.sig)")
+
+    # Verify
+    p_ver = sub.add_parser("verify", help="Verifikasi tanda tangan file")
+    p_ver.add_argument("-p", "--pub", required=True, help="File kunci publik")
+    p_ver.add_argument("-m", "--msg", required=True, help="File target yang diverifikasi")
+    p_ver.add_argument("-x", "--sig", default=None, help="File tanda tangan (.sig)")
+
+    # Status
+    sub.add_parser("status", help="Periksa kunci signify sistem dan pengguna")
+
+    args = parser.parse_args()
+
+    if not args.command:
+        parser.print_help()
+        sys.exit(0)
+
+    if args.command == "generate":
+        sys.exit(action_generate(args.sec, args.pub))
+    elif args.command == "sign":
+        sys.exit(action_sign(args.sec, args.msg, args.sig))
+    elif args.command == "verify":
+        sys.exit(action_verify(args.pub, args.msg, args.sig))
+    elif args.command == "status":
+        sys.exit(action_status())
+
+if __name__ == "__main__":
+    main()

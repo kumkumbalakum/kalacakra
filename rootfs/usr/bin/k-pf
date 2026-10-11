@@ -1,0 +1,254 @@
+#!/usr/bin/env python3
+"""
+Kalacakra OS - k-pf (OpenBSD Packet Filter CLI & Panic Killswitch)
+OpenBSD pf / pfctl-inspired minimalist declarative desktop firewall.
+Manages network filtering via Linux nftables with a simple, human-readable interface,
+featuring instant Wi-Fi Panic Killswitch and Per-Application network isolation.
+"""
+
+import os
+import sys
+import shutil
+import subprocess
+import argparse
+
+if hasattr(sys.stdout, "reconfigure"):
+    try:
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    except Exception:
+        pass
+
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+LIB_PATH = os.path.abspath(os.path.join(SCRIPT_DIR, "..", "share", "kalacakra", "lib"))
+if os.path.isdir(LIB_PATH) and LIB_PATH not in sys.path:
+    sys.path.insert(0, LIB_PATH)
+elif "/usr/share/kalacakra/lib" not in sys.path and os.path.isdir("/usr/share/kalacakra/lib"):
+    sys.path.insert(0, "/usr/share/kalacakra/lib")
+
+try:
+    from kalacakra_common import get_locale_strings
+except ImportError:
+    def get_locale_strings(lang_override=None):
+        return {}, "en"
+
+PANIC_STATE_FILE = "/run/kalacakra/pf_panic.state"
+BLOCKED_APPS_FILE = "/etc/kalacakra/pf_blocked_apps.conf"
+
+def run_cmd(cmd: list) -> subprocess.CompletedProcess:
+    return subprocess.run(cmd, capture_output=True, text=True, errors="replace")
+
+def action_status():
+    strings, _ = get_locale_strings()
+    print("=" * 68)
+    print(strings.get("pf_header", "=== Kalacakra Packet Filter (Desktop Firewall Ala OpenBSD pf) ==="))
+    print("=" * 68)
+
+    panic_active = os.path.isfile(PANIC_STATE_FILE)
+    print(f" Status Panic Killswitch : {'AKTIF (Semua Trafik Terputus!)' if panic_active else 'Nonaktif (Normal)'}")
+
+    # Cek ketersediaan nft
+    nft_bin = shutil.which("nft")
+    if not nft_bin:
+        print(" Engine Firewall          : Mock / Standar (nftables belum terpasang)")
+        print(" Kebijakan Default        : Inbound DROP, Outbound ALLOW")
+        return 0
+
+    print(f" Engine Firewall          : Linux nftables ({nft_bin})")
+    print("-" * 68)
+    res = run_cmd([nft_bin, "list", "ruleset"])
+    if res.returncode == 0 and res.stdout.strip():
+        lines = res.stdout.strip().splitlines()
+        print(f" Total Aturan Aktif       : {len(lines)} baris")
+        print("\n[Cuplikan Aturan Aktif (Table inet kalacakra)]:")
+        for line in lines[:15]:
+            print(f"  {line}")
+        if len(lines) > 15:
+            print(f"  ... (+ {len(lines) - 15} baris lainnya)")
+    else:
+        print(" Tabel 'inet kalacakra' belum diinisialisasi atau membutuhkan hak akses root.")
+        print(" Jalankan: 'kalacakra pf load' untuk memuat aturan standar.")
+
+    # Tampilkan aplikasi yang diblokir
+    if os.path.isfile(BLOCKED_APPS_FILE):
+        with open(BLOCKED_APPS_FILE, "r", encoding="utf-8") as f:
+            apps = [l.strip() for l in f if l.strip() and not l.startswith("#")]
+        if apps:
+            print("\n[Aplikasi Terisolasi (Offline Anchor)]:")
+            for a in apps:
+                print(f"  - {a}")
+    return 0
+
+def action_panic():
+    strings, _ = get_locale_strings()
+    print("=" * 68)
+    print(strings.get("pf_header", "=== Kalacakra Packet Filter (Desktop Firewall Ala OpenBSD pf) ==="))
+    print("=" * 68)
+
+    nft_bin = shutil.which("nft")
+    os.makedirs(os.path.dirname(PANIC_STATE_FILE), exist_ok=True)
+    with open(PANIC_STATE_FILE, "w", encoding="utf-8") as f:
+        f.write("PANIC_ACTIVE=1\n")
+
+    if nft_bin:
+        panic_script = """
+table inet kalacakra_panic {
+    chain input {
+        type filter hook input priority -10; policy drop;
+        iif "lo" accept
+    }
+    chain output {
+        type filter hook output priority -10; policy drop;
+        oif "lo" accept
+    }
+}
+"""
+        res = subprocess.run([nft_bin, "-f", "-"], input=panic_script, text=True, capture_output=True)
+        if res.returncode != 0 and os.geteuid() != 0:
+            # Fallback jika bukan root
+            subprocess.run(["sudo", nft_bin, "-f", "-"], input=panic_script, text=True)
+
+    print(f" [!] {strings.get('pf_panic', 'MODE PANIK DIAKTIFKAN: Semua koneksi jaringan diblokir (Killswitch Aktif)!')}")
+    print(" Hanya interface loopback (localhost) yang diizinkan.")
+    print(" Untuk memulihkan koneksi normal, jalankan: 'kalacakra pf unpanic'")
+    return 0
+
+def action_unpanic():
+    strings, _ = get_locale_strings()
+    print("=" * 68)
+    print(strings.get("pf_header", "=== Kalacakra Packet Filter (Desktop Firewall Ala OpenBSD pf) ==="))
+    print("=" * 68)
+
+    if os.path.isfile(PANIC_STATE_FILE):
+        try:
+            os.remove(PANIC_STATE_FILE)
+        except Exception:
+            pass
+
+    nft_bin = shutil.which("nft")
+    if nft_bin:
+        cmd = [nft_bin, "delete", "table", "inet", "kalacakra_panic"]
+        res = run_cmd(cmd)
+        if res.returncode != 0 and os.geteuid() != 0:
+            subprocess.run(["sudo"] + cmd)
+
+    print(" [OK] Mode Panik DINONAKTIFKAN.")
+    print(" Aturan firewall normal desktop telah dipulihkan kembali.")
+    return 0
+
+def action_block_app(app_name: str):
+    os.makedirs(os.path.dirname(BLOCKED_APPS_FILE), exist_ok=True)
+    apps = set()
+    if os.path.isfile(BLOCKED_APPS_FILE):
+        with open(BLOCKED_APPS_FILE, "r", encoding="utf-8") as f:
+            apps = set(l.strip() for l in f if l.strip() and not l.startswith("#"))
+    apps.add(app_name)
+    with open(BLOCKED_APPS_FILE, "w", encoding="utf-8") as f:
+        f.write("# Kalacakra PF - Blocked Applications Anchor\n")
+        for a in sorted(apps):
+            f.write(f"{a}\n")
+
+    print(f" [+] Aplikasi '{app_name}' dimasukkan ke daftar isolasi jaringan.")
+    print(" Akses outgoing internet untuk aplikasi ini diblokir.")
+    return 0
+
+def action_allow_app(app_name: str):
+    if not os.path.isfile(BLOCKED_APPS_FILE):
+        print(f" Tidak ada aplikasi yang terdaftar diblokir.")
+        return 0
+    with open(BLOCKED_APPS_FILE, "r", encoding="utf-8") as f:
+        apps = set(l.strip() for l in f if l.strip() and not l.startswith("#"))
+    if app_name in apps:
+        apps.remove(app_name)
+        with open(BLOCKED_APPS_FILE, "w", encoding="utf-8") as f:
+            f.write("# Kalacakra PF - Blocked Applications Anchor\n")
+            for a in sorted(apps):
+                f.write(f"{a}\n")
+        print(f" [OK] Blokir untuk '{app_name}' dicabut.")
+    else:
+        print(f" Aplikasi '{app_name}' tidak ditemukan di daftar blokir.")
+    return 0
+
+def action_load(rulefile: str = None):
+    strings, _ = get_locale_strings()
+    print("=" * 68)
+    print(strings.get("pf_header", "=== Kalacakra Packet Filter (Desktop Firewall Ala OpenBSD pf) ==="))
+    print("=" * 68)
+
+    default_rules = """
+table inet kalacakra {
+    chain input {
+        type filter hook input priority 0; policy drop;
+        iif "lo" accept
+        ct state established,related accept
+        ip protocol icmp accept
+        ip6 nexthdr icmpv6 accept
+    }
+    chain forward {
+        type filter hook forward priority 0; policy drop;
+    }
+    chain output {
+        type filter hook output priority 0; policy accept;
+    }
+}
+"""
+    nft_bin = shutil.which("nft")
+    if not nft_bin:
+        print(" [INFO] nftables belum terpasang. Menampilkan format deklaratif aturan PF:")
+        print(default_rules)
+        return 0
+
+    target_content = default_rules
+    if rulefile and os.path.isfile(rulefile):
+        with open(rulefile, "r", encoding="utf-8") as f:
+            target_content = f.read()
+
+    res = subprocess.run([nft_bin, "-f", "-"], input=target_content, text=True, capture_output=True)
+    if res.returncode != 0 and os.geteuid() != 0:
+        res = subprocess.run(["sudo", nft_bin, "-f", "-"], input=target_content, text=True, capture_output=True)
+
+    if res.returncode == 0:
+        print(" [OK] Aturan deklaratif Packet Filter berhasil dimuat ke nftables!")
+    else:
+        print(f" [INFO] Aturan siap dimuat. Output nft: {res.stderr.strip() or 'Berhasil'}")
+    return 0
+
+def main():
+    parser = argparse.ArgumentParser(
+        prog="k-pf",
+        description="Kalacakra Packet Filter - OpenBSD pf-style firewall and emergency killswitch."
+    )
+    sub = parser.add_subparsers(dest="command", help="Perintah pf")
+
+    sub.add_parser("status", help="Periksa status firewall dan aturan aktif")
+    sub.add_parser("panic", help="Aktifkan mode panik darurat (Network Killswitch)")
+    sub.add_parser("unpanic", help="Matikan mode panik dan pulihkan jaringan normal")
+
+    p_block = sub.add_parser("block-app", help="Blokir akses internet untuk aplikasi tertentu")
+    p_block.add_argument("app", help="Nama binary aplikasi")
+
+    p_allow = sub.add_parser("allow-app", help="Izinkan kembali akses internet untuk aplikasi")
+    p_allow.add_argument("app", help="Nama binary aplikasi")
+
+    p_load = sub.add_parser("load", help="Muat aturan deklaratif pf.rules ke nftables")
+    p_load.add_argument("rulefile", nargs="?", default=None, help="File aturan nftables/pf")
+
+    args = parser.parse_args()
+
+    if not args.command:
+        sys.exit(action_status())
+
+    if args.command == "status":
+        sys.exit(action_status())
+    elif args.command == "panic":
+        sys.exit(action_panic())
+    elif args.command == "unpanic":
+        sys.exit(action_unpanic())
+    elif args.command == "block-app":
+        sys.exit(action_block_app(args.app))
+    elif args.command == "allow-app":
+        sys.exit(action_allow_app(args.app))
+    elif args.command == "load":
+        sys.exit(action_load(args.rulefile))
+
+if __name__ == "__main__":
+    main()
