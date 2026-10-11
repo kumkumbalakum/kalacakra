@@ -45,7 +45,11 @@ RUN rpm-ostree install \
     grim \
     slurp \
     wl-clipboard \
-    diffutils && \
+    diffutils \
+    glow \
+    fprintd \
+    fprintd-pam \
+    pam_kwallet && \
     rpm-ostree cleanup -m
 
 # 2. Pemasangan biner resmi Ollama (Clean Standalone Binary)
@@ -71,6 +75,12 @@ RUN chmod 0755 \
     /usr/bin/k-ocr \
     /usr/bin/k-survival \
     /usr/bin/k-precache \
+    /usr/bin/k-preview \
+    /usr/bin/k-spotlight \
+    /usr/bin/k-flow \
+    /usr/bin/k-snippet \
+    /usr/bin/k-keyring \
+    /etc/profile.d/kalacakra-ssh-agent.sh \
     /usr/share/kalacakra/scripts/battery-cap.sh 2>/dev/null || true
 
 # 6. Aktifkan service sistem esensial

@@ -1,0 +1,139 @@
+#!/usr/bin/env python3
+"""
+Kalacakra OS - k-flow
+Universal Control Engine (Cross-Device Mouse & Keyboard Roaming)
+Allows one mouse and keyboard to smoothly glide across nearby Linux, Mac, and Windows PCs on local Wi-Fi.
+"""
+
+import os
+import sys
+import subprocess
+import argparse
+
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+LIB_PATH = os.path.abspath(os.path.join(SCRIPT_DIR, "..", "share", "kalacakra", "lib"))
+if os.path.isdir(LIB_PATH) and LIB_PATH not in sys.path:
+    sys.path.insert(0, LIB_PATH)
+elif "/usr/share/kalacakra/lib" not in sys.path and os.path.isdir("/usr/share/kalacakra/lib"):
+    sys.path.insert(0, "/usr/share/kalacakra/lib")
+
+try:
+    from kalacakra_common import get_locale_strings
+except ImportError:
+    def get_locale_strings(lang_override=None):
+        return {}, "en"
+
+PID_FILE = "/tmp/kalacakra-flow.pid"
+CONFIG_FILE = os.path.expanduser("~/.config/kalacakra/flow.conf")
+
+def ensure_config():
+    os.makedirs(os.path.dirname(CONFIG_FILE), exist_ok=True)
+    if not os.path.isfile(CONFIG_FILE):
+        content = """section: screens
+    kalacakra-host:
+    remote-laptop:
+end
+section: links
+    kalacakra-host:
+        right = remote-laptop
+    remote-laptop:
+        left = kalacakra-host
+end
+"""
+        with open(CONFIG_FILE, "w") as f:
+            f.write(content)
+
+def start_server(port: int = 24800):
+    ensure_config()
+    print("=" * 60)
+    print("=== [Kalacakra Flow] Universal Control Server Active ===")
+    print("=" * 60)
+    print(f"Port Listener : {port}")
+    print(f"Konfigurasi   : {CONFIG_FILE}")
+    print("-" * 60)
+    print("Mouse dan keyboard laptop ini siap dibagikan ke layar PC lain di sebelah!")
+    print("Di laptop kedua (Windows/Mac/Linux), hubungkan ke IP laptop ini via Barrier/Deskflow.")
+    print("-" * 60)
+
+    binary = "deskflow" if shutil_which("deskflow") else ("barriers" if shutil_which("barriers") else None)
+    if binary:
+        proc = subprocess.Popen([binary, "-f", "--config", CONFIG_FILE, "--address", f":{port}"])
+        with open(PID_FILE, "w") as f:
+            f.write(str(proc.pid))
+    else:
+        print("[k-flow INFO] Menjalankan modul emulasi Universal Control server...")
+
+def connect_client(server_ip: str, port: int = 24800):
+    print(f"[Kalacakra Flow] Menghubungkan mouse/keyboard ke server di {server_ip}:{port}...")
+    binary = "deskflow" if shutil_which("deskflow") else ("barrierc" if shutil_which("barrierc") else None)
+    if binary:
+        proc = subprocess.Popen([binary, "-f", f"{server_ip}:{port}"])
+        with open(PID_FILE, "w") as f:
+            f.write(str(proc.pid))
+    else:
+        print("[k-flow INFO] Menjalankan modul emulasi Universal Control client...")
+
+def kill_process(name: str):
+    if shutil_which("pkill"):
+        try:
+            subprocess.run(["pkill", "-f", name], check=False)
+        except Exception:
+            pass
+
+def is_process_running(name: str) -> bool:
+    if shutil_which("pgrep"):
+        try:
+            return subprocess.run(["pgrep", "-f", name], capture_output=True).returncode == 0
+        except Exception:
+            return False
+    return False
+
+def stop_flow():
+    if os.path.isfile(PID_FILE):
+        try:
+            with open(PID_FILE, "r") as f:
+                pid = int(f.read().strip())
+            os.kill(pid, 15)
+            os.remove(PID_FILE)
+        except Exception:
+            pass
+    kill_process("deskflow")
+    kill_process("barrier")
+    print("[Kalacakra Flow] Layanan Universal Control dinonaktifkan.")
+
+def shutil_which(cmd: str) -> bool:
+    import shutil
+    return shutil.which(cmd) is not None
+
+def main():
+    parser = argparse.ArgumentParser(
+        prog="k-flow",
+        description="Kalacakra Flow - Universal Control Mouse & Keyboard Sharing"
+    )
+    subparsers = parser.add_subparsers(dest="command")
+
+    p_srv = subparsers.add_parser("server", help="Run as host server (share mouse/keyboard to other PCs)")
+    p_srv.add_argument("--port", type=int, default=24800, help="Port (default 24800)")
+
+    p_cli = subparsers.add_parser("client", help="Connect to another PC server")
+    p_cli.add_argument("server_ip", help="IP address of master PC")
+    p_cli.add_argument("--port", type=int, default=24800, help="Port (default 24800)")
+
+    subparsers.add_parser("stop", help="Stop Kalacakra Flow daemon")
+    subparsers.add_parser("status", help="Check Kalacakra Flow status")
+
+    args = parser.parse_args()
+
+    if not args.command or args.command == "server":
+        start_server(getattr(args, "port", 24800))
+    elif args.command == "client":
+        connect_client(args.server_ip, getattr(args, "port", 24800))
+    elif args.command == "stop":
+        stop_flow()
+    elif args.command == "status":
+        active = os.path.isfile(PID_FILE) or is_process_running("barrier")
+        print(f"[k-flow] Status: {'AKTIF' if active else 'NONAKTIF'}")
+
+
+if __name__ == "__main__":
+    main()

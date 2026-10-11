@@ -281,6 +281,34 @@ kalacakra doctor            # Menjalankan diagnostik menyeluruh sistem
 * Pra-kompilasi pipeline shader DXVK/VKD3D secara otomatis di latar belakang saat game Steam/Heroic/Lutris dipasang.
 * Menghilangkan *micro-stuttering* saat game pertama kali dibuka, menjamin gameplay terkunci pada 60–144 FPS sejak detik pertama.
 
+### **6.13 Kalacakra Quick Look: Pratinjau Berkas Instan 0.1s (`k-preview` / `Space` di Dolphin)**
+* Menekan tombol **`Spasi`** pada berkas apa pun di file manager Dolphin langsung menampilkan *floating preview* dalam hitungan milidetik tanpa perlu membuka aplikasi berat.
+* Mendukung rendering instan untuk:
+  * Markdown (`glow`) dengan formatting visual kaya.
+  * PDF (`okular --unique`) halaman pertama langsung terbaca.
+  * Gambar (`gwenview` / `feh`) full resolution.
+  * Arsip ZIP/TAR (menampilkan struktur file di dalam arsip tanpa mengekstrak).
+  * Source code dan teks dengan *syntax highlighting* (`bat`).
+
+### **6.14 Kalacakra Spotlight & KRunner Apex (`k-spotlight` / `Super + Space`)**
+* Launcher pintar bergaya macOS Spotlight terpadu dengan KRunner dan model AI lokal.
+* Mengalkulasi matematika instan (`150 * 1.11`), konversi kurs/valuta asing (`100 usd to idr`), konversi satuan unit (`50 kg to lbs`, `25 c to f`), hingga perutean pertanyaan bahasa alami langsung ke `k-ai`.
+
+### **6.15 Kalacakra Flow: Universal Control Cross-Device Roaming (`k-flow`)**
+* Mengizinkan satu set mouse dan keyboard laptop Kalacakra meluncur (*seamless roaming*) melintasi tepi layar ke layar PC lain (Linux, macOS, Windows) yang berada di jaringan Wi-Fi lokal yang sama.
+* Mendukung *shared clipboard* (copy di Kalacakra, paste di Mac/Windows) tanpa ketergantungan cloud.
+
+### **6.16 Kalacakra Snippet: Global Text Replacement & Expansion (`k-snippet`)**
+* Fitur *macOS-style Text Replacement* yang bekerja di seluruh sistem operasi dan semua aplikasi (browser, terminal, editor, chat).
+* Mengetik pintasan pendek seperti `;;rek`, `;;email`, atau `;;shrug` otomatis berekspansi menjadi teks lengkap atau template yang telah ditentukan. Kompatibel dengan format Espanso.
+
+### **6.17 Kalacakra Keyring: Unified Zero-Friction Keychain & Touch ID (`k-keyring`)**
+* Pengalaman *macOS Keychain* yang mulus di Linux:
+  * SDDM PAM auto-unlock untuk KWallet: password login membuka kunci dompet kredensial secara otomatis saat masuk sistem.
+  * Unified SSH-Agent session autostart di `/etc/profile.d/kalacakra-ssh-agent.sh`.
+  * Integrasi sensor sidik jari laptop (*Touch ID* ala Mac) via `fprintd` untuk otorisasi login dan `sudo` tanpa perlu mengetik ulang password.
+
+
 ---
 
 ## **7. Arsitektur Keamanan Sistem (Enterprise-Grade Security Hardening)**
@@ -453,6 +481,11 @@ Membangun utilitas inti dengan arsitektur i18n (menggunakan Rust / Go untuk perf
 11. `k-ocr`: AI smart screenshot dengan OCR lokal offline dwibahasa (EN/ID).
 12. `k-survival`: Ultra-battery emergency survival mode (layar monokrom, 40Hz, CPU cap 800MHz).
 13. `k-precache`: Vulkan DXVK/VKD3D anti-stutter shader pre-compilation engine.
+14. `k-preview`: File previewer cepat (Quick Look) terintegrasi menu Dolphin KIO (Markdown glow, PDF, gambar, arsip, bat).
+15. `k-spotlight`: Spotlight & KRunner query engine (kalkulasi matematika aman, konversi mata uang/satuan, router k-ai).
+16. `k-flow`: Universal Control roaming daemon untuk mouse & keyboard sharing lintas perangkat Wi-Fi lokal.
+17. `k-snippet`: Global text replacement manager terintegrasi konfigurasi Espanso untuk ekspansi teks instan.
+18. `k-keyring`: Zero-friction SDDM PAM KWallet auto-unlock, session SSH-Agent, dan enrollment sidik jari fprintd.
 
 ### **Fase 3: Media Installer ISO & Delivery Pipeline**
 

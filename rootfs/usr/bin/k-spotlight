@@ -1,0 +1,115 @@
+#!/usr/bin/env python3
+"""
+Kalacakra OS - k-spotlight
+Spotlight & KRunner Apex Helper (Super + Space)
+Instant math evaluation, currency/unit conversion, and natural language query router.
+"""
+
+import os
+import sys
+import math
+import re
+import subprocess
+import argparse
+
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+LIB_PATH = os.path.abspath(os.path.join(SCRIPT_DIR, "..", "share", "kalacakra", "lib"))
+if os.path.isdir(LIB_PATH) and LIB_PATH not in sys.path:
+    sys.path.insert(0, LIB_PATH)
+elif "/usr/share/kalacakra/lib" not in sys.path and os.path.isdir("/usr/share/kalacakra/lib"):
+    sys.path.insert(0, "/usr/share/kalacakra/lib")
+
+try:
+    from kalacakra_common import get_locale_strings
+except ImportError:
+    def get_locale_strings(lang_override=None):
+        return {}, "en"
+
+# Unit conversion constants
+UNIT_CONVERSIONS = {
+    ("kg", "lbs"): 2.20462,
+    ("lbs", "kg"): 0.453592,
+    ("km", "miles"): 0.621371,
+    ("miles", "km"): 1.60934,
+    ("m", "ft"): 3.28084,
+    ("ft", "m"): 0.3048,
+    ("usd", "idr"): 16200.0,
+    ("idr", "usd"): 1 / 16200.0,
+    ("eur", "idr"): 17500.0,
+    ("idr", "eur"): 1 / 17500.0,
+    ("gbp", "idr"): 20500.0,
+    ("idr", "gbp"): 1 / 20500.0
+}
+
+def evaluate_math(expr: str):
+    # Bersihkan simbol aman
+    safe_expr = re.sub(r"[^0-9\+\-\*\/\.\(\)\^\% ]", "", expr).replace("^", "**")
+    try:
+        # Evaluasi matematika aman
+        res = eval(safe_expr, {"__builtins__": None, "math": math}, {})
+        return f"{expr} = {res}"
+    except Exception:
+        return None
+
+def evaluate_conversion(query: str):
+    # Pola: 100 usd to idr atau 50 kg to lbs
+    match = re.search(r"([\d\.]+)\s*([a-zA-Z]+)\s+(?:to|ke|in)\s+([a-zA-Z]+)", query, re.I)
+    if match:
+        val = float(match.group(1))
+        u_from = match.group(2).lower()
+        u_to = match.group(3).lower()
+
+        # Temperatur khusus
+        if u_from in ["c", "celsius"] and u_to in ["f", "fahrenheit"]:
+            res = (val * 9/5) + 32
+            return f"{val}°C = {res:.2f}°F"
+        if u_from in ["f", "fahrenheit"] and u_to in ["c", "celsius"]:
+            res = (val - 32) * 5/9
+            return f"{val}°F = {res:.2f}°C"
+
+        key = (u_from, u_to)
+        if key in UNIT_CONVERSIONS:
+            res = val * UNIT_CONVERSIONS[key]
+            if "idr" in u_to:
+                return f"{val:,.2f} {u_from.upper()} = Rp {res:,.2f}"
+            return f"{val} {u_from} = {res:,.4f} {u_to}"
+    return None
+
+def find_bin(name: str) -> str:
+    candidates = [
+        f"/usr/bin/{name}",
+        os.path.join(SCRIPT_DIR, name)
+    ]
+    for c in candidates:
+        if os.path.isfile(c):
+            return c
+    return name
+
+def main():
+    if len(sys.argv) < 2:
+        print("Penggunaan / Usage: k-spotlight <pertanyaan/kalkulasi/konversi>")
+        print("Contoh: k-spotlight '150 * 1.11'")
+        print("Contoh: k-spotlight '100 usd to idr'")
+        sys.exit(0)
+
+    query = " ".join(sys.argv[1:]).strip()
+
+    # 1. Coba konversi satuan/kurs
+    conv_result = evaluate_conversion(query)
+    if conv_result:
+        print(f"[Spotlight] {conv_result}")
+        sys.exit(0)
+
+    # 2. Coba evaluasi kalkulasi matematika
+    math_result = evaluate_math(query)
+    if math_result:
+        print(f"[Spotlight] {math_result}")
+        sys.exit(0)
+
+    # 3. Fallback: Teruskan ke k-ai jika berupa pertanyaan bahasa alami
+    print(f"[Spotlight] Meneruskan ke Kalacakra AI: '{query}'...")
+    subprocess.run([find_bin("k-ai"), query])
+
+
+if __name__ == "__main__":
+    main()

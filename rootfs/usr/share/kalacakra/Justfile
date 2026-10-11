@@ -101,3 +101,24 @@ survival action="toggle":
 # Kalacakra Precache - Vulkan DXVK anti-stutter shader pre-compiler
 precache:
     @/usr/bin/k-precache run
+
+# Kalacakra Quick Look - Pratinjau berkas instan (Spasi di Dolphin)
+preview file="":
+    @/usr/bin/k-preview {{file}}
+
+# Kalacakra Spotlight - Kalkulator, konversi mata uang/satuan, & router AI
+spotlight query="":
+    @/usr/bin/k-spotlight {{query}}
+
+# Kalacakra Flow - Universal Control kendali mouse & keyboard lintas laptop
+flow action="server":
+    @/usr/bin/k-flow {{action}}
+
+# Kalacakra Snippet - Pengganti pintasan teks global (Text Replacement)
+snippet action="list":
+    @/usr/bin/k-snippet {{action}}
+
+# Kalacakra Keyring - Zero-friction PAM auto-unlock, KWallet, & Touch ID
+keyring action="status":
+    @/usr/bin/k-keyring {{action}}
+

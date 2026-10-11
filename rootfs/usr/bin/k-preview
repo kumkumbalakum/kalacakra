@@ -1,0 +1,83 @@
+#!/usr/bin/env python3
+"""
+Kalacakra OS - k-preview (Quick Look)
+Press Spacebar on any file in Dolphin to instantly preview:
+Markdown, PDF, Images, Audio, Video, Archives, or Syntax-Highlighted Code.
+"""
+
+import os
+import sys
+import shutil
+import subprocess
+import mimetypes
+
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+LIB_PATH = os.path.abspath(os.path.join(SCRIPT_DIR, "..", "share", "kalacakra", "lib"))
+if os.path.isdir(LIB_PATH) and LIB_PATH not in sys.path:
+    sys.path.insert(0, LIB_PATH)
+elif "/usr/share/kalacakra/lib" not in sys.path and os.path.isdir("/usr/share/kalacakra/lib"):
+    sys.path.insert(0, "/usr/share/kalacakra/lib")
+
+try:
+    from kalacakra_common import get_locale_strings
+except ImportError:
+    def get_locale_strings(lang_override=None):
+        return {}, "en"
+
+def preview_file(file_path: str):
+    if not os.path.exists(file_path):
+        print(f"[k-preview Error] Berkas '{file_path}' tidak ditemukan.")
+        sys.exit(1)
+
+    mime, _ = mimetypes.guess_type(file_path)
+    mime = mime or "text/plain"
+    ext = os.path.splitext(file_path)[1].lower()
+
+    # 1. Gambar
+    if mime.startswith("image/"):
+        if shutil.which("gwenview"):
+            subprocess.Popen(["gwenview", file_path])
+            return
+        elif shutil.which("feh"):
+            subprocess.Popen(["feh", "-.", file_path])
+            return
+
+    # 2. Markdown
+    if ext in [".md", ".markdown"]:
+        if shutil.which("glow"):
+            subprocess.run(["glow", "-p", file_path])
+            return
+
+    # 3. PDF
+    if ext == ".pdf":
+        if shutil.which("okular"):
+            subprocess.Popen(["okular", "--unique", file_path])
+            return
+
+    # 4. Arsip (Zip / Tar)
+    if ext in [".zip", ".tar", ".gz", ".xz", ".bz2", ".7z"]:
+        print(f"=== [Kalacakra Quick Look] Isi Arsip: {os.path.basename(file_path)} ===")
+        if ext == ".zip":
+            subprocess.run(["unzip", "-l", file_path], check=False)
+        else:
+            subprocess.run(["tar", "-tvf", file_path], check=False)
+        return
+
+    # 5. Kode atau Teks Umum (bat with syntax highlight)
+    if shutil.which("bat"):
+        subprocess.run(["bat", "--style=header,grid", file_path])
+    else:
+        subprocess.run(["less", "-R", file_path])
+
+
+def main():
+    if len(sys.argv) < 2:
+        print("Penggunaan / Usage: k-preview <nama_berkas>")
+        print("Atau tekan tombol 'Spasi' di file manager Dolphin.")
+        sys.exit(0)
+
+    target_file = sys.argv[1]
+    preview_file(target_file)
+
+if __name__ == "__main__":
+    main()

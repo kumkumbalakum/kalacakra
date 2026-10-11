@@ -1,0 +1,113 @@
+#!/usr/bin/env python3
+"""
+Kalacakra OS - k-snippet
+Global Text Replacement & Snippet Expansion (macOS-style Text Replacement)
+Expands text shortcuts (e.g. ';;rek' -> full bank account) across all desktop applications.
+"""
+
+import os
+import sys
+import json
+import argparse
+from datetime import datetime
+
+if hasattr(sys.stdout, "reconfigure"):
+    try:
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    except Exception:
+        pass
+
+
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+LIB_PATH = os.path.abspath(os.path.join(SCRIPT_DIR, "..", "share", "kalacakra", "lib"))
+if os.path.isdir(LIB_PATH) and LIB_PATH not in sys.path:
+    sys.path.insert(0, LIB_PATH)
+elif "/usr/share/kalacakra/lib" not in sys.path and os.path.isdir("/usr/share/kalacakra/lib"):
+    sys.path.insert(0, "/usr/share/kalacakra/lib")
+
+try:
+    from kalacakra_common import get_locale_strings
+except ImportError:
+    def get_locale_strings(lang_override=None):
+        return {}, "en"
+
+SNIPPETS_FILE = os.path.expanduser("~/.config/kalacakra/snippets.json")
+
+def load_snippets() -> dict:
+    if os.path.isfile(SNIPPETS_FILE):
+        try:
+            with open(SNIPPETS_FILE, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except Exception:
+            pass
+    # Default initial snippets
+    return {
+        ";;date": datetime.now().strftime("%Y-%m-%d"),
+        ";;time": datetime.now().strftime("%H:%M:%S"),
+        ";;shrug": r"¯\_(ツ)_/¯",
+        ";;todo": "[ ] TODO: ",
+        ";;done": "[x] DONE: "
+    }
+
+def save_snippets(data: dict):
+    os.makedirs(os.path.dirname(SNIPPETS_FILE), exist_ok=True)
+    with open(SNIPPETS_FILE, "w", encoding="utf-8") as f:
+        json.dump(data, f, indent=2, ensure_ascii=False)
+
+def export_to_espanso(snippets: dict):
+    espanso_dir = os.path.expanduser("~/.config/espanso/match")
+    os.makedirs(espanso_dir, exist_ok=True)
+    yaml_path = os.path.join(espanso_dir, "kalacakra.yml")
+    lines = ["matches:\n"]
+    for trigger, rep in snippets.items():
+        escaped_rep = rep.replace('"', '\\"')
+        lines.append(f'  - trigger: "{trigger}"\n    replace: "{escaped_rep}"\n')
+    with open(yaml_path, "w", encoding="utf-8") as f:
+        f.writelines(lines)
+
+def main():
+    parser = argparse.ArgumentParser(
+        prog="k-snippet",
+        description="Kalacakra Snippet - Global Text Replacement & Expansion"
+    )
+    subparsers = parser.add_subparsers(dest="command")
+
+    subparsers.add_parser("list", help="List all text snippets")
+
+    p_add = subparsers.add_parser("add", help="Add or update a text snippet")
+    p_add.add_argument("trigger", help="Trigger shortcut (e.g. ;;rek, omw)")
+    p_add.add_argument("replacement", help="Expanded text replacement")
+
+    p_rem = subparsers.add_parser("remove", help="Remove a snippet")
+    p_rem.add_argument("trigger", help="Trigger shortcut to remove")
+
+    args = parser.parse_args()
+    strings, current_lang = get_locale_strings()
+
+    snippets = load_snippets()
+
+    if not args.command or args.command == "list":
+        print()
+        print("=== [Kalacakra Snippets] Daftar Pintasan Teks Global ===")
+        print("-" * 65)
+        for trig, rep in sorted(snippets.items()):
+            print(f"  {trig:<15} -> {rep}")
+        print("-" * 65)
+        print("Ketik 'k-snippet add <trigger> <replacement>' untuk menambah baru.")
+        print()
+    elif args.command == "add":
+        snippets[args.trigger] = args.replacement
+        save_snippets(snippets)
+        export_to_espanso(snippets)
+        print(strings.get("snippet_added", "Pintasan teks '{trigger}' berhasil disimpan!").format(trigger=args.trigger))
+    elif args.command == "remove":
+        if args.trigger in snippets:
+            del snippets[args.trigger]
+            save_snippets(snippets)
+            export_to_espanso(snippets)
+            print(f"[k-snippet] Pintasan '{args.trigger}' berhasil dihapus.")
+        else:
+            print(f"[k-snippet Error] Pintasan '{args.trigger}' tidak ditemukan.")
+
+if __name__ == "__main__":
+    main()

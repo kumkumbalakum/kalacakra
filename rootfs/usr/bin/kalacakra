@@ -88,6 +88,22 @@ def main():
 
     subparsers.add_parser("precache", help="Kalacakra Precache - Vulkan DXVK anti-stutter shader pre-compiler")
 
+    # 5 Fitur Ergonomi macOS
+    p_prev = subparsers.add_parser("preview", help="Kalacakra Quick Look - Instant file previewer")
+    p_prev.add_argument("file", help="File path to preview")
+
+    p_spot = subparsers.add_parser("spotlight", help="Kalacakra Spotlight - Math, conversion & natural language router")
+    p_spot.add_argument("query", nargs="*", help="Query to evaluate or ask")
+
+    p_flow = subparsers.add_parser("flow", help="Kalacakra Flow - Universal Control cross-device mouse/keyboard sharing")
+    p_flow.add_argument("subaction", nargs="*", help="Flow action (server/client/stop/status)")
+
+    p_snip = subparsers.add_parser("snippet", help="Kalacakra Snippet - Global text replacement & expansion")
+    p_snip.add_argument("subaction", nargs="*", help="Snippet action (list/add/remove)")
+
+    p_key = subparsers.add_parser("keyring", help="Kalacakra Keyring - Zero-friction PAM auto-unlock & Touch ID")
+    p_key.add_argument("subaction", nargs="*", help="Keyring action (status/enroll-finger/setup)")
+
     args, unknown = parser.parse_known_args()
     strings, current_lang = get_locale_strings(args.lang)
 
@@ -119,6 +135,16 @@ def main():
         sys.exit(subprocess.run([find_bin("k-survival"), args.subaction]).returncode)
     elif args.command == "precache":
         sys.exit(subprocess.run([find_bin("k-precache"), "run"]).returncode)
+    elif args.command == "preview":
+        sys.exit(subprocess.run([find_bin("k-preview"), args.file]).returncode)
+    elif args.command == "spotlight":
+        sys.exit(subprocess.run([find_bin("k-spotlight")] + args.query).returncode)
+    elif args.command == "flow":
+        sys.exit(subprocess.run([find_bin("k-flow")] + args.subaction).returncode)
+    elif args.command == "snippet":
+        sys.exit(subprocess.run([find_bin("k-snippet")] + args.subaction).returncode)
+    elif args.command == "keyring":
+        sys.exit(subprocess.run([find_bin("k-keyring")] + args.subaction).returncode)
     elif args.command == "update":
         sys.exit(subprocess.run(["just", "--justfile", justfile, "update"]).returncode)
     elif args.command == "clean":

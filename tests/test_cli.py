@@ -32,7 +32,12 @@ class TestKalacakraCommon(unittest.TestCase):
             "portal_ready",
             "ocr_copied",
             "survival_enabled",
-            "precache_header"
+            "precache_header",
+            "preview_header",
+            "spotlight_calculating",
+            "flow_starting",
+            "snippet_added",
+            "keyring_configured"
         ]
 
         for lang in ["id", "en"]:

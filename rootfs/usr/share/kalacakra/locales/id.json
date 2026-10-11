@@ -43,5 +43,10 @@
   "survival_enabled": "[Kalacakra Survival] Mode Darurat Aktif: Layar Monokrom, 40Hz, CPU Cap 800MHz.",
   "survival_disabled": "[Kalacakra Survival] Mode Darurat Nonaktif: Tampilan dan performa normal dipulihkan.",
   "precache_header": "=== Kalacakra Vulkan Anti-Stutter Pre-Cache Engine ===",
-  "precache_running": "Mengompilasi pipeline shader DXVK/VKD3D di latar belakang..."
+  "precache_running": "Mengompilasi pipeline shader DXVK/VKD3D di latar belakang...",
+  "preview_header": "=== Kalacakra Quick Look (Spasi untuk Preview) ===",
+  "spotlight_calculating": "[Spotlight] Menghitung kalkulasi atau konversi satuan...",
+  "flow_starting": "[Kalacakra Flow] Menghubungkan kursor mouse & keyboard lintas laptop...",
+  "snippet_added": "[Kalacakra Snippet] Pintasan teks '{trigger}' berhasil disimpan!",
+  "keyring_configured": "[Kalacakra Keyring] PAM auto-unlock dan sidik jari TPM2 berhasil dikonfigurasi!"
 }

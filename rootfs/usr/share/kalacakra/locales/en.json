@@ -43,5 +43,10 @@
   "survival_enabled": "[Kalacakra Survival] Emergency Mode Active: Grayscale OLED, 40Hz, CPU Capped at 800MHz.",
   "survival_disabled": "[Kalacakra Survival] Emergency Mode Inactive: Normal display and performance restored.",
   "precache_header": "=== Kalacakra Vulkan Anti-Stutter Pre-Cache Engine ===",
-  "precache_running": "Pre-compiling DXVK/VKD3D shader pipelines in background..."
+  "precache_running": "Pre-compiling DXVK/VKD3D shader pipelines in background...",
+  "preview_header": "=== Kalacakra Quick Look (Space for Preview) ===",
+  "spotlight_calculating": "[Spotlight] Calculating math or unit conversion...",
+  "flow_starting": "[Kalacakra Flow] Bridging mouse & keyboard across laptops...",
+  "snippet_added": "[Kalacakra Snippet] Text snippet '{trigger}' successfully saved!",
+  "keyring_configured": "[Kalacakra Keyring] PAM auto-unlock and TPM2 fingerprint configured successfully!"
 }

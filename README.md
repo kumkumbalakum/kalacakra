@@ -12,18 +12,19 @@
 ## 📖 DAFTAR ISI
 1. [Fitur Utama](#-fitur-utama-highlights)
 2. [6 Fitur Dahsyat (Killer Superpowers)](#-6-fitur-dahsyat-killer-superpowers)
-3. [Panduan Instalasi & Deployment](#-panduan-instalasi--deployment)
-4. [Panduan Penggunaan Sehari-Hari](#-panduan-penggunaan-sehari-hari)
+3. [5 Fitur Ergonomi macOS (macOS-Inspired Ergonomics)](#-5-fitur-ergonomi-macos-macos-inspired-ergonomics)
+4. [Panduan Instalasi & Deployment](#-panduan-instalasi--deployment)
+5. [Panduan Penggunaan Sehari-Hari](#-panduan-penggunaan-sehari-hari)
    * [Perintah Kalacakra CLI](#1-perintah-kalacakra-cli)
    * [Universal Command Interceptor](#2-universal-command-interceptor-k-interceptor)
    * [AI Terminal Companion](#3-ai-terminal-companion-k-ai)
    * [Arch Linux AUR Integration](#4-arch-linux-aur-integration-k-aur)
    * [Dikte Suara & Pintasan Keyboard](#5-dikte-suara--pintasan-keyboard)
-5. [Panduan Build Image & ISO](#-panduan-build-image--iso)
+6. [Panduan Build Image & ISO](#-panduan-build-image--iso)
    * [Build via CI/CD Otomatis](#opsi-a-build-via-cicd-github-actions--gitea-actions)
    * [Build 100% Lokal di Komputer](#opsi-b-build-100-lokal-di-komputer-podman)
-6. [Struktur Repositori](#-struktur-repositori)
-7. [Lisensi & Spesifikasi](#-lisensi--spesifikasi)
+7. [Struktur Repositori](#-struktur-repositori)
+8. [Lisensi & Spesifikasi](#-lisensi--spesifikasi)
 
 ---
 
@@ -90,6 +91,54 @@ kalacakra precache                  # Kompilasi pipeline shader DXVK/VKD3D di la
 
 ---
 
+## 🍎 5 Fitur Ergonomi macOS (macOS-Inspired Ergonomics)
+
+### 🔍 1. Quick Look: Pratinjau Berkas Instan 0.1s (`k-preview` / `Space` di Dolphin)
+Arahkan kursor dan tekan tombol **`Spasi`** pada berkas apa pun di file manager Dolphin untuk melihat pratinjau instan tanpa menunggu aplikasi berat terbuka:
+* **Markdown (`.md`)**: Dirender visual indah dengan `glow`.
+* **PDF & Gambar**: Tampilan instan resolusi penuh (`okular` / `gwenview`).
+* **Arsip (`.zip`, `.tar.gz`)**: Struktur isi folder arsip langsung terbaca tanpa perlu mengekstrak.
+* **Source Code**: Teks program dengan pewarnaan sintaks kaya (`bat`).
+```bash
+kalacakra preview dokumen.pdf       # Pratinjau via CLI atau tekan Spasi di Dolphin
+```
+
+### 💡 2. Supercharged Spotlight & KRunner Apex (`k-spotlight` / `Super + Space`)
+Pusat kalkulasi, konversi, dan pencarian cepat:
+* **Kalkulasi Matematika Cepat**: `kalacakra spotlight "150 * 1.11"`
+* **Konversi Kurs Valuta Asing**: `kalacakra spotlight "100 usd to idr"`
+* **Konversi Satuan Suhu & Berat**: `kalacakra spotlight "75 kg to lbs"`, `kalacakra spotlight "30 c to f"`
+* **Pertanyaan Bahasa Alami**: Pertanyaan umum otomatis dirutekan ke `k-ai` lokal.
+
+### 🔄 3. Universal Control & Flow (`k-flow`)
+Satu mouse dan satu keyboard laptop Kalacakra meluncur mulus melintasi layar laptop Windows, Mac, atau Linux lain di sebelah Anda melalui jaringan Wi-Fi lokal:
+```bash
+kalacakra flow server               # Berbagi mouse & keyboard sebagai host
+kalacakra flow client 192.168.1.50  # Sambungkan ke host PC lain
+kalacakra flow status               # Cek status koneksi Universal Control
+```
+
+### ✍️ 4. Global Text Replacement & Snippets (`k-snippet`)
+Pintasan teks otomatis yang bekerja di seluruh sistem operasi (browser, editor, terminal, chat):
+```bash
+kalacakra snippet list              # Lihat daftar pintasan aktif
+kalacakra snippet add ";;rek" "BCA 1234567890 a.n. Kalacakra"
+kalacakra snippet add ";;shrug" "¯\_(ツ)_/¯"
+```
+Ketik `;;rek` di aplikasi mana saja, otomatis terurai menjadi nomor rekening lengkap! Kompatibel dengan Espanso.
+
+### 🔐 5. Unified Zero-Friction Keyring & Touch ID (`k-keyring`)
+Keamanan tanpa friksi setara macOS Keychain:
+* **SDDM PAM Auto-Unlock**: KWallet terbuka otomatis saat login; tidak ada lagi popup *"Enter password for wallet"*.
+* **Single-SignOn SSH-Agent**: Sesi kunci SSH otomatis aktif di seluruh tab terminal via `/etc/profile.d/kalacakra-ssh-agent.sh`.
+* **Touch ID (Fingerprint)**: Login dan `sudo` cukup tempelkan jari pada sensor sidik jari laptop:
+  ```bash
+  kalacakra keyring enroll-finger   # Daftarkan sidik jari untuk login & sudo
+  kalacakra keyring status          # Periksa status KWallet PAM, SSH-Agent & Touch ID
+  ```
+
+---
+
 ## 💿 Panduan Instalasi & Deployment
 
 ### Metode 1: Instalasi Baru via File ISO
@@ -130,6 +179,11 @@ kalacakra beam receive      # Buka penerima file P2P lokal
 kalacakra ocr               # Jalankan tangkapan layar teks OCR
 kalacakra survival toggle   # Nyalakan/matikan mode darurat hemat baterai
 kalacakra precache          # Pra-kompilasi shader game Vulkan
+kalacakra preview berkas.md # Quick Look pratinjau instan (Spasi di Dolphin)
+kalacakra spotlight "100 $" # Kalkulasi matematika & konversi kurs cepat
+kalacakra flow server       # Universal Control mouse & keyboard roaming
+kalacakra snippet list      # Kelola pintasan teks global
+kalacakra keyring status    # Periksa status keyring, Touch ID, & SSH-agent
 ```
 
 ---
@@ -243,14 +297,15 @@ kalacakra/
 │   ├── etc/
 │   │   ├── systemd/        # Unit zram, ollama user service, DNS-over-TLS
 │   │   ├── sysctl.d/       # Kernel security hardening
-│   │   └── profile.d/      # Homebrew path & interceptor shell hooks
+│   │   └── profile.d/      # Homebrew path, interceptor hooks, & SSH agent
 │   └── usr/
 │       ├── bin/            # Kalacakra CLI suite:
 │       │                   # kalacakra, k-interceptor, k-ai, k-aur, k-doctor,
-│       │                   # k-rewind, k-beam, k-portal, k-ocr, k-survival, k-precache
+│       │                   # k-rewind, k-beam, k-portal, k-ocr, k-survival, k-precache,
+│       │                   # k-preview, k-spotlight, k-flow, k-snippet, k-keyring
 │       └── share/
 │           ├── kalacakra/  # Fastfetch config, i18n locales (id/en), Justfile, shared lib
-│           └── kio/        # Dolphin context menu (Beam P2P, Proton Game Launcher)
+│           └── kio/        # Dolphin context menu (Beam P2P, Game Launcher, Quick Look)
 ├── .github/workflows/      # Pipeline build OCI & bootc-image-builder ISO
 └── tests/                  # Unit test suite untuk validasi CLI & keamanan
 ```
