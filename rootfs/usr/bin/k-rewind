@@ -95,21 +95,32 @@ def main():
 
     elif args.command == "restore":
         snap_path = find_snapshot_path(args.snapshot_id)
+        if snap_path is None:
+            print(f"[k-rewind Error] Snapshot ID '{args.snapshot_id}' tidak ditemukan. Jalankan 'k-rewind list'.")
+            sys.exit(1)
         rel_path = os.path.relpath(args.path, "/") if os.path.isabs(args.path) else args.path
-        source_file = os.path.join(snap_path, rel_path) if snap_path else None
+        source_file = os.path.join(snap_path, rel_path)
 
         print(strings.get("rewind_restoring", "Restoring file from snapshot {id}...").format(id=args.snapshot_id))
-        if source_file and os.path.exists(source_file):
+        if os.path.exists(source_file):
             target = os.path.abspath(args.path)
             backup = f"{target}.before-rewind"
             if os.path.exists(target):
-                os.rename(target, backup)
-                print(f"[k-rewind] Versi saat ini dicadangkan ke: {backup}")
-            
-            subprocess.run(["cp", "-a", source_file, target])
+                try:
+                    os.rename(target, backup)
+                    print(f"[k-rewind] Versi saat ini dicadangkan ke: {backup}")
+                except PermissionError:
+                    print(f"[k-rewind Error] Tidak punya izin menulis ke '{target}' (mungkin butuh sudo / path read-only).")
+                    sys.exit(1)
+
+            res = subprocess.run(["cp", "-a", source_file, target])
+            if res.returncode != 0:
+                print(f"[k-rewind Error] Gagal menyalin (kode {res.returncode}). Backup tersimpan di: {backup}")
+                sys.exit(res.returncode)
             print(strings.get("rewind_success", "File successfully restored to {path}!").format(path=target))
         else:
             print(f"[k-rewind Error] Berkas '{args.path}' tidak ditemukan di snapshot {args.snapshot_id}.")
+            sys.exit(1)
 
     elif args.command == "diff":
         snap_path = find_snapshot_path(args.snapshot_id)
