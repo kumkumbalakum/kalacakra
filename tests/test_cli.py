@@ -1,57 +1,71 @@
 import unittest
 import os
 import sys
-import json
-import re
 
-# Tambahkan path rootfs/usr/bin agar module bisa diuji
+# Tambahkan path library kalacakra_common
 ROOTFS_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "rootfs"))
-LOCALES_DIR = os.path.join(ROOTFS_DIR, "usr", "share", "kalacakra", "locales")
+LIB_PATH = os.path.join(ROOTFS_DIR, "usr", "share", "kalacakra", "lib")
+if LIB_PATH not in sys.path:
+    sys.path.insert(0, LIB_PATH)
 
-class TestKalacakraLocales(unittest.TestCase):
-    def test_locale_files_exist_and_valid_json(self):
+from kalacakra_common import (
+    get_locale_strings,
+    redact_secrets,
+    is_dangerous_command,
+    extract_target_packages,
+    resolve_locales_dir,
+    SECRET_PATTERNS
+)
+
+class TestKalacakraCommon(unittest.TestCase):
+    def test_locales_resolution_and_content(self):
+        locales_dir = resolve_locales_dir()
+        self.assertTrue(os.path.isdir(locales_dir), f"Locales directory {locales_dir} should exist")
+        
         for lang in ["id", "en"]:
-            path = os.path.join(LOCALES_DIR, f"{lang}.json")
-            self.assertTrue(os.path.isfile(path), f"Locale file {path} should exist")
-            with open(path, "r", encoding="utf-8") as f:
-                data = json.load(f)
-                self.assertIn("interceptor_title", data)
-                self.assertIn("ai_safety_warning", data)
-                self.assertIn("doctor_header", data)
+            strings, resolved_lang = get_locale_strings(lang)
+            self.assertEqual(resolved_lang, lang)
+            self.assertIn("interceptor_title", strings)
+            self.assertIn("ai_safety_warning", strings)
+            self.assertIn("doctor_header", strings)
+            self.assertIn("doctor_label_btrfs", strings)
+            self.assertIn("ai_dangerous_warning", strings)
 
-    def test_secret_redaction_patterns(self):
-        # Import redact_secrets logic
-        secret_patterns = [
-            r"(?i)(api[_-]?key|secret|token|password|auth|bearer)\s*[:=]\s*['\"]?([A-Za-z0-9_\-\.]{8,})['\"]?",
-            r"ghp_[A-Za-z0-9]{36}",
-            r"AKIA[0-9A-Z]{16}",
-            r"-----BEGIN (?:RSA |EC )?PRIVATE KEY-----[\s\S]+?-----END (?:RSA |EC )?PRIVATE KEY-----",
-            r"eyJ[A-Za-z0-9_-]{10,}\.eyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}"
-        ]
+    def test_secret_redaction(self):
+        sample_gh = "Run deploy script with token ghp_123456789012345678901234567890123456"
+        redacted, had_secret = redact_secrets(sample_gh)
+        self.assertTrue(had_secret)
+        self.assertNotIn("ghp_123456789012345678901234567890123456", redacted)
+        self.assertIn("[REDACTED_SECRET]", redacted)
 
-        def redact_secrets(text: str) -> str:
-            redacted = text
-            for pattern in secret_patterns:
-                redacted = re.sub(pattern, "[REDACTED_SECRET]", redacted)
-            return redacted
+        sample_aws = "Error accessing S3 with key AKIAIOSFODNN7EXAMPLE"
+        redacted_aws, had_aws = redact_secrets(sample_aws)
+        self.assertTrue(had_aws)
+        self.assertNotIn("AKIAIOSFODNN7EXAMPLE", redacted_aws)
+        self.assertIn("[REDACTED_SECRET]", redacted_aws)
 
-        sample_with_gh_token = "Deploy script with ghp_123456789012345678901234567890123456 to server"
-        result = redact_secrets(sample_with_gh_token)
-        self.assertNotIn("ghp_123456789012345678901234567890123456", result)
-        self.assertIn("[REDACTED_SECRET]", result)
+        clean_text = "find . -type f -name '*.txt'"
+        clean_res, clean_flag = redact_secrets(clean_text)
+        self.assertFalse(clean_flag)
+        self.assertEqual(clean_res, clean_text)
 
-        sample_with_aws = "Error accessing S3 with key AKIAIOSFODNN7EXAMPLE"
-        result_aws = redact_secrets(sample_with_aws)
-        self.assertNotIn("AKIAIOSFODNN7EXAMPLE", result_aws)
-        self.assertIn("[REDACTED_SECRET]", result_aws)
+    def test_dangerous_command_detection(self):
+        self.assertTrue(is_dangerous_command("rm -rf /"))
+        self.assertTrue(is_dangerous_command("rm -rf / --no-preserve-root"))
+        self.assertTrue(is_dangerous_command("mkfs.ext4 /dev/sda1"))
+        self.assertTrue(is_dangerous_command(":(){ :|:& };:"))
+        self.assertFalse(is_dangerous_command("ls -la /tmp"))
+        self.assertFalse(is_dangerous_command("podman run alpine echo hello"))
 
-    def test_interceptor_package_extractor(self):
-        def extract_target_packages(args):
-            skip_tokens = {"install", "remove", "update", "upgrade", "-S", "-Syu", "-Syy", "-R", "-U", "-y", "-q"}
-            return [arg for arg in args if not arg.startswith("-") and arg not in skip_tokens]
+    def test_package_extractor_multi_package(self):
+        res1 = extract_target_packages(["install", "-y", "vlc", "ffmpeg", "mpv"])
+        self.assertEqual(res1, ["vlc", "ffmpeg", "mpv"])
 
-        self.assertEqual(extract_target_packages(["install", "-y", "vlc", "ffmpeg"]), ["vlc", "ffmpeg"])
-        self.assertEqual(extract_target_packages(["-S", "--noconfirm", "neovim"]), ["neovim"])
+        res2 = extract_target_packages(["-S", "--noconfirm", "neovim", "ripgrep"])
+        self.assertEqual(res2, ["neovim", "ripgrep"])
+
+        res3 = extract_target_packages(["update"])
+        self.assertEqual(res3, [])
 
 if __name__ == "__main__":
     unittest.main()

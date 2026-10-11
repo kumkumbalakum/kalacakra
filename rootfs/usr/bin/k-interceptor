@@ -7,28 +7,32 @@ and guides the user to install software cleanly via Flatpak, Spaces (Distrobox),
 
 import os
 import sys
-import json
 import subprocess
 
-LOCALES_DIR = "/usr/share/kalacakra/locales"
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+LIB_PATH = os.path.abspath(os.path.join(SCRIPT_DIR, "..", "share", "kalacakra", "lib"))
+if os.path.isdir(LIB_PATH) and LIB_PATH not in sys.path:
+    sys.path.insert(0, LIB_PATH)
+elif "/usr/share/kalacakra/lib" not in sys.path and os.path.isdir("/usr/share/kalacakra/lib"):
+    sys.path.insert(0, "/usr/share/kalacakra/lib")
 
-def get_locale_strings():
-    lang = os.environ.get("LANG", "en_US.UTF-8")
-    is_id = "id" in lang.lower()
-    locale_file = os.path.join(LOCALES_DIR, "id.json" if is_id else "en.json")
-    if os.path.isfile(locale_file):
-        try:
-            with open(locale_file, "r", encoding="utf-8") as f:
-                return json.load(f)
-        except Exception:
-            pass
-    return {}
+try:
+    from kalacakra_common import get_locale_strings, extract_target_packages
+except ImportError:
+    def get_locale_strings():
+        return {}, "en"
+    def extract_target_packages(args):
+        return [a for a in args if not a.startswith("-")]
 
-def extract_target_packages(args):
-    # Filter out flags (starting with -) and subcommands like 'install' or '-S'
-    skip_tokens = {"install", "remove", "update", "upgrade", "-S", "-Syu", "-Syy", "-R", "-U", "-y", "-q"}
-    packages = [arg for arg in args if not arg.startswith("-") and arg not in skip_tokens]
-    return packages
+def find_k_aur():
+    candidates = [
+        "/usr/bin/k-aur",
+        os.path.join(SCRIPT_DIR, "k-aur")
+    ]
+    for c in candidates:
+        if os.path.isfile(c):
+            return c
+    return "k-aur"
 
 def main():
     if len(sys.argv) < 2:
@@ -37,9 +41,8 @@ def main():
 
     intercepted_cmd = sys.argv[1]
     cmd_args = sys.argv[2:]
-    strings = get_locale_strings()
+    strings, current_lang = get_locale_strings()
 
-    # Extract package names
     packages = extract_target_packages(cmd_args)
     pkg_str = " ".join(packages) if packages else " ".join(cmd_args)
 
@@ -67,27 +70,23 @@ def main():
         sys.exit(0)
 
     if choice == "1":
-        # Flatpak
         print(f"\n[Kalacakra] Searching and installing via Flatpak for: {pkg_str}...")
         for pkg in packages:
             subprocess.run(["flatpak", "install", "--user", "flathub", pkg])
     elif choice == "2":
-        # Arch / k-aur
+        k_aur_bin = find_k_aur()
         print(f"\n[Kalacakra] Forwarding to Kalacakra Arch Space (k-aur) for: {pkg_str}...")
-        subprocess.run(["/usr/bin/k-aur", "install"] + packages)
+        subprocess.run([k_aur_bin, "install"] + packages)
     elif choice == "3":
-        # Debian Space
         print(f"\n[Kalacakra] Ensuring Debian space exists...")
         subprocess.run(["distrobox", "create", "--name", "kalacakra-debian", "--image", "debian:stable", "--yes"], check=False)
         print(f"[Kalacakra] Installing inside Debian space: {pkg_str}...")
         subprocess.run(["distrobox", "enter", "kalacakra-debian", "--", "sudo", "apt", "update"])
         subprocess.run(["distrobox", "enter", "kalacakra-debian", "--", "sudo", "apt", "install", "-y"] + packages)
     elif choice == "4":
-        # Homebrew
         print(f"\n[Kalacakra] Installing via Homebrew: {pkg_str}...")
         subprocess.run(["brew", "install"] + packages)
     elif choice == "5":
-        # rpm-ostree
         print(f"\n[Kalacakra] Layering package to immutable host: {pkg_str}...")
         subprocess.run(["sudo", "rpm-ostree", "install"] + packages)
     else:

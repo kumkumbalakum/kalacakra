@@ -6,24 +6,34 @@ Provides a unified entry point for maintenance, recipe execution, and configurat
 
 import os
 import sys
-import json
 import subprocess
 import argparse
 
-LOCALES_DIR = "/usr/share/kalacakra/locales"
+# Tambahkan library path kalacakra
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+LIB_PATH = os.path.abspath(os.path.join(SCRIPT_DIR, "..", "share", "kalacakra", "lib"))
+if os.path.isdir(LIB_PATH) and LIB_PATH not in sys.path:
+    sys.path.insert(0, LIB_PATH)
+elif "/usr/share/kalacakra/lib" not in sys.path and os.path.isdir("/usr/share/kalacakra/lib"):
+    sys.path.insert(0, "/usr/share/kalacakra/lib")
 
-def get_locale_strings(lang_override=None):
-    lang = lang_override or os.environ.get("LANG", "en_US.UTF-8")
-    is_id = "id" in lang.lower()
-    locale_file = os.path.join(LOCALES_DIR, "id.json" if is_id else "en.json")
-    
-    if os.path.isfile(locale_file):
-        try:
-            with open(locale_file, "r", encoding="utf-8") as f:
-                return json.load(f), "id" if is_id else "en"
-        except Exception:
-            pass
-    return {}, "id" if is_id else "en"
+try:
+    from kalacakra_common import get_locale_strings
+except ImportError:
+    def get_locale_strings(lang_override=None):
+        return {}, "en"
+
+def find_justfile() -> str:
+    candidates = [
+        "/usr/share/kalacakra/Justfile",
+        os.path.abspath(os.path.join(SCRIPT_DIR, "..", "share", "kalacakra", "Justfile")),
+        os.path.abspath(os.path.join(SCRIPT_DIR, "..", "..", "Justfile")),
+        os.path.abspath("Justfile")
+    ]
+    for c in candidates:
+        if os.path.isfile(c):
+            return c
+    return "/usr/share/kalacakra/Justfile"
 
 def main():
     parser = argparse.ArgumentParser(
@@ -55,25 +65,24 @@ def main():
     args, unknown = parser.parse_known_args()
     strings, current_lang = get_locale_strings(args.lang)
 
+    justfile = find_justfile()
+
     if not args.command:
-        # Default behavior: run 'just --list' or print banner
         print("=== Kalacakra OS Control CLI ===")
         if current_lang == "id":
             print("Gunakan 'kalacakra --help' untuk melihat daftar perintah.")
         else:
             print("Use 'kalacakra --help' to see available commands.")
         
-        # If Justfile exists, display available recipes
-        if os.path.isfile("/usr/share/kalacakra/Justfile") or os.path.isfile("Justfile"):
-            justfile = "/usr/share/kalacakra/Justfile" if os.path.isfile("/usr/share/kalacakra/Justfile") else "Justfile"
+        if os.path.isfile(justfile):
             subprocess.run(["just", "--justfile", justfile, "--list"])
         sys.exit(0)
 
     # Route commands to Justfile or direct executables
-    justfile = "/usr/share/kalacakra/Justfile" if os.path.isfile("/usr/share/kalacakra/Justfile") else "Justfile"
-    
     if args.command == "doctor":
-        sys.exit(subprocess.run(["/usr/bin/k-doctor"]).returncode)
+        # Jalankan k-doctor (bisa di PATH atau relatif)
+        doctor_bin = "/usr/bin/k-doctor" if os.path.isfile("/usr/bin/k-doctor") else os.path.join(SCRIPT_DIR, "k-doctor")
+        sys.exit(subprocess.run([doctor_bin]).returncode)
     elif args.command == "update":
         sys.exit(subprocess.run(["just", "--justfile", justfile, "update"]).returncode)
     elif args.command == "clean":

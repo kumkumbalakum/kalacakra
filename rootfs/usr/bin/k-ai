@@ -14,36 +14,25 @@ import urllib.error
 import subprocess
 import argparse
 
-LOCALES_DIR = "/usr/share/kalacakra/locales"
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+LIB_PATH = os.path.abspath(os.path.join(SCRIPT_DIR, "..", "share", "kalacakra", "lib"))
+if os.path.isdir(LIB_PATH) and LIB_PATH not in sys.path:
+    sys.path.insert(0, LIB_PATH)
+elif "/usr/share/kalacakra/lib" not in sys.path and os.path.isdir("/usr/share/kalacakra/lib"):
+    sys.path.insert(0, "/usr/share/kalacakra/lib")
+
+try:
+    from kalacakra_common import get_locale_strings, redact_secrets, is_dangerous_command
+except ImportError:
+    def get_locale_strings(lang_override=None):
+        return {}, "en"
+    def redact_secrets(t):
+        return t, False
+    def is_dangerous_command(c):
+        return False
+
 DEFAULT_OLLAMA_URL = os.environ.get("OLLAMA_URL", "http://127.0.0.1:11434/api/generate")
 DEFAULT_MODEL = os.environ.get("KALACAKRA_AI_MODEL", "llama3.2:1b")
-
-# Regex pattern untuk menyensor rahasia / secret sebelum dikirim ke AI
-SECRET_PATTERNS = [
-    r"(?i)(api[_-]?key|secret|token|password|auth|bearer)\s*[:=]\s*['\"]?([A-Za-z0-9_\-\.]{8,})['\"]?",
-    r"ghp_[A-Za-z0-9]{36}",                          # GitHub Personal Access Token
-    r"AKIA[0-9A-Z]{16}",                             # AWS Access Key
-    r"-----BEGIN (?:RSA |EC )?PRIVATE KEY-----[\s\S]+?-----END (?:RSA |EC )?PRIVATE KEY-----", # SSH/SSL Key
-    r"eyJ[A-Za-z0-9_-]{10,}\.eyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}" # JWT Token
-]
-
-def get_locale_strings():
-    lang = os.environ.get("LANG", "en_US.UTF-8")
-    is_id = "id" in lang.lower()
-    locale_file = os.path.join(LOCALES_DIR, "id.json" if is_id else "en.json")
-    if os.path.isfile(locale_file):
-        try:
-            with open(locale_file, "r", encoding="utf-8") as f:
-                return json.load(f), "id" if is_id else "en"
-        except Exception:
-            pass
-    return {}, "id" if is_id else "en"
-
-def redact_secrets(text: str) -> str:
-    redacted = text
-    for pattern in SECRET_PATTERNS:
-        redacted = re.sub(pattern, "[REDACTED_SECRET]", redacted)
-    return redacted
 
 def call_ollama(prompt: str, system_prompt: str, model: str = DEFAULT_MODEL) -> str:
     payload = {
@@ -71,6 +60,13 @@ def clean_code_block(text: str) -> str:
         return match.group(1).strip()
     return text.strip()
 
+def validate_bash_syntax(cmd: str) -> tuple[bool, str]:
+    """Menjalankan bash -n untuk memvalidasi sintaks sebelum eksekusi."""
+    res = subprocess.run(["bash", "-n", "-c", cmd], capture_output=True, text=True, check=False)
+    if res.returncode == 0:
+        return True, ""
+    return False, res.stderr.strip()
+
 def main():
     parser = argparse.ArgumentParser(
         prog="k-ai",
@@ -84,10 +80,8 @@ def main():
     args = parser.parse_args()
     strings, current_lang = get_locale_strings()
 
-    # Gabungkan input query
     raw_query = " ".join(args.query)
 
-    # Cek apakah ada input via stdin (pipe error log)
     if not sys.stdin.isatty():
         stdin_content = sys.stdin.read().strip()
         if stdin_content:
@@ -101,8 +95,8 @@ def main():
         sys.exit(0)
 
     # 1. Secret Sanitization Guardrail
-    sanitized_query = redact_secrets(raw_query)
-    if sanitized_query != raw_query:
+    sanitized_query, had_secrets = redact_secrets(raw_query)
+    if had_secrets:
         print(strings.get("ai_secret_redacted", "[k-ai Shield] Sensitive secrets detected and automatically redacted."))
 
     # 2. System prompt bilingual
@@ -135,21 +129,41 @@ def main():
         print()
     else:
         print()
+        # Periksa apakah perintah berisiko destruktif
+        if is_dangerous_command(suggested_cmd):
+            print("!" * 70)
+            print(strings.get("ai_dangerous_warning", "[PERINGATAN BAHAYA] Perintah ini terdeteksi berpotensi merusak sistem!"))
+            print("!" * 70)
+
         print(strings.get("ai_safety_warning", "[k-ai Guard] Perintah berikut akan dieksekusi:"))
         print(f"\n  $ {suggested_cmd}\n")
 
         if args.yes:
-            confirm = "y"
+            action = "y"
         else:
-            prompt_confirm = strings.get("ai_safety_confirm", "Jalankan perintah ini? [Y/n]: ")
+            prompt_confirm = strings.get("ai_safety_confirm", "Jalankan perintah ini? [Y/n/e] (e=edit): ")
             try:
-                confirm = input(prompt_confirm).strip().lower()
+                action = input(prompt_confirm).strip().lower()
             except (KeyboardInterrupt, EOFError):
-                confirm = "n"
+                action = "n"
 
-        if confirm in ("", "y", "yes"):
+        if action == "e":
+            edit_prompt = strings.get("ai_edit_prompt", "Ketik perintah yang dimodifikasi: ")
+            try:
+                suggested_cmd = input(f"{edit_prompt}").strip()
+                action = "y"
+            except (KeyboardInterrupt, EOFError):
+                action = "n"
+
+        if action in ("", "y", "yes"):
+            # Validasi sintaks bash
+            valid_syntax, err_msg = validate_bash_syntax(suggested_cmd)
+            if not valid_syntax:
+                print(f"[k-ai Error] Sintaks perintah tidak valid: {err_msg}")
+                sys.exit(1)
+
             print("[k-ai] Menjalankan perintah...")
-            subprocess.run(suggested_cmd, shell=True)
+            subprocess.run(["bash", "-c", suggested_cmd])
         else:
             print(strings.get("ai_aborted", "Eksekusi dibatalkan."))
 

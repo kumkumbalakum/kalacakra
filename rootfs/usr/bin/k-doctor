@@ -6,23 +6,20 @@ Comprehensive System Health, Integrity & Maintenance Utility (Bilingual EN/ID)
 
 import os
 import sys
-import json
-import shutil
 import subprocess
 
-LOCALES_DIR = "/usr/share/kalacakra/locales"
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+LIB_PATH = os.path.abspath(os.path.join(SCRIPT_DIR, "..", "share", "kalacakra", "lib"))
+if os.path.isdir(LIB_PATH) and LIB_PATH not in sys.path:
+    sys.path.insert(0, LIB_PATH)
+elif "/usr/share/kalacakra/lib" not in sys.path and os.path.isdir("/usr/share/kalacakra/lib"):
+    sys.path.insert(0, "/usr/share/kalacakra/lib")
 
-def get_locale_strings():
-    lang = os.environ.get("LANG", "en_US.UTF-8")
-    is_id = "id" in lang.lower()
-    locale_file = os.path.join(LOCALES_DIR, "id.json" if is_id else "en.json")
-    if os.path.isfile(locale_file):
-        try:
-            with open(locale_file, "r", encoding="utf-8") as f:
-                return json.load(f), "id" if is_id else "en"
-        except Exception:
-            pass
-    return {}, "id" if is_id else "en"
+try:
+    from kalacakra_common import get_locale_strings
+except ImportError:
+    def get_locale_strings(lang_override=None):
+        return {}, "en"
 
 def run_cmd(cmd_list):
     try:
@@ -66,7 +63,6 @@ def check_flatpak_unused():
     return "OK", "No unused runtimes"
 
 def check_battery():
-    threshold_found = False
     for bat in ["/sys/class/power_supply/BAT0", "/sys/class/power_supply/BAT1"]:
         limit_file = os.path.join(bat, "charge_control_limit_max")
         if os.path.isfile(limit_file):
@@ -83,39 +79,47 @@ def main():
     clean_mode = "--clean" in sys.argv
 
     print()
-    print("=" * 60)
+    print("=" * 65)
     print(strings.get("doctor_header", "=== Kalacakra OS System Health Doctor ==="))
-    print("=" * 60)
+    print("=" * 65)
+    print(strings.get("doctor_checking_all", "Menjalankan diagnosa integritas sistem..."))
+    print("-" * 65)
 
     # 1. Btrfs
     status, msg = check_btrfs()
-    print(f"[{status:^6}] Filesystem Root (Btrfs) : {msg}")
+    label_btrfs = strings.get("doctor_label_btrfs", "Filesystem Root (Btrfs)")
+    print(f"[{status:^6}] {label_btrfs:<26} : {msg}")
 
     # 2. ZRAM
     status, msg = check_zram()
-    print(f"[{status:^6}] ZRAM Swap Engine        : {msg}")
+    label_zram = strings.get("doctor_label_zram", "ZRAM Swap Engine")
+    print(f"[{status:^6}] {label_zram:<26} : {msg}")
 
     # 3. AI Service
     status, msg = check_ai_service()
-    print(f"[{status:^6}] Local AI Daemon (k-ai)  : {msg}")
+    label_ai = strings.get("doctor_label_ai", "Local AI Daemon (k-ai)")
+    print(f"[{status:^6}] {label_ai:<26} : {msg}")
 
     # 4. Containers
     status_cont, msg_cont = check_containers()
-    print(f"[{status_cont:^6}] Container Storage       : {msg_cont}")
+    label_cont = strings.get("doctor_label_containers", "Container Storage")
+    print(f"[{status_cont:^6}] {label_cont:<26} : {msg_cont}")
 
     # 5. Flatpak
     status_fp, msg_fp = check_flatpak_unused()
-    print(f"[{status_fp:^6}] Flatpak Runtimes        : {msg_fp}")
+    label_fp = strings.get("doctor_label_flatpak", "Flatpak Runtimes")
+    print(f"[{status_fp:^6}] {label_fp:<26} : {msg_fp}")
 
     # 6. Battery
     status, msg = check_battery()
-    print(f"[{status:^6}] Battery Preservation    : {msg}")
+    label_bat = strings.get("doctor_label_battery", "Battery Preservation")
+    print(f"[{status:^6}] {label_bat:<26} : {msg}")
 
-    print("-" * 60)
+    print("-" * 65)
 
     if clean_mode or (status_cont == "CLEANABLE" or status_fp == "CLEANABLE"):
         if not clean_mode:
-            prompt = "Bersihkan file usang sekarang? / Clean unused files now? [Y/n]: "
+            prompt = strings.get("doctor_clean_prompt", "Bersihkan file usang sekarang? [Y/n]: ")
             try:
                 ans = input(prompt).strip().lower()
             except (KeyboardInterrupt, EOFError):

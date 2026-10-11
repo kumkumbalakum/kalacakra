@@ -2,7 +2,7 @@
 # ==============================================================================
 # Kalacakra OS - k-aur
 # Seamless Arch Linux AUR integration via isolated Distrobox container
-# Automatically installs packages and exports .desktop shortcuts to host
+# Automatically installs multiple packages and exports .desktop shortcuts to host
 # ==============================================================================
 
 set -euo pipefail
@@ -33,23 +33,29 @@ ensure_container() {
 cmd="${1:-}"
 
 if [ -z "$cmd" ]; then
-    echo "Penggunaan / Usage: k-aur <install|search|remove|enter|list> [paket]"
-    echo "Contoh: k-aur install visual-studio-code-bin"
+    echo "Penggunaan / Usage: k-aur <install|search|remove|enter|list> [paket...]"
+    echo "Contoh: k-aur install visual-studio-code-bin discord-canary"
     exit 0
 fi
 
 case "$cmd" in
     install|-S)
         shift
-        PACKAGE="$1"
+        if [ "$#" -eq 0 ]; then
+            echo "[k-aur Error] Harap sebutkan minimal satu nama paket untuk diinstal."
+            exit 1
+        fi
+        PACKAGES=("$@")
         ensure_container
-        echo "[k-aur] Menginstal '$PACKAGE' via paru di Arch Space..."
-        distrobox enter "$CONTAINER_NAME" -- paru -S --noconfirm "$PACKAGE"
+        echo "[k-aur] Menginstal ${PACKAGES[*]} via paru di Arch Space..."
+        distrobox enter "$CONTAINER_NAME" -- paru -S --noconfirm "${PACKAGES[@]}"
         
         echo "[k-aur] Mengekspor aplikasi ke menu host desktop..."
-        distrobox enter "$CONTAINER_NAME" -- distrobox-export --app "$PACKAGE" 2>/dev/null || true
-        distrobox enter "$CONTAINER_NAME" -- distrobox-export --bin "/usr/bin/$PACKAGE" 2>/dev/null || true
-        echo "[k-aur] Berhasil! Aplikasi '$PACKAGE' kini tersedia di host menu & terminal."
+        for pkg in "${PACKAGES[@]}"; do
+            distrobox enter "$CONTAINER_NAME" -- distrobox-export --app "$pkg" 2>/dev/null || true
+            distrobox enter "$CONTAINER_NAME" -- distrobox-export --bin "/usr/bin/$pkg" 2>/dev/null || true
+        done
+        echo "[k-aur] Berhasil! Aplikasi '${PACKAGES[*]}' kini tersedia di host menu & terminal."
         ;;
     search|-Ss)
         shift
@@ -58,11 +64,18 @@ case "$cmd" in
         ;;
     remove|-R)
         shift
-        PACKAGE="$1"
+        if [ "$#" -eq 0 ]; then
+            echo "[k-aur Error] Harap sebutkan minimal satu nama paket untuk dihapus."
+            exit 1
+        fi
+        PACKAGES=("$@")
         ensure_container
-        distrobox enter "$CONTAINER_NAME" -- paru -R --noconfirm "$PACKAGE"
-        distrobox enter "$CONTAINER_NAME" -- distrobox-export --app "$PACKAGE" --delete 2>/dev/null || true
-        echo "[k-aur] '$PACKAGE' berhasil dihapus dari container & host menu."
+        echo "[k-aur] Menghapus ${PACKAGES[*]} dari Arch Space..."
+        distrobox enter "$CONTAINER_NAME" -- paru -R --noconfirm "${PACKAGES[@]}"
+        for pkg in "${PACKAGES[@]}"; do
+            distrobox enter "$CONTAINER_NAME" -- distrobox-export --app "$pkg" --delete 2>/dev/null || true
+        done
+        echo "[k-aur] '${PACKAGES[*]}' berhasil dihapus dari container & host menu."
         ;;
     enter)
         ensure_container
@@ -74,7 +87,7 @@ case "$cmd" in
         ;;
     *)
         echo "[k-aur] Perintah tidak dikenal: $cmd"
-        echo "Gunakan: k-aur install <paket>"
+        echo "Gunakan: k-aur install <paket...>"
         exit 1
         ;;
 esac
