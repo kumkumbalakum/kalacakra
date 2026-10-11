@@ -68,7 +68,8 @@ def run_qa_tests():
         "kalacakra", "k-interceptor", "k-ai", "k-aur", "k-doctor",
         "k-rewind", "k-beam", "k-portal", "k-ocr", "k-survival", "k-precache",
         "k-preview", "k-spotlight", "k-flow", "k-snippet", "k-keyring",
-        "k-hub", "k-qa", "k-snapboot", "k-profile", "k-pkg"
+        "k-hub", "k-qa", "k-snapboot", "k-profile", "k-pkg",
+        "k-jail", "k-be", "k-scrub", "k-trace", "k-sysrc"
     ]
     missing_bins = []
     for b in expected_bins:
@@ -130,7 +131,8 @@ def run_qa_tests():
 
     # Test 5: Shared Library Import Test
     try:
-        import kalacakra_common
+        import kalacakra_common  # noqa: F401 - import test saja
+        _ = kalacakra_common.__name__
         results.append({
             "name": "Shared Python Library (kalacakra_common) Import",
             "status": "PASS",

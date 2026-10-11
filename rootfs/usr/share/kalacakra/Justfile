@@ -142,4 +142,25 @@ profile action="list":
 pkg target="":
     @/usr/bin/k-pkg {{target}}
 
+# Kalacakra Jail - Sandbox Terisolasi Sekali Pakai Ala FreeBSD Jails
+jail +args:
+    @/usr/bin/k-jail {{args}}
+
+# Kalacakra BE - Manajemen Kloning & Boot Environments Ala bectl
+be action="list":
+    @/usr/bin/k-be {{action}}
+
+# Kalacakra Scrub - Pemeriksa Integritas & Deteksi Bitrot Btrfs Ala ZFS
+scrub action="status":
+    @/usr/bin/k-scrub {{action}}
+
+# Kalacakra Trace - Profiling Kinerja Sistem & Bottleneck eBPF Ala DTrace
+trace target="io":
+    @/usr/bin/k-trace {{target}}
+
+# Kalacakra sysrc - Pengubah Variabel Konfigurasi Sistem Aman & Atomik
+sysrc assignment="":
+    @/usr/bin/k-sysrc {{assignment}}
+
+
 

@@ -68,5 +68,14 @@
   "profile_header": "=== Kalacakra Workload Profiles (Patterns Engine) ===",
   "profile_applied": "Workload profile '{name}' successfully installed and configured!",
   "pkg_header": "=== Kalacakra 1-Click Package Installer (.kpkg) ===",
-  "pkg_installing": "Safely installing package '{name}' to system..."
+  "pkg_installing": "Safely installing package '{name}' to system...",
+  "jail_header": "=== Kalacakra Jail (FreeBSD-Inspired Disposable Sandbox) ===",
+  "jail_running": "Executing process inside isolated ephemeral sandbox...",
+  "be_header": "=== Kalacakra Boot Environments (bectl-Style BE Management) ===",
+  "be_activated": "Boot Environment '{id}' successfully activated for next boot!",
+  "scrub_header": "=== Kalacakra Btrfs Scrub (ZFS-Style Integrity Verifier) ===",
+  "scrub_healthy": "Btrfs data block integrity is optimal (0 checksum errors)!",
+  "trace_header": "=== Kalacakra Dynamic Trace (DTrace-Style System Profiler) ===",
+  "sysrc_header": "=== Kalacakra sysrc (Safe System Configuration Manager) ===",
+  "sysrc_updated": "Configuration variable '{key}' successfully updated to '{val}'!"
 }

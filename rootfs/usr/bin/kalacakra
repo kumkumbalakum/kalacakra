@@ -120,6 +120,22 @@ def main():
     p_pkg = subparsers.add_parser("pkg", help="Kalacakra 1-Click - OBS-style package & scheme installer")
     p_pkg.add_argument("target", nargs="*", help="Package file, name, or kalacakra:// URL")
 
+    # 5 Fitur Ketangguhan UNIX FreeBSD (Jails, bectl, Scrub, DTrace, sysrc)
+    p_jail = subparsers.add_parser("jail", help="Kalacakra Jail - FreeBSD Jails-style ephemeral micro-sandbox")
+    p_jail.add_argument("subaction", nargs="*", help="Jail arguments (--no-net/--pure/command)")
+
+    p_be = subparsers.add_parser("be", help="Kalacakra BE - FreeBSD bectl-style Boot Environment manager")
+    p_be.add_argument("subaction", nargs="*", help="BE arguments (list/create/activate/destroy)")
+
+    p_scr = subparsers.add_parser("scrub", help="Kalacakra Scrub - ZFS-style Btrfs data integrity & bitrot guard")
+    p_scr.add_argument("subaction", nargs="*", help="Scrub arguments (status/start/cancel)")
+
+    p_trc = subparsers.add_parser("trace", help="Kalacakra Trace - FreeBSD DTrace-style dynamic system profiler")
+    p_trc.add_argument("subaction", nargs="*", help="Trace target (io/game/battery)")
+
+    p_src = subparsers.add_parser("sysrc", help="Kalacakra sysrc - FreeBSD sysrc-style safe atomic config manager")
+    p_src.add_argument("subaction", nargs="*", help="sysrc assignment (key=val or key)")
+
     args, unknown = parser.parse_known_args()
     strings, current_lang = get_locale_strings(args.lang)
 
@@ -171,6 +187,16 @@ def main():
         sys.exit(subprocess.run([find_bin("k-profile")] + args.subaction).returncode)
     elif args.command == "pkg":
         sys.exit(subprocess.run([find_bin("k-pkg")] + args.target).returncode)
+    elif args.command == "jail":
+        sys.exit(subprocess.run([find_bin("k-jail")] + args.subaction).returncode)
+    elif args.command == "be":
+        sys.exit(subprocess.run([find_bin("k-be")] + args.subaction).returncode)
+    elif args.command == "scrub":
+        sys.exit(subprocess.run([find_bin("k-scrub")] + args.subaction).returncode)
+    elif args.command == "trace":
+        sys.exit(subprocess.run([find_bin("k-trace")] + args.subaction).returncode)
+    elif args.command == "sysrc":
+        sys.exit(subprocess.run([find_bin("k-sysrc")] + args.subaction).returncode)
     elif args.command == "update":
         sys.exit(subprocess.run(["just", "--justfile", justfile, "update"]).returncode)
     elif args.command == "clean":

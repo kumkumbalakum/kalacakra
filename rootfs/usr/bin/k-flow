@@ -60,8 +60,12 @@ def start_server(port: int = 24800):
         proc = subprocess.Popen([binary, "-f", "--config", CONFIG_FILE, "--address", f":{port}"])
         with open(PID_FILE, "w") as f:
             f.write(str(proc.pid))
+        print(f"[k-flow] Backend aktif: {binary} (PID {proc.pid})")
     else:
-        print("[k-flow INFO] Menjalankan modul emulasi Universal Control server...")
+        print("[k-flow Error] 'deskflow' atau 'barriers' tidak terpasang - server TIDAK berjalan.")
+        print("[k-flow] Pasang salah satu terlebih dahulu, misalnya:")
+        print("         sudo rpm-ostree install barrier   (atau deskflow)")
+        sys.exit(1)
 
 def connect_client(server_ip: str, port: int = 24800):
     print(f"[Kalacakra Flow] Menghubungkan mouse/keyboard ke server di {server_ip}:{port}...")
@@ -70,8 +74,12 @@ def connect_client(server_ip: str, port: int = 24800):
         proc = subprocess.Popen([binary, "-f", f"{server_ip}:{port}"])
         with open(PID_FILE, "w") as f:
             f.write(str(proc.pid))
+        print(f"[k-flow] Terhubung ke {server_ip}:{port} via {binary} (PID {proc.pid})")
     else:
-        print("[k-flow INFO] Menjalankan modul emulasi Universal Control client...")
+        print("[k-flow Error] 'deskflow' atau 'barrierc' tidak terpasang - koneksi TIDAK dibuat.")
+        print("[k-flow] Pasang salah satu terlebih dahulu, misalnya:")
+        print("         sudo rpm-ostree install barrier   (atau deskflow)")
+        sys.exit(1)
 
 def kill_process(name: str):
     if shutil_which("pkill"):
@@ -99,6 +107,8 @@ def stop_flow():
             pass
     kill_process("deskflow")
     kill_process("barrier")
+    kill_process("barriers")
+    kill_process("barrierc")
     print("[Kalacakra Flow] Layanan Universal Control dinonaktifkan.")
 
 def shutil_which(cmd: str) -> bool:
@@ -131,8 +141,9 @@ def main():
     elif args.command == "stop":
         stop_flow()
     elif args.command == "status":
-        active = os.path.isfile(PID_FILE) or is_process_running("barrier")
-        print(f"[k-flow] Status: {'AKTIF' if active else 'NONAKTIF'}")
+        active = os.path.isfile(PID_FILE) or is_process_running("barrier") or is_process_running("deskflow")
+        backend = "deskflow" if is_process_running("deskflow") else ("barrier" if is_process_running("barrier") else "-")
+        print(f"[k-flow] Status: {'AKTIF' if active else 'NONAKTIF'} (backend: {backend})")
 
 
 if __name__ == "__main__":

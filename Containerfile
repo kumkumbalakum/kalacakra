@@ -49,7 +49,12 @@ RUN rpm-ostree install \
     glow \
     fprintd \
     fprintd-pam \
-    pam_kwallet && \
+    pam_kwallet \
+    wayvnc \
+    deskflow \
+    okular \
+    gwenview \
+    unzip && \
     rpm-ostree cleanup -m
 
 # 2. Pemasangan biner resmi Ollama (Clean Standalone Binary)
@@ -85,6 +90,11 @@ RUN chmod 0755 \
     /usr/bin/k-snapboot \
     /usr/bin/k-profile \
     /usr/bin/k-pkg \
+    /usr/bin/k-jail \
+    /usr/bin/k-be \
+    /usr/bin/k-scrub \
+    /usr/bin/k-trace \
+    /usr/bin/k-sysrc \
     /etc/profile.d/kalacakra-ssh-agent.sh \
     /usr/share/kalacakra/scripts/battery-cap.sh 2>/dev/null || true
 

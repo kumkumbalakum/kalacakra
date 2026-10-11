@@ -14,18 +14,19 @@
 2. [6 Fitur Dahsyat (Killer Superpowers)](#-6-fitur-dahsyat-killer-superpowers)
 3. [5 Fitur Ergonomi macOS (macOS-Inspired Ergonomics)](#-5-fitur-ergonomi-macos-macos-inspired-ergonomics)
 4. [5 Fitur Keandalan openSUSE (openSUSE-Inspired Engineering)](#-5-fitur-keandalan-opensuse-opensuse-inspired-engineering)
-5. [Panduan Instalasi & Deployment](#-panduan-instalasi--deployment)
-6. [Panduan Penggunaan Sehari-Hari](#-panduan-penggunaan-sehari-hari)
+5. [5 Fitur Ketangguhan UNIX FreeBSD (FreeBSD-Inspired Engineering)](#-5-fitur-ketangguhan-unix-freebsd-freebsd-inspired-engineering)
+6. [Panduan Instalasi & Deployment](#-panduan-instalasi--deployment)
+7. [Panduan Penggunaan Sehari-Hari](#-panduan-penggunaan-sehari-hari)
    * [Perintah Kalacakra CLI](#1-perintah-kalacakra-cli)
    * [Universal Command Interceptor](#2-universal-command-interceptor-k-interceptor)
    * [AI Terminal Companion](#3-ai-terminal-companion-k-ai)
    * [Arch Linux AUR Integration](#4-arch-linux-aur-integration-k-aur)
    * [Dikte Suara & Pintasan Keyboard](#5-dikte-suara--pintasan-keyboard)
-7. [Panduan Build Image & ISO](#-panduan-build-image--iso)
+8. [Panduan Build Image & ISO](#-panduan-build-image--iso)
    * [Build via CI/CD Otomatis](#opsi-a-build-via-cicd-github-actions--gitea-actions)
    * [Build 100% Lokal di Komputer](#opsi-b-build-100-lokal-di-komputer-podman)
-8. [Struktur Repositori](#-struktur-repositori)
-9. [Lisensi & Spesifikasi](#-lisensi--spesifikasi)
+9. [Struktur Repositori](#-struktur-repositori)
+10. [Lisensi & Spesifikasi](#-lisensi--spesifikasi)
 
 ---
 
@@ -186,6 +187,53 @@ kalacakra pkg "kalacakra://install?name=VLC&method=flatpak&package=org.videolan.
 
 ---
 
+## 😈 5 Fitur Ketangguhan UNIX FreeBSD (FreeBSD-Inspired Engineering)
+
+### 🏰 1. Kalacakra Jail: Ephemeral Disposable Sandbox (`k-jail`)
+Isolasi proses dan pengujian malware/skrip asing sekali pakai ala FreeBSD Jails menggunakan Bubblewrap (`bwrap`):
+```bash
+kalacakra jail ./script-dari-internet.sh  # Jalankan dalam sandbox terisolasi
+kalacakra jail --no-net ./malware-check  # Putus akses internet total
+kalacakra jail --pure ./evaluasi.py      # Berikan direktori home kosong (disposable tmpfs)
+```
+* Begitu proses selesai, sandbox langsung lenyap tanpa meninggalkan jejak atau modifikasi pada host OS.
+
+### 🧬 2. Kalacakra Boot Environments: bectl for Linux (`k-be`)
+Manajemen kloning dan peralihan sistem bootable terpadu ala `bectl` ZFS FreeBSD untuk deployment atomik `bootc`/`ostree`:
+```bash
+kalacakra be list                       # Tampilkan status aktif (NR), space, & deployment
+kalacakra be create "Eksperimen-KDE"    # Kloning deployment bootable instan
+kalacakra be activate 1                 # Aktifkan deployment #1 sebagai default boot
+kalacakra be destroy 2                  # Hapus pin cadangan deployment lama
+```
+
+### 🛡️ 3. Kalacakra Scrub: Btrfs Bitrot Guard (`k-scrub`)
+Pemeriksa integritas blok data berkala ala ZFS scrub untuk mendeteksi *silent bitrot* dan kerusakan perangkat keras SSD:
+```bash
+kalacakra scrub status                  # Tampilkan ringkasan checksum blok data
+kalacakra scrub start /home             # Mulai verifikasi kriptografis di latar belakang
+kalacakra scrub cancel                  # Hentikan proses verifikasi
+```
+
+### 🔬 4. Kalacakra Trace: Dynamic System Profiler (`k-trace`)
+Pelacak kinerja dan bottleneck sistem dinamis ala DTrace (Solaris/FreeBSD) berbasis Linux eBPF & procfs:
+```bash
+kalacakra trace io                      # Lacak proses yang membuat SSD bottleneck
+kalacakra trace game                    # Lacak pencuri siklus CPU & frame drop saat gaming
+kalacakra trace battery                 # Lacak aplikasi yang menguras daya baterai laptop
+```
+
+### ⚙️ 5. Kalacakra sysrc: Safe Atomic Config Manager (`k-sysrc`)
+Pengelola variabel konfigurasi sistem bertipe dan atomik ala `sysrc` FreeBSD tanpa perlu membuka teks editor manual di `/etc`:
+```bash
+kalacakra sysrc                         # Tampilkan semua variabel konfigurasi aktif
+kalacakra sysrc battery.limit=85        # Atur batas pengisian daya baterai ke 85%
+kalacakra sysrc scx.scheduler=rusty     # Beralih penjadwal CPU eBPF ke throughput
+kalacakra sysrc ai.killswitch=true      # Matikan seluruh daemon AI instan
+```
+
+---
+
 ## 💿 Panduan Instalasi & Deployment
 
 ### Metode 1: Instalasi Baru via File ISO
@@ -236,6 +284,11 @@ kalacakra qa                # Jalankan automated system QA & regression testing
 kalacakra snapboot sync     # Sinkronisasi snapshot Btrfs ke menu bootloader
 kalacakra profile apply dev # Pasang stack beban kerja lengkap (Zypper Patterns)
 kalacakra pkg app.kpkg      # Pasang aplikasi 1-klik deklaratif (OBS-style)
+kalacakra jail ./script.sh  # Jalankan skrip di sandbox sekali pakai (FreeBSD Jails)
+kalacakra be list           # Kelola Boot Environments & kloning deployment (bectl)
+kalacakra scrub status      # Periksa integritas data & deteksi bitrot Btrfs (ZFS)
+kalacakra trace io          # Analisis bottleneck disk & latensi game eBPF (DTrace)
+kalacakra sysrc battery=85  # Atur konfigurasi sistem secara aman & atomik (sysrc)
 ```
 
 ---
@@ -355,7 +408,8 @@ kalacakra/
 │       │                   # kalacakra, k-interceptor, k-ai, k-aur, k-doctor,
 │       │                   # k-rewind, k-beam, k-portal, k-ocr, k-survival, k-precache,
 │       │                   # k-preview, k-spotlight, k-flow, k-snippet, k-keyring,
-│       │                   # k-hub, k-qa, k-snapboot, k-profile, k-pkg
+│       │                   # k-hub, k-qa, k-snapboot, k-profile, k-pkg,
+│       │                   # k-jail, k-be, k-scrub, k-trace, k-sysrc
 │       └── share/
 │           ├── applications/ # Desktop entries & scheme handler (.kpkg / kalacakra://)
 │           ├── kalacakra/  # Fastfetch config, i18n locales (id/en), Justfile, shared lib

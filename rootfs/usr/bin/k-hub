@@ -31,40 +31,55 @@ except ImportError:
         return {}, "en"
 
 def get_system_overview():
+    """Ambil status sistem SEBENARNYA - tanpa nilai simulasi/hardcode."""
     overview = {}
-    
-    # SELinux
+
+    def _run(cmd):
+        try:
+            res = subprocess.run(cmd, capture_output=True, text=True, check=False)
+            return res.stdout.strip()
+        except Exception:
+            return ""
+
+    # SELinux (query nyata)
     if shutil.which("getenforce"):
-        try:
-            res = subprocess.run(["getenforce"], capture_output=True, text=True, check=False)
-            overview["selinux"] = res.stdout.strip()
-        except Exception:
-            overview["selinux"] = "Enforcing (Simulated)"
+        overview["selinux"] = _run(["getenforce"]) or "Unknown"
     else:
-        overview["selinux"] = "Enforcing (Default Policy)"
+        overview["selinux"] = "getenforce tidak tersedia"
 
-    # USBGuard
-    overview["usbguard"] = "Active (Screen-Lock Bound)"
+    # USBGuard (query nyata)
+    overview["usbguard"] = "Active" if _run(["systemctl", "is-active", "usbguard"]) == "active" else "Nonaktif"
 
-    # Sched-ext CPU Scheduler
-    overview["scheduler"] = "scx_lavd (eBPF Gaming/Interactive)"
-
-    # ZRAM
-    overview["zram"] = "Active (100% RAM zstd)"
-
-    # Local AI Daemon
-    overview["ai"] = "Ollama Local (Offline / No Telemetry)"
-
-    # Battery Protection Cap
-    cap_file = "/sys/class/power_supply/BAT0/charge_control_limit_max"
-    if os.path.isfile(cap_file):
-        try:
-            with open(cap_file, "r") as f:
-                overview["battery_cap"] = f"{f.read().strip()}%"
-        except Exception:
-            overview["battery_cap"] = "80% (Preservation Mode)"
+    # Sched-ext CPU Scheduler (query proses nyata)
+    sched = _run(["pgrep", "-a", "-f", "scx_"])
+    if sched:
+        overview["scheduler"] = sched.split()[0] if sched.split() else "SCX aktif"
     else:
-        overview["battery_cap"] = "80% (Preservation Profile)"
+        overview["scheduler"] = "Default kernel (EEVDF)"
+
+    # ZRAM (query nyata)
+    overview["zram"] = "Active (zstd)" if "zram0" in _run(["zramctl"]) else "Inactive"
+
+    # Local AI Daemon (query nyata)
+    ai = _run(["systemctl", "--user", "is-active", "kalacakra-ai.service"])
+    overview["ai"] = "Ollama Running (localhost:11434)" if ai == "active" else "Standby / Nonaktif"
+
+    # Battery Protection Cap (query nyata dari sysfs)
+    overview["battery_cap"] = "-"
+    for bat in ("/sys/class/power_supply/BAT0", "/sys/class/power_supply/BAT1"):
+        for fname in ("charge_control_limit_max", "charge_stop_threshold"):
+            cap_file = os.path.join(bat, fname)
+            if os.path.isfile(cap_file):
+                try:
+                    with open(cap_file, "r") as f:
+                        overview["battery_cap"] = f"{f.read().strip()}%"
+                except Exception:
+                    pass
+                break
+        if overview["battery_cap"] != "-":
+            break
+    if overview["battery_cap"] == "-":
+        overview["battery_cap"] = "Tanpa baterai / default 100%"
 
     return overview
 
@@ -85,7 +100,7 @@ def print_dashboard(strings, current_lang):
     print(" [4] 🤖 Kecerdasan Buatan Lokal (Ollama & Whisper)")
     print(f"     └─ AI Engine: {overview['ai']}")
     print(" [5] ⏳ Snapshots & Pemulihan Waktu (Snapper / Kalacakra Rewind)")
-    print("     └─ Subvolumes: @, @home, @var terproteksi snapshot Btrfs")
+    print("     └─ Snapshot Btrfs via Snapper (cek: kalacakra rewind list)")
     print(" [6] 🌐 Lokalisasi & Bahasa Sistem (English / Bahasa Indonesia)")
     print(f"     └─ Bahasa Aktif: {'Bahasa Indonesia (id)' if current_lang == 'id' else 'English (en)'}")
     print(" [0] 🚪 Keluar / Exit")
@@ -106,9 +121,9 @@ def interactive_menu():
             break
         elif choice == "1":
             print("\n--- [Modul Keamanan] ---")
-            print("1. Status SELinux: Aktif Enforcing")
-            print("2. USBGuard: Layar terkunci memblokir perangkat USB baru.")
-            print("3. DNS-over-TLS (DoT): systemd-resolved aktif terenkripsi port 853.")
+            print(f"1. Status SELinux: {get_system_overview()['selinux']}")
+            print(f"2. USBGuard: {get_system_overview()['usbguard']}")
+            print("3. DNS-over-TLS (DoT): cek 'resolvectl status | grep DNSOverTLS'")
             input("Tekan Enter untuk kembali ke menu...")
         elif choice == "2":
             print("\n--- [Modul Scheduler CPU] ---")

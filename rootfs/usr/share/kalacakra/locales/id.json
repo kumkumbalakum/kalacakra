@@ -68,5 +68,14 @@
   "profile_header": "=== Kalacakra Workload Profiles (Pola Preset Beban Kerja) ===",
   "profile_applied": "Profil lingkungan '{name}' berhasil dipasang dan dikonfigurasi!",
   "pkg_header": "=== Kalacakra 1-Click Package Installer (.kpkg) ===",
-  "pkg_installing": "Memasang paket '{name}' secara aman ke sistem..."
+  "pkg_installing": "Memasang paket '{name}' secara aman ke sistem...",
+  "jail_header": "=== Kalacakra Jail (Sandbox Terisolasi Ala FreeBSD Jails) ===",
+  "jail_running": "Menjalankan proses dalam sandbox sekali pakai terisolasi...",
+  "be_header": "=== Kalacakra Boot Environments (Manajemen BE Ala bectl) ===",
+  "be_activated": "Boot Environment '{id}' berhasil diaktifkan untuk boot berikutnya!",
+  "scrub_header": "=== Kalacakra Btrfs Scrub (Pemeriksa Integritas Ala ZFS) ===",
+  "scrub_healthy": "Integritas blok data Btrfs dalam kondisi prima (0 checksum error)!",
+  "trace_header": "=== Kalacakra Dynamic Trace (Profiler Kinerja Ala DTrace) ===",
+  "sysrc_header": "=== Kalacakra sysrc (Pengelola Konfigurasi Sistem Aman) ===",
+  "sysrc_updated": "Variabel konfigurasi '{key}' berhasil diperbarui menjadi '{val}'!"
 }

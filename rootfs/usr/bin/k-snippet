@@ -60,10 +60,14 @@ def export_to_espanso(snippets: dict):
     yaml_path = os.path.join(espanso_dir, "kalacakra.yml")
     lines = ["matches:\n"]
     for trigger, rep in snippets.items():
-        escaped_rep = rep.replace('"', '\\"')
-        lines.append(f'  - trigger: "{trigger}"\n    replace: "{escaped_rep}"\n')
+        # Format YAML literal block (|-) agar aman untuk kutip, backslash, dan newline
+        trig = trigger.replace('"', '\\"')
+        rep_lines = rep.split("\n")
+        block = "    replace: |-\n" + "".join(f"      {l}\n" for l in rep_lines)
+        lines.append(f'  - trigger: "{trig}"\n{block}')
     with open(yaml_path, "w", encoding="utf-8") as f:
         f.writelines(lines)
+    print(f"[k-snippet] Ekspor Espanso diperbarui: {yaml_path}")
 
 def main():
     parser = argparse.ArgumentParser(

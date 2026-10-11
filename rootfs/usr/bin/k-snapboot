@@ -34,6 +34,7 @@ except ImportError:
 BOOT_ENTRIES_DIR = "/boot/loader/entries"
 
 def get_snapper_snapshots():
+    """Ambil daftar snapshot Snapper ASLI. Kosong jika snapper tidak tersedia."""
     snapshots = []
     if shutil.which("snapper"):
         try:
@@ -50,20 +51,21 @@ def get_snapper_snapshots():
                     })
         except Exception:
             pass
-
-    if not snapshots:
-        # Contoh snapshot dasar untuk display atau sistem baru
-        snapshots = [
-            {"id": "0", "type": "current", "date": "Sekarang / Active", "desc": "Current Running Deployment"},
-            {"id": "1", "type": "single", "date": "2026-10-10 10:00:00", "desc": "Kalacakra Initial Install Snapshot"},
-            {"id": "2", "type": "pre", "date": "2026-10-11 14:30:00", "desc": "Pre-update System Health Snapshot"}
-        ]
+    # Tidak ada data dummy - daftar kosong lebih jujur daripada snapshot fiktif
     return snapshots
 
 def sync_bootloader_entries():
+    """Sinkronkan snapshot Snapper nyata ke /boot/loader/entries.
+    Mengembalikan (jumlah_sukses, jumlah_gagal)."""
     snapshots = get_snapper_snapshots()
-    synced_count = 0
-    os.makedirs(BOOT_ENTRIES_DIR, exist_ok=True) if os.path.isdir("/boot") else None
+    if not snapshots:
+        return 0, 0
+
+    synced, failed = 0, 0
+    can_write = os.path.isdir("/boot") and os.access("/boot", os.W_OK)
+    if not can_write:
+        # Coba dengan sudo nanti? laporkan jujur
+        return 0, len([s for s in snapshots if s["id"] != "0"])
 
     for snap in snapshots:
         if snap["id"] == "0":
@@ -75,13 +77,14 @@ version    snapshot-{snap['id']}
 options    root=UUID=kalacakra-root rootflags=subvol=.snapshots/{snap['id']}/snapshot ro quiet splash
 """
         try:
+            os.makedirs(BOOT_ENTRIES_DIR, exist_ok=True)
             with open(entry_file, "w") as f:
                 f.write(content)
-            synced_count += 1
+            synced += 1
         except Exception:
-            synced_count += 1  # Counted for emulated sync
+            failed += 1
 
-    return synced_count
+    return synced, failed
 
 def list_bootable_snapshots():
     snapshots = get_snapper_snapshots()
@@ -89,11 +92,20 @@ def list_bootable_snapshots():
     print("=" * 72)
     print("=== [Kalacakra SnapBoot] Daftar Titik Booting Snapshot Btrfs ===")
     print("=" * 72)
+    if not snapshots:
+        if not shutil.which("snapper"):
+            print(" [INFO] 'snapper' tidak terpasang - tidak ada snapshot untuk ditampilkan.")
+            print("        Pasang snapper & konfigurasikan subvolume @/.snapshots terlebih dahulu.")
+        else:
+            print(" [INFO] Belum ada snapshot terdaftar. Buat dengan: k-rewind create <deskripsi>")
+        print("=" * 72)
+        print()
+        return
     print(f" {'ID':<6} {'TIPE':<10} {'TANGGAL / WAKTU':<22} {'DESKRIPSI':<30}")
     print("-" * 72)
     for s in snapshots:
         marker = "▶" if s["id"] == "0" else " "
-        print(f"{marker}{s['id']:<5} {s['type']:<10} {s['date']:<22} {s['desc']:<30}")
+        print(f"{marker}{s['id']:<5} {s['type']:<10} {s['date']:<22} {s['desc'][:30]:<30}")
     print("-" * 72)
     print("Gunakan 'k-snapboot sync' untuk memperbarui entri menu bootloader.")
     print("=" * 72)
@@ -117,12 +129,39 @@ def main():
     if not args.command or args.command == "list":
         list_bootable_snapshots()
     elif args.command == "sync":
-        count = sync_bootloader_entries()
-        print(f"[Kalacakra SnapBoot] {count} entri snapshot berhasil disinkronisasi ke menu bootloader!")
+        synced, failed = sync_bootloader_entries()
         print(strings.get("snapboot_synced", "Entri bootloader snapshot berhasil disinkronisasi!"))
+        print(f"[Kalacakra SnapBoot] Berhasil: {synced} | Gagal: {failed}")
+        if synced == 0 and failed == 0:
+            print("[Kalacakra SnapBoot] Tidak ada snapshot untuk disinkronkan (snapper kosong/absen).")
+            sys.exit(1)
+        elif failed:
+            sys.exit(1)
     elif args.command == "select":
-        print(f"[Kalacakra SnapBoot] Menjadwalkan booting ke Snapshot #{args.id} pada reboot berikutnya...")
-        print("[Kalacakra SnapBoot] Sistem akan dimuat dalam mode read-only aman.")
+        snap_id = args.id
+        snap = next((s for s in get_snapper_snapshots() if s["id"] == snap_id), None)
+        if snap is None:
+            print(f"[Kalacakra SnapBoot Error] Snapshot #{snap_id} tidak ditemukan. Jalankan 'k-snapboot list'.")
+            sys.exit(1)
+        entry_file = os.path.join(BOOT_ENTRIES_DIR, f"kalacakra-snapshot-{snap_id}.conf")
+        if not os.path.isfile(entry_file):
+            print(f"[Kalacakra SnapBoot] Entri boot untuk snapshot #{snap_id} belum ada.")
+            print("Jalankan 'k-snapboot sync' terlebih dahulu.")
+            sys.exit(1)
+        print(f"[Kalacakra SnapBoot] Menjadwalkan booting ke Snapshot #{snap_id} pada reboot berikutnya...")
+        entry_id = f"kalacakra-snapshot-{snap_id}"
+        if shutil.which("bootctl"):
+            res = subprocess.run(["bootctl", "set-oneshot", entry_id], check=False)
+            if res.returncode == 0:
+                print(f"[Kalacakra SnapBoot OK] Boot one-shot diatur ke '{entry_id}'.")
+                print("[Kalacakra SnapBoot] Sistem akan dimuat dalam mode read-only aman.")
+            else:
+                print("[Kalacakra SnapBoot Error] bootctl gagal mengatur one-shot entry.")
+                sys.exit(res.returncode)
+        else:
+            print("[Kalacakra SnapBoot Error] 'bootctl' tidak tersedia - tidak bisa menjadwalkan boot.")
+            print("Pilih manual entri snapshot dari menu boot (GRUB/systemd-boot) saat restart.")
+            sys.exit(1)
 
 if __name__ == "__main__":
     main()

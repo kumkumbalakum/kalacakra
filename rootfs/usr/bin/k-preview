@@ -58,12 +58,20 @@ def preview_file(file_path: str):
     if ext in [".zip", ".tar", ".gz", ".xz", ".bz2", ".7z"]:
         print(f"=== [Kalacakra Quick Look] Isi Arsip: {os.path.basename(file_path)} ===")
         if ext == ".zip":
-            subprocess.run(["unzip", "-l", file_path], check=False)
+            if shutil.which("unzip"):
+                subprocess.run(["unzip", "-l", file_path], check=False)
+            else:
+                subprocess.run([sys.executable, "-m", "zipfile", "-l", file_path], check=False)
         else:
             subprocess.run(["tar", "-tvf", file_path], check=False)
         return
 
     # 5. Kode atau Teks Umum (bat with syntax highlight)
+    # Hindari menampilkan biner mentah: tebak dari mime
+    if mime.startswith(("audio/", "video/", "font/")):
+        print(f"[k-preview] Pratinjau {mime} belum didukung CLI. Buka dengan aplikasi default:")
+        print(f"  xdg-open \"{file_path}\"")
+        return
     if shutil.which("bat"):
         subprocess.run(["bat", "--style=header,grid", file_path])
     else:

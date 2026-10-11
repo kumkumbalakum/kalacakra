@@ -46,7 +46,16 @@ class TestKalacakraCommon(unittest.TestCase):
             "profile_header",
             "profile_applied",
             "pkg_header",
-            "pkg_installing"
+            "pkg_installing",
+            "jail_header",
+            "jail_running",
+            "be_header",
+            "be_activated",
+            "scrub_header",
+            "scrub_healthy",
+            "trace_header",
+            "sysrc_header",
+            "sysrc_updated"
         ]
 
         for lang in ["id", "en"]:
@@ -78,8 +87,18 @@ class TestKalacakraCommon(unittest.TestCase):
         self.assertTrue(is_dangerous_command("rm -rf / --no-preserve-root"))
         self.assertTrue(is_dangerous_command("mkfs.ext4 /dev/sda1"))
         self.assertTrue(is_dangerous_command(":(){ :|:& };:"))
+        # Pola tambahan: rm rekursif ke root/home/glob
+        self.assertTrue(is_dangerous_command("rm -rf /*"))
+        self.assertTrue(is_dangerous_command("rm -rf ~"))
+        self.assertTrue(is_dangerous_command("rm -rf $HOME"))
+        self.assertTrue(is_dangerous_command("rm -rf /var/lib"))
+        self.assertTrue(is_dangerous_command("sudo rm -rf /tmp/cache"))
+        self.assertTrue(is_dangerous_command("rm -fr /home"))
+        # Bukan berbahaya
         self.assertFalse(is_dangerous_command("ls -la /tmp"))
         self.assertFalse(is_dangerous_command("podman run alpine echo hello"))
+        self.assertFalse(is_dangerous_command("rm -f build.log"))
+        self.assertFalse(is_dangerous_command("rm file.txt"))
 
     def test_package_extractor_multi_package(self):
         res1 = extract_target_packages(["install", "-y", "vlc", "ffmpeg", "mpv"])
@@ -90,6 +109,113 @@ class TestKalacakraCommon(unittest.TestCase):
 
         res3 = extract_target_packages(["update"])
         self.assertEqual(res3, [])
+
+
+class TestRepoConsistency(unittest.TestCase):
+    def test_justfile_root_and_rootfs_in_sync(self):
+        """Justfile (root) dan rootfs/usr/share/kalacakra/Justfile harus identik
+        agar image OCI selalu memakai resep yang sama dengan repo."""
+        REPO_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+        root_just = os.path.join(REPO_DIR, "Justfile")
+        rootfs_just = os.path.join(ROOTFS_DIR, "usr", "share", "kalacakra", "Justfile")
+
+        self.assertTrue(os.path.isfile(root_just), "Justfile di root repo harus ada")
+        self.assertTrue(os.path.isfile(rootfs_just), "Justfile di rootfs harus ada (di-copy ke image)")
+
+        with open(root_just, "r", encoding="utf-8") as f1, open(rootfs_just, "r", encoding="utf-8") as f2:
+            self.assertEqual(
+                f1.read(), f2.read(),
+                "Justfile root dan rootfs tidak sinkron! Jalankan: cp Justfile rootfs/usr/share/kalacakra/Justfile"
+            )
+
+    def test_k_doctor_clean_without_container_tools(self):
+        """k-doctor --clean tidak boleh crash jika podman/flatpak tidak tersedia."""
+        import subprocess, tempfile
+        doctor_path = os.path.join(ROOTFS_DIR, "usr", "bin", "k-doctor")
+        with tempfile.TemporaryDirectory() as empty_bin:
+            env = os.environ.copy()
+            env["PATH"] = empty_bin
+            env["LANG"] = "en_US.UTF-8"
+            res = subprocess.run(
+                [sys.executable, doctor_path, "--clean"],
+                capture_output=True, text=True, env=env, timeout=30
+            )
+        self.assertEqual(res.returncode, 0, f"stderr: {res.stderr}")
+        self.assertNotIn("Traceback", res.stderr)
+
+    def test_all_locale_keys_used_by_cli_exist(self):
+        """Setiap strings.get(\"key\") di seluruh CLI harus tersedia di locale id & en.
+        Menangkap regresi key hilang seperti yang pernah terjadi pada label k-doctor."""
+        import re
+        import json
+        bin_dir = os.path.join(ROOTFS_DIR, "usr", "bin")
+        used_keys = set()
+        for name in os.listdir(bin_dir):
+            path = os.path.join(bin_dir, name)
+            if os.path.isfile(path):
+                try:
+                    with open(path, "r", encoding="utf-8") as f:
+                        used_keys |= set(re.findall(r'strings\.get\("([^"]+)"', f.read()))
+                except (UnicodeDecodeError, OSError):
+                    continue
+        self.assertTrue(used_keys, "Tidak ada key strings.get ditemukan - pola tes mungkin rusak")
+
+        for lang in ("id", "en"):
+            path = os.path.join(ROOTFS_DIR, "usr", "share", "kalacakra", "locales", f"{lang}.json")
+            with open(path, "r", encoding="utf-8") as f:
+                locale_keys = set(json.load(f).keys())
+            missing = used_keys - locale_keys
+            self.assertFalse(missing, f"Key hilang di {lang}.json: {sorted(missing)}")
+
+    def test_new_cli_scripts_compile(self):
+        """Semua tool di rootfs/usr/bin wajib lolos py_compile (cek sintaks dasar)."""
+        import py_compile
+        import tempfile
+        bin_dir = os.path.join(ROOTFS_DIR, "usr", "bin")
+        failures = []
+        with tempfile.TemporaryDirectory() as tmp:
+            for name in sorted(os.listdir(bin_dir)):
+                path = os.path.join(bin_dir, name)
+                if not os.path.isfile(path):
+                    continue
+                with open(path, "rb") as fh:
+                    first_line = fh.readline()
+                if b"python" not in first_line:
+                    continue
+                try:
+                    py_compile.compile(path, cfile=os.path.join(tmp, name + ".pyc"), doraise=True)
+                except py_compile.PyCompileError as e:
+                    failures.append(str(e))
+        self.assertFalse(failures, "Script gagal compile:\n" + "\n".join(failures))
+
+    def test_no_undefined_names(self):
+        """Tangkap undefined name (mis. 'shutil' terpakai tapi tak di-import) via pyflakes.
+        Skip jika pyflakes tidak terpasang - CI selalu menginstalnya."""
+        try:
+            from pyflakes.api import checkPath
+            from pyflakes.reporter import Reporter
+        except ImportError:
+            self.skipTest("pyflakes tidak terpasang")
+        import io
+        bin_dir = os.path.join(ROOTFS_DIR, "usr", "bin")
+        problems = []
+        for name in sorted(os.listdir(bin_dir)):
+            path = os.path.join(bin_dir, name)
+            if not os.path.isfile(path):
+                continue
+            with open(path, "rb") as fh:
+                first_line = fh.readline()
+            if b"python" not in first_line:
+                continue
+            warn_stream, err_stream = io.StringIO(), io.StringIO()
+            reporter = Reporter(warn_stream, err_stream)
+            checkPath(path, reporter)
+            output = warn_stream.getvalue()
+            for line in output.splitlines():
+                if "undefined name" in line:
+                    problems.append(f"{name}: {line.strip()}")
+        self.assertFalse(problems, "Undefined name ditemukan:\n" + "\n".join(problems))
+
 
 if __name__ == "__main__":
     unittest.main()

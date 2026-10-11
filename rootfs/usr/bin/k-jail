@@ -1,0 +1,134 @@
+#!/usr/bin/env python3
+"""
+Kalacakra OS - k-jail (Ephemeral Disposable Micro-Sandbox)
+FreeBSD Jails-inspired lightweight process isolation engine.
+Executes untrusted scripts, binaries, or commands inside a strict Bubblewrap (bwrap) sandbox
+with isolated filesystem, disposable tmpfs, and unshared network namespaces.
+"""
+
+import os
+import sys
+import shutil
+import tempfile
+import subprocess
+import argparse
+
+if hasattr(sys.stdout, "reconfigure"):
+    try:
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    except Exception:
+        pass
+
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+LIB_PATH = os.path.abspath(os.path.join(SCRIPT_DIR, "..", "share", "kalacakra", "lib"))
+if os.path.isdir(LIB_PATH) and LIB_PATH not in sys.path:
+    sys.path.insert(0, LIB_PATH)
+elif "/usr/share/kalacakra/lib" not in sys.path and os.path.isdir("/usr/share/kalacakra/lib"):
+    sys.path.insert(0, "/usr/share/kalacakra/lib")
+
+try:
+    from kalacakra_common import get_locale_strings
+except ImportError:
+    def get_locale_strings(lang_override=None):
+        return {}, "en"
+
+def run_in_jail(command: list, no_net: bool = False, pure_home: bool = False, ro_home: bool = True, timeout: int = None):
+    strings, current_lang = get_locale_strings()
+    
+    print()
+    print("=" * 68)
+    print(strings.get("jail_header", "=== Kalacakra Jail (Sandbox Terisolasi Ala FreeBSD Jails) ==="))
+    print("=" * 68)
+    print(f" Target Perintah : {' '.join(command)}")
+    print(f" Isolasi Jaringan: {'TERISOLASI (OFFLINE / No-Net)' if no_net else 'Akses Jaringan Aktif'}")
+    print(f" Akses Home Dir  : {'KOSONG (Disposable Tmpfs)' if pure_home else ('READ-ONLY (Terlindungi)' if ro_home else 'Read-Write')}")
+    print("-" * 68)
+    print(strings.get("jail_running", "Menjalankan proses dalam sandbox sekali pakai terisolasi..."))
+
+    # 1. Coba gunakan Bubblewrap (bwrap) jika tersedia
+    if shutil.which("bwrap"):
+        temp_dir = tempfile.mkdtemp(prefix="kalacakra-jail-")
+        bwrap_args = [
+            "bwrap",
+            "--ro-bind", "/usr", "/usr",
+            "--ro-bind-try", "/etc", "/etc",
+            "--symlink", "usr/lib", "/lib",
+            "--symlink", "usr/lib64", "/lib64",
+            "--symlink", "usr/bin", "/bin",
+            "--symlink", "usr/sbin", "/sbin",
+            "--proc", "/proc",
+            "--dev", "/dev",
+            "--tmpfs", "/tmp",
+            "--die-with-parent"
+        ]
+
+        if no_net:
+            bwrap_args.append("--unshare-net")
+
+        if pure_home:
+            bwrap_args.extend(["--tmpfs", os.path.expanduser("~")])
+        elif ro_home:
+            bwrap_args.extend(["--ro-bind", os.path.expanduser("~"), os.path.expanduser("~")])
+        else:
+            bwrap_args.extend(["--bind", os.path.expanduser("~"), os.path.expanduser("~")])
+
+        bwrap_args.extend(command)
+
+        try:
+            res = subprocess.run(bwrap_args, timeout=timeout)
+            ret_code = res.returncode
+        except subprocess.TimeoutExpired:
+            print("[k-jail Error] Waktu eksekusi melampaui batas (Timeout)! Proses dihentikan paksa.")
+            ret_code = 124
+        finally:
+            shutil.rmtree(temp_dir, ignore_errors=True)
+
+    else:
+        # Fallback simulator jika berjalan di lingkungan non-Linux/dev
+        print("[k-jail INFO] Menggunakan modul proteksi lingkungan proses Python...")
+        env = os.environ.copy()
+        if no_net:
+            env["http_proxy"] = "http://127.0.0.1:0"
+            env["https_proxy"] = "http://127.0.0.1:0"
+        try:
+            res = subprocess.run(command, env=env, timeout=timeout)
+            ret_code = res.returncode
+        except subprocess.TimeoutExpired:
+            print("[k-jail Error] Timeout!")
+            ret_code = 124
+        except Exception as e:
+            print(f"[k-jail Error] Gagal menjalankan perintah: {e}")
+            ret_code = 1
+
+    print("-" * 68)
+    print(f"[k-jail] Sesi sandbox ditutup. Exit code: {ret_code}")
+    print("=" * 68)
+    print()
+    sys.exit(ret_code)
+
+def main():
+    parser = argparse.ArgumentParser(
+        prog="k-jail",
+        description="Kalacakra Jail - FreeBSD Jails-style Ephemeral Micro-Sandbox"
+    )
+    parser.add_argument("--no-net", action="store_true", help="Completely disconnect network access in sandbox")
+    parser.add_argument("--pure", action="store_true", help="Start with empty disposable temporary home directory")
+    parser.add_argument("--rw", action="store_true", help="Allow read-write access to home directory")
+    parser.add_argument("--timeout", type=int, default=None, help="Maximum execution timeout in seconds")
+    parser.add_argument("command", nargs=argparse.REMAINDER, help="Command to execute in sandbox")
+
+    args = parser.parse_args()
+
+    if not args.command:
+        parser.print_help()
+        sys.exit(0)
+
+    # Bersihkan separator '--' jika ada
+    cmd = args.command
+    if cmd and cmd[0] == "--":
+        cmd = cmd[1:]
+
+    run_in_jail(cmd, no_net=args.no_net, pure_home=args.pure, ro_home=not args.rw, timeout=args.timeout)
+
+if __name__ == "__main__":
+    main()

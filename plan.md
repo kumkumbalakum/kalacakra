@@ -332,6 +332,26 @@ kalacakra doctor            # Menjalankan diagnostik menyeluruh sistem
 * Penangan berkas paket deklaratif `.kpkg` dan web URL scheme (`kalacakra://install?...`) ala Open Build Service (OBS) 1-Click Install.
 * Mengurai manifes aplikasi dari web browser dan mengeksekusi instalasi aman ke Flatpak, Arch Space, atau Homebrew dengan gerbang konfirmasi privasi.
 
+### **6.23 Kalacakra Jail: Ephemeral Disposable Micro-Sandbox (`k-jail`)**
+* Sandbox proses sekali pakai berkecepatan tinggi terinspirasi dari FreeBSD Jails.
+* Mengisolasi eksekusi skrip Bash/Python, binary untrusted, atau program berbahaya menggunakan Bubblewrap (`bwrap`) dengan opsi pemutusan jaringan penuh (`--no-net`) dan direktori home temporer (`--pure`) yang lenyap seketika setelah aplikasi ditutup.
+
+### **6.24 Kalacakra BE: Boot Environments Management Ala bectl (`k-be`)**
+* Manajemen terpadu Boot Environments ala FreeBSD `bectl` yang menyatukan deployment atomik `bootc`/`ostree` dan snapshot root Btrfs.
+* Mengizinkan kloning sistem bootable instan (`k-be create`), penandaan status aktif running/next-boot, dan aktivasi deployment masa lalu (`k-be activate`) tanpa risiko kerusakan host OS.
+
+### **6.25 Kalacakra Scrub: Btrfs Data Integrity & Bitrot Guard (`k-scrub`)**
+* Daemon pemverifikasi integritas blok data berkala terinspirasi dari ZFS periodic scrub.
+* Memindai dan memvalidasi checksum kriptografis pada setiap blok data di seluruh partisi SSD/NVMe Btrfs (`@`, `@home`, `@var`), mendeteksi kerusakan data senyap (*silent bitrot*), dan memberikan notifikasi dini sebelum terjadi kerusakan hardware permanen.
+
+### **6.26 Kalacakra Trace: Dynamic System Performance Profiler (`k-trace`)**
+* Alat diagnostik dan pelacakan performa dinamis terinspirasi dari DTrace (Solaris/FreeBSD) berbasis Linux eBPF dan procfs.
+* Menganalisis secara instan sumber bottleneck penyimpanan SSD (`k-trace io`), penyebab *frame jitter* atau *micro-stuttering* game (`k-trace game`), dan aplikasi penguras baterai laptop (`k-trace battery`).
+
+### **6.27 Kalacakra sysrc: Safe Atomic System Variable Manager (`k-sysrc`)**
+* Pengelola variabel konfigurasi sistem bertipe dan atomik terinspirasi dari `sysrc` FreeBSD.
+* Mencegah kesalahan ketik atau kerusakan berkas konfigurasi di `/etc` dengan menyediakan antarmuka CLI terstruktur untuk memodifikasi batas baterai, sakelar kill-switch AI, penjadwal CPU eBPF, dan kebijakan USBGuard.
+
 ---
 
 ## **7. Arsitektur Keamanan Sistem (Enterprise-Grade Security Hardening)**
@@ -514,6 +534,11 @@ Membangun utilitas inti dengan arsitektur i18n (menggunakan Rust / Go untuk perf
 21. `k-snapboot`: Integrasi Snapper Btrfs snapshot langsung ke menu bootloader systemd-boot/GRUB.
 22. `k-profile`: Workload stack installer terinspirasi Zypper Patterns (web-dev, creator, AI, gaming, cybersec).
 23. `k-pkg`: 1-Click declarative package (.kpkg) and web URL scheme handler terinspirasi OBS.
+24. `k-jail`: Ephemeral micro-sandbox engine terinspirasi FreeBSD Jails berbasis Bubblewrap.
+25. `k-be`: Boot Environments manager terinspirasi bectl ZFS untuk deployment ostree/bootc.
+26. `k-scrub`: Btrfs data integrity verification daemon terinspirasi ZFS periodic scrub.
+27. `k-trace`: DTrace-style dynamic system & game performance profiler via eBPF.
+28. `k-sysrc`: Safe atomic system configuration manager terinspirasi FreeBSD sysrc.
 
 ### **Fase 3: Media Installer ISO & Delivery Pipeline**
 
