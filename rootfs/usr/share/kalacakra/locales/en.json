@@ -106,5 +106,9 @@
   "hub_module_look": "Visual Identity (Kalacakra Look)",
   "hub_module_welcome": "Welcome Guide (Kalacakra Welcome)",
   "ask_header": "Ask Kalacakra AI",
-  "ask_hint": "Provide a question, e.g.: k-ask 'convert all png to webp'"
+  "ask_hint": "Provide a question, e.g.: k-ask 'convert all png to webp'",
+  "semantic_header": "Kalacakra Semantic - Local Meaning Search",
+  "semantic_indexed": "Index built (lexical: keywords + ID/EN synonyms, not vector embeddings)",
+  "agent_header": "Kalacakra Agent - Multi-Step Plan",
+  "agent_preview": "This is only an action plan preview. Nothing has executed."
 }

@@ -1,0 +1,13 @@
+[Desktop Entry]
+Type=Service
+MimeType=text/plain;text/markdown;text/x-python;application/json;text/csv;inode/directory;
+Actions=SemanticSimilar;
+X-KDE-Priority=TopLevel
+Name=Kalacakra Semantic
+Name[id]=Kalacakra Semantic
+
+[Desktop Action SemanticSimilar]
+Name=Find similar files (Kalacakra Semantic)
+Name[id]=Cari berkas serupa (Kalacakra Semantic)
+Icon=edit-find
+Exec=/usr/bin/k-semantic similar %f

@@ -79,7 +79,7 @@ kalacakra showcase                   # layar identitas siap-screenshot
 README dan `plan.md` menggambarkan visi lengkap Kalacakra OS. Agar tidak menyesatkan, berikut pembagian jelas antara **yang sudah ada di repositori ini** dan **yang masih roadmap**:
 
 **✅ Sudah diimplementasikan (ada kodenya di repo ini):**
-* Seluruh 35 tool CLI di `rootfs/usr/bin/` (`kalacakra`, `k-interceptor`, `k-ai`, `k-aur`, `k-doctor`, `k-rewind`, `k-beam`, `k-portal`, `k-ocr`, `k-survival`, `k-precache`, `k-preview`, `k-spotlight`, `k-flow`, `k-snippet`, `k-keyring`, `k-hub`, `k-qa`, `k-snapboot`, `k-profile`, `k-pkg`, `k-jail`, `k-be`, `k-scrub`, `k-trace`, `k-sysrc`, `k-unveil`, `k-signify`, `k-pf`, `k-doas`, `k-wx`, `k-voice`, `k-game`, `k-look`, `k-showcase`).
+* Seluruh 39 tool CLI di `rootfs/usr/bin/` (`kalacakra`, `k-interceptor`, `k-ai`, `k-ask`, `k-agent`, `k-semantic`, `k-aur`, `k-doctor`, `k-rewind`, `k-beam`, `k-portal`, `k-ocr`, `k-survival`, `k-precache`, `k-preview`, `k-spotlight`, `k-flow`, `k-snippet`, `k-keyring`, `k-hub`, `k-qa`, `k-snapboot`, `k-profile`, `k-pkg`, `k-jail`, `k-be`, `k-scrub`, `k-trace`, `k-sysrc`, `k-unveil`, `k-signify`, `k-pf`, `k-doas`, `k-wx`, `k-voice`, `k-game`, `k-look`, `k-showcase`, `k-welcome`).
 * **Kalacakra Look** (`k-look`) — 5 preset tema lengkap dengan wallpaper SVG, penulisan konfigurasi KDE, riwayat & rollback, plus generator caption r/unixporn.
 * i18n EN/ID dwibahasa (kamus `locales/en.json` & `id.json`).
 * Konfigurasi sistem: hardening sysctl, DNS-over-TLS, ZRAM zstd, service AI Ollama.
@@ -93,15 +93,20 @@ README dan `plan.md` menggambarkan visi lengkap Kalacakra OS. Agar tidak menyesa
 * `k-ai` butuh daemon Ollama + model yang diunduh terpisah.
 * `k-voice` butuh `whisper-cli` + model `ggml-*.bin`.
 * `k-game` butuh `umu-launcher` (repo Terra, tidak ada di Fedora resmi).
+* `k-ai --file` & `k-ask` butuh daemon Ollama (sama seperti `k-ai`).
+* `k-agent` memakai perencana berbasis aturan tanpa AI (pola konversi/arsip/pindah); perencanaan bebas butuh Ollama. Sandbox opsional butuh `bwrap`.
 
 **🗺️ Masih roadmap (BELUM ada kodenya di repo ini):**
 * Hybrid tiling Polonium (`Super + Y`).
 * HDR / Wide Color Gamut pipeline bawaan.
 * Konfigurasi installer Calamares (Btrfs `@/@home/@var`, LUKS2 + TPM2 auto-unlock) — ISO dihasilkan `bootc-image-builder`, bukan Calamares.
 * Otomatisasi MOK Secure Boot enrollment & PQC (ML-KEM/ML-DSA) di seluruh stack.
-* `k-semantic` (vector index) & `k-agent` (agen otonom) — disebut di Fase 2 roadmap.
+* Vector embedding / NPU untuk `k-semantic`, dan perencanaan otonom penuh untuk `k-agent` — saat ini keduanya adalah **fondasi yang jujur** (lihat di bawah).
 * Firmware-level battery cap ASUS/Lenovo (saat ini bergantung dukungan driver kernel vendor).
-* Kalacakra Welcome / First-Run Wizard.
+
+**⚠️ Fondasi jujur (ADA, tetapi dengan batasan yang dinyatakan terbuka):**
+* `k-semantic` ada dan bekerja, tetapi indeksnya **leksikal (TF-IDF + sinonim ID/EN) di SQLite**, **bukan** vector embedding/NPU seperti target Fase 2 di `plan.md`. Ia tidak mengunggah data ke cloud dan dapat diganti mesin embedding kelak tanpa mengubah CLI.
+* `k-agent` ada dan bekerja, tetapi perencana utamanya adalah **pola berbasis aturan** untuk beberapa intent (konversi gambar, arsip, pindah berkas); perencanaan bebas memerlukan `k-ai`/Ollama. Agen **menolak perintah berbahaya** dan menampilkan *action plan preview* sebelum eksekusi; sandbox nyata hanya aktif bila `bwrap` tersedia.
 
 > Prinsip proyek ini: **jangan mengklaim fitur yang belum ada**. Setiap tool yang bergantung komponen absen akan memberi pesan instalasi yang jelas, bukan error misterius atau sukses palsu.
 

@@ -106,5 +106,9 @@
   "hub_module_look": "Identitas Visual (Kalacakra Look)",
   "hub_module_welcome": "Panduan Penyambutan (Kalacakra Welcome)",
   "ask_header": "Tanya Kalacakra AI",
-  "ask_hint": "Berikan pertanyaan, mis.: k-ask 'ubah semua png ke webp'"
+  "ask_hint": "Berikan pertanyaan, mis.: k-ask 'ubah semua png ke webp'",
+  "semantic_header": "Kalacakra Semantic - Pencarian Makna Lokal",
+  "semantic_indexed": "Indeks dibangun (leksikal: kata kunci + sinonim ID/EN, bukan vektor)",
+  "agent_header": "Kalacakra Agent - Rencana Multi-Langkah",
+  "agent_preview": "Ini hanya pratinjau rencana. Tidak ada yang dieksekusi."
 }

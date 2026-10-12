@@ -23,9 +23,33 @@ from _kalacakra_bootstrap import get_locale_strings, redact_secrets, is_dangerou
 DEFAULT_OLLAMA_URL = os.environ.get("OLLAMA_URL", "http://127.0.0.1:11434/api/generate")
 DEFAULT_MODEL = os.environ.get("KALACAKRA_AI_MODEL", "llama3.2:1b")
 
+# Direktori sensitif yang ditolak k-ai baca isinya (kebijakan privasi/keamanan).
+PROTECTED_DIRS = [
+    os.path.expanduser("~/.ssh"),
+    os.path.expanduser("~/.gnupg"),
+    os.path.expanduser("~/.aws"),
+    os.path.expanduser("~/.config/sops"),
+]
+
+
+def is_protected_path(path: str) -> bool:
+    ap = os.path.abspath(os.path.expanduser(path))
+    for pref in PROTECTED_DIRS:
+        if ap == pref or ap.startswith(pref + os.sep):
+            return True
+    base = os.path.basename(ap)
+    if base in (".env", ".netrc", "credentials", "id_rsa", "id_ed25519"):
+        return True
+    return False
+
+
 def read_text_file(path: str, max_bytes: int = 20000) -> tuple[str, str]:
     """Baca berkas teks dengan batas aman. Mengembalikan (isi, pesan_error).
-    Jujur: biner dideteksi & ditolak; berkas besar dipotong dengan penanda."""
+    Jujur: biner dideteksi & ditolak; berkas besar dipotong dengan penanda;
+    jalur sensitif (~/.ssh, ~/.gnupg, ~/.aws, .env, ...) DITOLAK."""
+    if is_protected_path(path):
+        return "", (f"'{path}' berada di area terproteksi (rahasia) - "
+                    f"isi tidak dibaca/dikirim ke AI sesuai kebijakan privasi.")
     if not os.path.isfile(path):
         return "", f"berkas tidak ditemukan: {path}"
     try:

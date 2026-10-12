@@ -107,6 +107,8 @@ RUN chmod 0755 \
     /usr/bin/k-showcase \
     /usr/bin/k-welcome \
     /usr/bin/k-ask \
+    /usr/bin/k-semantic \
+    /usr/bin/k-agent \
     /usr/bin/_kalacakra_bootstrap.py \
     /etc/profile.d/kalacakra-ssh-agent.sh \
     /usr/share/kalacakra/scripts/battery-cap.sh 2>/dev/null || true

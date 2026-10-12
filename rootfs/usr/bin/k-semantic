@@ -1,0 +1,477 @@
+#!/usr/bin/env python3
+"""
+Kalacakra OS - k-semantic
+Pencarian makna berkas lokal (Local Semantic Search).
+
+CATATAN JUJUR / HONEST NOTE:
+Ini BUKAN vector-embedding/NPU seperti target jangka panjang di plan.md.
+Saat ini ia membangun indeks leksikal lokal (TF-IDF + ekspansi sinonim
+Indonesia<->Inggris) di SQLite, TANPA mengunggah satu byte pun ke cloud.
+Perilakunya transparan dan dapat diverifikasi; fondasi ini bisa diganti mesin
+embedding sungguhan kelak tanpa mengubah antarmuka CLI.
+
+Manfaat nyata hari ini: mencari berkas berdasarkan makna/kata kunci lintas
+bahasa, mis.:
+    kalacakra semantic search "surat sewa tahun lalu"
+    kalacakra semantic search "auth token middleware"
+"""
+
+import os
+import re
+import sys
+import math
+import sqlite3
+import argparse
+import datetime
+
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+
+# ---------------------------------------------------------------------------
+# Lokasi data (user-level; tidak menyentuh image immutable)
+# ---------------------------------------------------------------------------
+DATA_HOME = os.environ.get("XDG_DATA_HOME", os.path.expanduser("~/.local/share"))
+SEMANTIC_DIR = os.environ.get(
+    "KALACAKRA_SEMANTIC_DIR", os.path.join(DATA_HOME, "kalacakra", "semantic")
+)
+DB_PATH = os.path.join(SEMANTIC_DIR, "index.db")
+
+# Direktori yang tidak pernah diindeks (privasi / kebisingan).
+SKIP_DIRS = {
+    ".ssh", ".gnupg", ".aws", ".config", ".cache", ".local", ".mozilla",
+    "node_modules", ".git", ".venv", "venv", "__pycache__", ".thunderbird",
+    ".var", "snap", ".snapshots",
+}
+# Direktori absolut yang dilarang (rahasia).
+SKIP_ABS_PREFIXES = [
+    os.path.expanduser("~/.ssh"),
+    os.path.expanduser("~/.gnupg"),
+    os.path.expanduser("~/.aws"),
+]
+
+# Ekstensi yang layak diindeks (teks & kode).
+TEXT_EXTS = {
+    ".txt", ".md", ".markdown", ".rst", ".org", ".log",
+    ".py", ".sh", ".bash", ".zsh", ".c", ".h", ".cpp", ".hpp", ".rs", ".go",
+    ".js", ".ts", ".jsx", ".tsx", ".java", ".rb", ".php", ".lua", ".pl",
+    ".json", ".yaml", ".yml", ".toml", ".ini", ".conf", ".cfg",
+    ".html", ".htm", ".css", ".scss", ".sql", ".tex", ".csv",
+}
+MAX_FILE_BYTES = int(os.environ.get("KALACAKRA_SEMANTIC_MAX_BYTES", "200000"))
+
+# Kata umum (stopword) ringan EN+ID agar tak mendominasi skor.
+STOPWORDS = {
+    "the", "a", "an", "and", "or", "of", "to", "in", "on", "for", "with",
+    "is", "are", "was", "were", "be", "this", "that", "it", "as", "at", "by",
+    "dan", "atau", "yang", "di", "ke", "dari", "untuk", "dengan", "pada",
+    "adalah", "itu", "ini", "sebuah", "para", "saya", "kamu", "anda",
+}
+
+
+def tokenize(text: str) -> list:
+    """Tokenisasi seragam untuk indeks & kueri."""
+    text = text.lower()
+    # Normalisasi huruf beraksen sederhana
+    text = (text.replace("é", "e").replace("è", "e").replace("á", "a")
+                .replace("ó", "o").replace("í", "i").replace("ú", "u"))
+    tokens = re.findall(r"[a-z0-9_]+", text)
+    return [t for t in tokens if len(t) >= 2 and t not in STOPWORDS]
+
+
+# Ekspansi sinonim: setiap grup saling menggantikan saat pencarian.
+# Mencakup istilah Indonesia <-> Inggris yang lazim.
+SYNONYM_GROUPS = [
+    {"invoice", "nota", "faktur", "tagihan", "bill"},
+    {"contract", "kontrak", "perjanjian", "agreement", "sewa", "rental", "lease"},
+    {"auth", "authentication", "autentikasi", "login", "token", "kredensial", "credential"},
+    {"photo", "foto", "gambar", "image", "picture", "pict"},
+    {"tax", "pajak", "fiskal", "fiscal"},
+    {"backup", "cadangan", "arsip", "archive"},
+    {"file", "berkas", "dokumen", "document", "doc"},
+    {"search", "cari", "pencarian", "find", "query"},
+    {"money", "uang", "duit", "bayar", "payment", "pembayaran"},
+    {"meeting", "rapat", "pertemuan", "notulen", "minutes"},
+    {"report", "laporan", "rapor", "summary"},
+    {"password", "sandi", "kata sandi"},
+    {"user", "pengguna", "akun", "account"},
+    {"config", "konfigurasi", "pengaturan", "settings", "setelan"},
+    {"error", "galat", "kesalahan", "bug", "masalah"},
+    {"install", "pasang", "pemasangan", "setup"},
+    {"delete", "hapus", "menghapus", "remove"},
+    {"create", "buat", "membuat", "add", "tambah"},
+    {"image", "gambar", "foto", "picture"},
+    {"video", "film", "rekaman"},
+    {"audio", "suara", "musik", "music", "sound"},
+    {"address", "alamat", "lokasi", "location"},
+    {"name", "nama", "judul", "title"},
+    {"date", "tanggal", "waktu", "time", "jadwal", "schedule"},
+    {"year", "tahun", "annual", "tahunan"},
+    {"letter", "surat", "pesan", "message"},
+]
+
+
+def build_synonym_map() -> dict:
+    m = {}
+    for group in SYNONYM_GROUPS:
+        norm = {t for item in group for t in tokenize(item)}
+        for t in norm:
+            m.setdefault(t, set()).update(norm - {t})
+    return m
+
+
+SYNONYMS = build_synonym_map()
+
+
+# ---------------------------------------------------------------------------
+# Basis data
+# ---------------------------------------------------------------------------
+def connect() -> sqlite3.Connection:
+    os.makedirs(SEMANTIC_DIR, exist_ok=True)
+    con = sqlite3.connect(DB_PATH)
+    con.execute("PRAGMA journal_mode=WAL")
+    con.executescript(
+        """
+        CREATE TABLE IF NOT EXISTS docs (
+            id        INTEGER PRIMARY KEY,
+            path      TEXT UNIQUE NOT NULL,
+            mtime     REAL,
+            size      INTEGER,
+            length    INTEGER,
+            snippet   TEXT,
+            indexed_at TEXT
+        );
+        CREATE TABLE IF NOT EXISTS postings (
+            term   TEXT NOT NULL,
+            doc_id INTEGER NOT NULL,
+            freq   INTEGER NOT NULL,
+            PRIMARY KEY (term, doc_id),
+            FOREIGN KEY (doc_id) REFERENCES docs(id) ON DELETE CASCADE
+        );
+        CREATE TABLE IF NOT EXISTS meta (
+            key TEXT PRIMARY KEY, value TEXT
+        );
+        CREATE INDEX IF NOT EXISTS idx_postings_term ON postings(term);
+        """
+    )
+    return con
+
+
+def set_meta(con, key: str, value: str) -> None:
+    con.execute("INSERT INTO meta(key,value) VALUES(?,?) "
+                "ON CONFLICT(key) DO UPDATE SET value=excluded.value", (key, value))
+
+
+def get_meta(con, key: str):
+    row = con.execute("SELECT value FROM meta WHERE key=?", (key,)).fetchone()
+    return row[0] if row else None
+
+
+def is_protected(path: str) -> bool:
+    ap = os.path.abspath(path)
+    for pref in SKIP_ABS_PREFIXES:
+        if ap == pref or ap.startswith(pref + os.sep):
+            return True
+    return False
+
+
+def iter_candidate_files(paths: list):
+    """Hasilkan berkas teks yang layak diindeks di bawah `paths`."""
+    for base in paths:
+        base = os.path.abspath(os.path.expanduser(base))
+        if os.path.isfile(base):
+            yield base
+            continue
+        if not os.path.isdir(base):
+            continue
+        for root, dirs, files in os.walk(base):
+            if is_protected(root):
+                dirs[:] = []
+                continue
+            dirs[:] = [d for d in dirs if d not in SKIP_DIRS and not d.startswith(".")]
+            for name in files:
+                p = os.path.join(root, name)
+                if is_protected(p):
+                    continue
+                ext = os.path.splitext(name)[1].lower()
+                if ext in TEXT_EXTS or name.lower() in ("readme", "license", "makefile"):
+                    yield p
+
+
+def read_doc_text(path: str) -> str:
+    try:
+        size = os.path.getsize(path)
+    except OSError:
+        return ""
+    if size == 0 or size > MAX_FILE_BYTES:
+        return ""
+    try:
+        with open(path, "rb") as f:
+            raw = f.read(MAX_FILE_BYTES)
+    except OSError:
+        return ""
+    if b"\x00" in raw:
+        return ""
+    return raw.decode("utf-8", errors="replace")
+
+
+def index_one(con, path: str) -> bool:
+    """Indeks satu berkas. Kembalikan True bila (re)diindeks."""
+    try:
+        st = os.stat(path)
+    except OSError:
+        return False
+    row = con.execute("SELECT id, mtime, size FROM docs WHERE path=?", (path,)).fetchone()
+    if row and abs(row[1] - st.st_mtime) < 1 and row[2] == st.st_size:
+        return False  # tak berubah
+
+    text = read_doc_text(path)
+    tokens = tokenize(text)
+    if not tokens:
+        # Tak ada isi teks -> lewati berkas kosong/biner palsu.
+        if row:
+            con.execute("DELETE FROM docs WHERE id=?", (row[0],))
+        return False
+
+    snippet = " ".join(text.split())[:240]
+    if row:
+        doc_id = row[0]
+        con.execute("DELETE FROM postings WHERE doc_id=?", (doc_id,))
+        con.execute("UPDATE docs SET mtime=?, size=?, length=?, snippet=?, indexed_at=? "
+                    "WHERE id=?",
+                    (st.st_mtime, st.st_size, len(tokens), snippet,
+                     datetime.datetime.now().isoformat(timespec="seconds"), doc_id))
+    else:
+        cur = con.execute(
+            "INSERT INTO docs(path, mtime, size, length, snippet, indexed_at) VALUES(?,?,?,?,?,?)",
+            (path, st.st_mtime, st.st_size, len(tokens), snippet,
+             datetime.datetime.now().isoformat(timespec="seconds")),
+        )
+        doc_id = cur.lastrowid
+
+    counts = {}
+    for t in tokens:
+        counts[t] = counts.get(t, 0) + 1
+    con.executemany(
+        "INSERT OR REPLACE INTO postings(term, doc_id, freq) VALUES(?,?,?)",
+        [(t, doc_id, c) for t, c in counts.items()],
+    )
+    return True
+
+
+# ---------------------------------------------------------------------------
+# Pencarian (TF-IDF + sinonim)
+# ---------------------------------------------------------------------------
+def expand_query(tokens: list) -> dict:
+    """Kembalikan {term: bobot}. Term asli berbobot 1.0, sinonim 0.6."""
+    weights = {}
+    for t in tokens:
+        weights[t] = max(weights.get(t, 0.0), 1.0)
+        for syn in SYNONYMS.get(t, ()):
+            weights[syn] = max(weights.get(syn, 0.0), 0.6)
+    return weights
+
+
+def search(con, query: str, limit: int) -> list:
+    q_tokens = tokenize(query)
+    if not q_tokens:
+        return []
+    weights = expand_query(q_tokens)
+
+    total_docs = con.execute("SELECT COUNT(*) FROM docs").fetchone()[0] or 1
+    scores = {}
+    matched_terms = {}
+    for term, w in weights.items():
+        rows = con.execute(
+            "SELECT p.doc_id, p.freq, d.length FROM postings p JOIN docs d ON d.id=p.doc_id "
+            "WHERE p.term=?", (term,)
+        ).fetchall()
+        if not rows:
+            continue
+        df = len(rows)
+        idf = math.log(1 + total_docs / df)
+        for doc_id, freq, dlen in rows:
+            tf = freq / max(dlen, 1)
+            scores[doc_id] = scores.get(doc_id, 0.0) + w * tf * idf
+            matched_terms.setdefault(doc_id, 0)
+            matched_terms[doc_id] += 1
+
+    ranked = sorted(scores.items(), key=lambda kv: kv[1], reverse=True)[:limit]
+    out = []
+    for doc_id, score in ranked:
+        row = con.execute("SELECT path, snippet FROM docs WHERE id=?", (doc_id,)).fetchone()
+        if row:
+            out.append({
+                "path": row[0],
+                "snippet": row[1] or "",
+                "score": round(score, 4),
+                "matched": matched_terms.get(doc_id, 0),
+            })
+    return out
+
+
+# ---------------------------------------------------------------------------
+# Aksi CLI
+# ---------------------------------------------------------------------------
+DEFAULT_ROOTS = [
+    os.path.expanduser("~/Documents"),
+    os.path.expanduser("~/Downloads"),
+    os.path.expanduser("~/Notes"),
+    os.path.expanduser("~/Desktop"),
+]
+
+
+def cmd_index(args) -> int:
+    roots = args.paths or [r for r in DEFAULT_ROOTS if os.path.isdir(r)]
+    if not roots:
+        print("[k-semantic] Tidak ada direktori default yang ada. Sebutkan path eksplisit:")
+        print("   kalacakra semantic index ~/Documents ~/Catatan")
+        return 1
+    con = connect()
+    n_files = n_indexed = 0
+    for path in iter_candidate_files(roots):
+        n_files += 1
+        try:
+            if index_one(con, path):
+                n_indexed += 1
+                if not args.quiet:
+                    print(f"  + {path}")
+        except sqlite3.Error as e:
+            print(f"  ! lewati {path}: {e}")
+    con.commit()
+    total = con.execute("SELECT COUNT(*) FROM docs").fetchone()[0]
+    set_meta(con, "last_index", datetime.datetime.now().isoformat(timespec="seconds"))
+    con.commit()
+    con.close()
+    print(f"[k-semantic] Selesai: {n_indexed} berkas baru/diperbarui dari {n_files} kandidat.")
+    print(f"[k-semantic] Total {total} dokumen terindeks di {DB_PATH}.")
+    print("[k-semantic] Catatan jujur: indeks ini leksikal (kata kunci+sinonim), bukan embedding vektor.")
+    return 0
+
+
+def cmd_search(args) -> int:
+    query = " ".join(args.query)
+    if not query.strip():
+        print("[k-semantic Error] Berikan kueri. Contoh: kalacakra semantic search \"surat sewa\"")
+        return 1
+    if not os.path.isfile(DB_PATH):
+        print("[k-semantic] Indeks belum ada. Bangun dulu: kalacakra semantic index")
+        return 1
+    con = connect()
+    results = search(con, query, args.limit)
+    con.close()
+    if not results:
+        print(f"[k-semantic] Tidak ada hasil untuk: {query}")
+        return 0
+    print(f"=== Hasil untuk '{query}' ({len(results)} teratas) ===")
+    for i, r in enumerate(results, 1):
+        print(f"\n[{i}] skor={r['score']}  cocok={r['matched']} term")
+        print(f"    {r['path']}")
+        if r["snippet"]:
+            print(f"    {r['snippet'][:160]}")
+    print("\nBuka dengan: xdg-open \"<path>\"   |   Pratinjau: kalacakra preview \"<path>\"")
+    return 0
+
+
+def cmd_similar(args) -> int:
+    """Cari dokumen yang mirip dengan sebuah berkas (pakai token isinya)."""
+    path = os.path.abspath(os.path.expanduser(args.path))
+    if not os.path.isfile(path):
+        print(f"[k-semantic Error] Berkas tidak ditemukan: {path}")
+        return 1
+    text = read_doc_text(path)
+    tokens = tokenize(text)
+    if not tokens:
+        print(f"[k-semantic] Tidak ada teks untuk dianalisis di: {path}")
+        return 1
+    freq = {}
+    for t in tokens:
+        freq[t] = freq.get(t, 0) + 1
+    top = sorted(freq, key=freq.get, reverse=True)[:20]
+    query = " ".join(top)
+    if not os.path.isfile(DB_PATH):
+        print("[k-semantic] Indeks belum ada. Bangun dulu: kalacakra semantic index")
+        return 1
+    con = connect()
+    results = [r for r in search(con, query, args.limit + 1) if r["path"] != path][:args.limit]
+    con.close()
+    base = os.path.basename(path)
+    if not results:
+        print(f"[k-semantic] Tidak ada berkas lain yang mirip dengan '{base}'.")
+        return 0
+    print(f"=== Mirip dengan '{base}' ({len(results)} teratas) ===")
+    for i, r in enumerate(results, 1):
+        print(f"\n[{i}] skor={r['score']}  cocok={r['matched']} term")
+        print(f"    {r['path']}")
+    return 0
+
+
+def cmd_status(args) -> int:
+    print("=== Kalacakra Semantic - Status Indeks ===")
+    print(f"  Lokasi DB     : {DB_PATH}")
+    print(f"  Ada           : {'ya' if os.path.isfile(DB_PATH) else 'belum'}")
+    if not os.path.isfile(DB_PATH):
+        print("\n  Bangun indeks: kalacakra semantic index [path...]")
+        return 0
+    con = connect()
+    docs = con.execute("SELECT COUNT(*) FROM docs").fetchone()[0]
+    terms = con.execute("SELECT COUNT(DISTINCT term) FROM postings").fetchone()[0]
+    last = get_meta(con, "last_index") or "(tidak diketahui)"
+    con.close()
+    print(f"  Dokumen       : {docs}")
+    print(f"  Istilah unik  : {terms}")
+    print(f"  Indeks terakhir: {last}")
+    print("  Mesin         : TF-IDF leksikal + sinonim ID/EN (bukan vektor embedding)")
+    return 0
+
+
+def cmd_clear(args) -> int:
+    if os.path.isfile(DB_PATH):
+        os.remove(DB_PATH)
+        for ext in ("-wal", "-shm"):
+            p = DB_PATH + ext
+            if os.path.isfile(p):
+                os.remove(p)
+        print(f"[k-semantic] Indeks dihapus: {DB_PATH}")
+    else:
+        print("[k-semantic] Tidak ada indeks untuk dihapus.")
+    return 0
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(
+        prog="k-semantic",
+        description="Kalacakra Semantic - pencarian makna berkas lokal (indeks TF-IDF + sinonim)",
+    )
+    sub = parser.add_subparsers(dest="action")
+
+    p_index = sub.add_parser("index", help="Bangun/perbarui indeks")
+    p_index.add_argument("paths", nargs="*", help="Direktori/berkas (default: Documents, Downloads, Notes, Desktop)")
+    p_index.add_argument("--quiet", "-q", action="store_true", help="Jangan cetak tiap berkas")
+
+    p_search = sub.add_parser("search", help="Cari berkas berdasarkan makna/kata kunci")
+    p_search.add_argument("query", nargs="*", help="Kata kunci kueri")
+    p_search.add_argument("--limit", "-n", type=int, default=10, help="Jumlah hasil (default 10)")
+
+    p_similar = sub.add_parser("similar", help="Cari berkas yang mirip dengan sebuah berkas")
+    p_similar.add_argument("path", help="Berkas acuan")
+    p_similar.add_argument("--limit", "-n", type=int, default=10, help="Jumlah hasil (default 10)")
+
+    sub.add_parser("status", help="Tampilkan status indeks")
+    sub.add_parser("clear", help="Hapus indeks")
+
+    args = parser.parse_args()
+    if args.action == "index":
+        return cmd_index(args)
+    if args.action == "search":
+        return cmd_search(args)
+    if args.action == "similar":
+        return cmd_similar(args)
+    if args.action == "status":
+        return cmd_status(args)
+    if args.action == "clear":
+        return cmd_clear(args)
+    parser.print_help()
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

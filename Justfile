@@ -220,6 +220,14 @@ welcome +args="":
 ask +args="":
     @/usr/bin/k-ask {{args}}
 
+# Kalacakra Semantic - pencarian makna berkas lokal
+semantic +args="":
+    @/usr/bin/k-semantic {{args}}
+
+# Kalacakra Agent - agen tugas multi-langkah (pratinjau rencana lalu eksekusi)
+agent +args="":
+    @/usr/bin/k-agent {{args}}
+
 # --- Build lokal (meniru CI GitHub Actions; butuh podman/docker) ---
 # Cek prasyarat build (engine, disk, RAM)
 build-check:

@@ -183,6 +183,12 @@ def main():
     p_ask = subparsers.add_parser("ask", help="Kalacakra Ask - Tanya AI dari KRunner/Dolphin (wrapper k-ai)")
     p_ask.add_argument("subaction", nargs="*", help="Pertanyaan / --file <berkas> / --runner")
 
+    p_sem = subparsers.add_parser("semantic", help="Kalacakra Semantic - pencarian makna berkas lokal (indeks TF-IDF+sinonim)")
+    p_sem.add_argument("subaction", nargs="*", help="index/search/status/clear ...")
+
+    p_agent = subparsers.add_parser("agent", help="Kalacakra Agent - agen tugas multi-langkah dengan pratinjau rencana")
+    p_agent.add_argument("subaction", nargs="*", help="plan/run <instruksi> [--yes] [--rule] [--sandbox]")
+
     p_show = subparsers.add_parser("showcase", help="Kalacakra Showcase - Tampilan identitas siap screenshot untuk r/unixporn")
     p_show.add_argument("subaction", nargs="*", help="Showcase arguments (--no-fetch)")
 
@@ -286,6 +292,10 @@ def main():
         sys.exit(subprocess.run(cmd).returncode)
     elif args.command == "ask":
         sys.exit(subprocess.run([find_bin("k-ask")] + args.subaction + unknown).returncode)
+    elif args.command == "semantic":
+        sys.exit(subprocess.run([find_bin("k-semantic")] + args.subaction + unknown).returncode)
+    elif args.command == "agent":
+        sys.exit(subprocess.run([find_bin("k-agent")] + args.subaction + unknown).returncode)
     elif args.command == "showcase":
         # Flag bisa muncul di subaction atau unknown (argparse root tak makan
         # opsi yang berada setelah subcommand). Rekonstruksi dengan bersih.

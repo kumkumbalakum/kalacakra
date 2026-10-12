@@ -536,7 +536,7 @@ RUN systemctl enable zram-generator.service && \
 
 ### **Fase 2: Pengembangan Tooling Khusus (Kalacakra Core Suite - Native i18n)**
 
-> **Catatan status:** Sebagian besar tool di bawah ini **sudah diimplementasikan** (Python 3, di `rootfs/usr/bin/`) dan diverifikasi oleh `tests/test_cli.py`. Tool nomor **4 (`k-semantic`) dan 5 (`k-agent`)** **belum ada** dan masih masuk roadmap Fase 2 (lihat §8). Referensi implementasi terkini ada di README bagian "Status Implementasi".
+> **Catatan status:** Hampir semua tool di bawah ini **sudah diimplementasikan** (Python 3, di `rootfs/usr/bin/`) dan diverifikasi oleh `tests/test_cli.py`. Pengecualian jujur: **`k-semantic` dan `k-agent` kini ADA sebagai FONDASI, bukan bentuk penuh yang ditargetkan di §5.4/§5.5.** `k-semantic` memakai indeks leksikal TF-IDF + sinonim ID/EN di SQLite (bukan vector embedding/NPU); `k-agent` memakai perencana berbasis aturan (perencanaan bebas butuh Ollama), menampilkan *action plan preview*, dan menolak perintah berbahaya. Referensi implementasi terkini ada di README bagian "Status Implementasi".
 
 Membangun utilitas inti dengan arsitektur i18n (menggunakan Rust / Go untuk performa instan dan konsumsi memori minim):
 

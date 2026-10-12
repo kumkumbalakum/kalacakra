@@ -548,6 +548,14 @@ class TestKAiHelpers(unittest.TestCase):
             content, err = kai.read_text_file(os.path.join(d, "nope"))
             self.assertEqual(content, "")
             self.assertIn("tidak ditemukan", err)
+            # jalur terproteksi ditolak (mis. ~/.ssh) tanpa menyentuh berkas nyata
+            content, err = kai.read_text_file(os.path.join(os.path.expanduser("~"), ".ssh", "id_rsa"))
+            self.assertEqual(content, "")
+            self.assertIn("proteksi", err.lower())
+            # nama berkas sensitif (.env) juga ditolak
+            content, err = kai.read_text_file(os.path.join(d, ".env"))
+            self.assertEqual(content, "")
+            self.assertIn("proteksi", err.lower())
             # truncation menandai pemotongan
             big = os.path.join(d, "big.txt")
             with open(big, "w", encoding="utf-8") as f:
@@ -928,6 +936,143 @@ class TestLookPick(unittest.TestCase):
             self.assertFalse(os.path.isfile(os.path.join(home, ".config", "kdeglobals")))
 
 
+class TestSemanticIndex(unittest.TestCase):
+    """k-semantic: indeks lokal, pencarian makna via sinonim ID/EN, 'similar'."""
+
+    def _run(self, args, home, env_extra=None):
+        import subprocess
+        path = os.path.join(ROOTFS_DIR, "usr", "bin", "k-semantic")
+        env = os.environ.copy()
+        env["HOME"] = home
+        env["XDG_DATA_HOME"] = os.path.join(home, ".local", "share")
+        if env_extra:
+            env.update(env_extra)
+        return subprocess.run([sys.executable, path] + args,
+                              capture_output=True, text=True, env=env, timeout=60)
+
+    def _make_docs(self, home):
+        d = os.path.join(home, "docs")
+        os.makedirs(d, exist_ok=True)
+        with open(os.path.join(d, "contract-a.txt"), "w", encoding="utf-8") as f:
+            f.write("Rental agreement for the apartment. Monthly payment, lease duration one year.\n")
+        with open(os.path.join(d, "contract-b.txt"), "w", encoding="utf-8") as f:
+            f.write("Kontrak sewa rumah. Pembayaran bulanan, jangka waktu satu tahun.\n")
+        with open(os.path.join(d, "recipe.txt"), "w", encoding="utf-8") as f:
+            f.write("Bake sourdough bread with flour, water and salt.\n")
+        return d
+
+    def test_index_search_synonym_and_similar(self):
+        import tempfile
+        with tempfile.TemporaryDirectory() as home:
+            d = self._make_docs(home)
+            r = self._run(["index", d, "--quiet"], home)
+            self.assertEqual(r.returncode, 0, r.stderr)
+            self.assertNotIn("Traceback", r.stderr)
+            # Pencarian bahasa Indonesia harus menemukan dokumen (sinonim kontrak<->contract)
+            r = self._run(["search", "kontrak sewa tahun"], home)
+            self.assertEqual(r.returncode, 0, r.stderr)
+            self.assertIn("contract-a.txt", r.stdout)
+            self.assertIn("contract-b.txt", r.stdout)
+            # similar dari contract-b harus menemukan contract-a
+            r = self._run(["similar", os.path.join(d, "contract-b.txt")], home)
+            self.assertEqual(r.returncode, 0, r.stderr)
+            self.assertIn("contract-a.txt", r.stdout)
+
+    def test_status_and_clear(self):
+        import tempfile
+        with tempfile.TemporaryDirectory() as home:
+            d = self._make_docs(home)
+            self._run(["index", d, "--quiet"], home)
+            r = self._run(["status"], home)
+            self.assertEqual(r.returncode, 0, r.stderr)
+            self.assertIn("Dokumen", r.stdout)
+            r = self._run(["clear"], home)
+            self.assertEqual(r.returncode, 0, r.stderr)
+            self.assertIn("dihapus", r.stdout)
+            # Setelah clear, search mengaku belum ada indeks
+            r = self._run(["search", "kontrak"], home)
+            self.assertEqual(r.returncode, 1)
+            self.assertIn("Indeks belum ada", r.stdout)
+
+    def test_binary_and_blacklist_skipped(self):
+        import tempfile
+        with tempfile.TemporaryDirectory() as home:
+            d = self._make_docs(home)
+            # Berkas biner palsu tidak boleh terindeks
+            with open(os.path.join(d, "raw.bin"), "wb") as f:
+                f.write(b"\x00\x01\x02binary")
+            r = self._run(["index", d, "--quiet"], home)
+            self.assertEqual(r.returncode, 0, r.stderr)
+            r = self._run(["status"], home)
+            # 3 dokumen teks terindeks; .bin tidak (bukan ekstensi teks)
+            self.assertIn("Dokumen       : 3", r.stdout)
+
+    def test_index_is_incremental(self):
+        import tempfile
+        with tempfile.TemporaryDirectory() as home:
+            d = self._make_docs(home)
+            self._run(["index", d, "--quiet"], home)
+            r = self._run(["index", d, "--quiet"], home)
+            self.assertIn("0 berkas baru", r.stdout)
+
+
+class TestAgentPlanner(unittest.TestCase):
+    """k-agent: perencana aturan, penolakan bahaya, eksekusi terverifikasi."""
+
+    def _run(self, args, home, path_extra=None, stdin=""):
+        import subprocess
+        path = os.path.join(ROOTFS_DIR, "usr", "bin", "k-agent")
+        env = os.environ.copy()
+        env["HOME"] = home
+        env["XDG_DATA_HOME"] = os.path.join(home, ".local", "share")
+        if path_extra:
+            env["PATH"] = path_extra + os.pathsep + env.get("PATH", "")
+        return subprocess.run([sys.executable, path] + args,
+                              capture_output=True, text=True, env=env, input=stdin, timeout=60)
+
+    def test_unknown_instruction_fails_honestly(self):
+        import tempfile
+        with tempfile.TemporaryDirectory() as home:
+            r = self._run(["plan", "--rule", "kirim email ke bos besok"], home)
+            self.assertEqual(r.returncode, 1)
+            self.assertNotIn("Traceback", r.stderr)
+            self.assertIn("Tidak dapat menyusun rencana", r.stdout)
+
+    def test_plan_and_run_with_stub_tool(self):
+        import tempfile, stat
+        with tempfile.TemporaryDirectory() as home:
+            b = os.path.join(home, "bin")
+            os.makedirs(b, exist_ok=True)
+            stub = os.path.join(b, "magick")
+            with open(stub, "w") as f:
+                f.write("#!/bin/sh\ncp \"$1\" \"$2\"\n")
+            os.chmod(stub, stat.S_IRWXU)
+            dl = os.path.join(home, "Downloads")
+            os.makedirs(dl, exist_ok=True)
+            with open(os.path.join(dl, "x.png"), "w") as f:
+                f.write("png")
+            r = self._run(["plan", "--rule", "konversi semua PNG di Downloads ke WebP"],
+                          home, path_extra=b)
+            self.assertEqual(r.returncode, 0, r.stderr)
+            self.assertIn("Rencana", r.stdout)
+            self.assertIn("PRATINJAU", r.stdout)
+            # Tidak ada .webp dibuat saat hanya plan
+            self.assertFalse(os.path.isfile(os.path.join(dl, "x.webp")))
+            # run --yes benar-benar mengeksekusi
+            r = self._run(["run", "--rule", "--yes", "konversi semua PNG di Downloads ke WebP"],
+                          home, path_extra=b)
+            self.assertEqual(r.returncode, 0, r.stderr)
+            self.assertTrue(os.path.isfile(os.path.join(dl, "x.webp")))
+
+    def test_dangerous_plan_rejected(self):
+        agent = load_cli_module("k-agent")
+        ok, problems = agent.validate_steps([{"desc": "x", "command": "rm -rf /"}])
+        self.assertFalse(ok)
+        self.assertTrue(problems)
+        ok, problems = agent.validate_steps([{"desc": "ok", "command": "ls -la"}])
+        self.assertTrue(ok)
+
+
 class TestHubIntegration(unittest.TestCase):
     def test_hub_status_mentions_look_and_welcome(self):
         import subprocess
@@ -939,6 +1084,8 @@ class TestHubIntegration(unittest.TestCase):
         self.assertEqual(res.returncode, 0, res.stderr)
         self.assertIn("[7]", res.stdout)
         self.assertIn("[8]", res.stdout)
+        self.assertIn("[9]", res.stdout)
+        self.assertIn("[10]", res.stdout)
 
 
 class TestShowcase(unittest.TestCase):

@@ -1,0 +1,339 @@
+#!/usr/bin/env python3
+"""
+Kalacakra OS - k-agent
+Agen tugas otonom multi-langkah (Multi-Step Task Agent).
+
+Alur aman:
+  1. RENCANA (plan)  - instruksi bahasa alami diubah menjadi daftar langkah
+     (deskripsi + perintah shell). Ditampilkan sebagai 'action plan preview'.
+  2. KONFIRMASI      - pengguna meninjau lalu menyetujui (atau --yes).
+  3. EKSEKUSI        - tiap langkah dijalankan satu per satu, exit code
+     diperiksa; berhenti pada kegagalan pertama (tidak memalsukan sukses).
+  4. VERIFIKASI      - ringkasan langkah berhasil/gagal.
+
+CATATAN JUJUR / HONEST NOTE:
+- Perencana UTAMA adalah k-ai (LLM lokal). Bila daemon AI tidak aktif, agen
+  memakai perencana berbasis aturan (rule-based) yang MENGHASILKAN rencana
+  HANYA untuk pola yang dikenal (mis. konversi gambar, arsip, pindah berkas).
+  Untuk pola di luar itu, agen JUJUR menyatakan tidak bisa membuat rencana.
+- Setiap perintah divalidasi dengan is_dangerous_command(); perintah berisiko
+  ditolak dan tidak pernah dieksekusi otomatis.
+- Sandbox bersifat OPSIONAL via `--sandbox` (memakai k-jail/bubblewrap). Bila
+  bwrap absen, agen jujur menyatakan sandbox TIDAK aktif.
+"""
+
+import os
+import re
+import sys
+import json
+import shutil
+import argparse
+import subprocess
+
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+from _kalacakra_bootstrap import get_locale_strings, is_dangerous_command
+
+HOME = os.path.expanduser("~")
+
+
+def find_bin(name: str) -> str:
+    for c in (f"/usr/bin/{name}", os.path.join(SCRIPT_DIR, name)):
+        if os.path.isfile(c):
+            return c
+    return name
+
+
+def have(name: str) -> bool:
+    return shutil.which(name) is not None
+
+
+# ---------------------------------------------------------------------------
+# Perencana berbasis aturan (fallback jujur saat AI tidak aktif)
+# ---------------------------------------------------------------------------
+# Nama folder yang dikenal -> path absolut.
+FOLDER_ALIASES = {
+    "downloads": os.path.join(HOME, "Downloads"),
+    "unduhan": os.path.join(HOME, "Downloads"),
+    "documents": os.path.join(HOME, "Documents"),
+    "dokumen": os.path.join(HOME, "Documents"),
+    "pictures": os.path.join(HOME, "Pictures"),
+    "gambar": os.path.join(HOME, "Pictures"),
+    "desktop": os.path.join(HOME, "Desktop"),
+    "backup": os.path.join(HOME, "Backup"),
+    "cadangan": os.path.join(HOME, "Backup"),
+}
+
+IMAGE_CONVERT_TOOLS = {
+    "webp": ["magick", "cwebp", "convert"],
+    "jpg": ["magick", "convert"],
+    "jpeg": ["magick", "convert"],
+    "png": ["magick", "convert"],
+}
+
+
+def _detect_dir(text: str) -> str:
+    # Path eksplisit dengan ~ atau /
+    m = re.search(r"(~/[^\s'\"]+|/[^\s'\"]+)", text)
+    if m:
+        return os.path.expanduser(m.group(1).rstrip(".,"))
+    for alias, path in FOLDER_ALIASES.items():
+        if re.search(rf"\b{alias}\b", text):
+            return path
+    return ""
+
+
+def _detect_convert(text: str) -> tuple:
+    """Deteksi 'konversi <src> ke <dst>'. Mengembalikan (src_ext, dst_ext) atau ('','')."""
+    exts = re.findall(r"\b(png|jpe?g|bmp|gif|tiff?|webp|heic)\b", text)
+    if len(exts) >= 2 and re.search(r"\b(konversi|convert|ubah|change|jadikan)\b", text):
+        return exts[0], exts[1]
+    return "", ""
+
+
+def _has(text: str, *words) -> bool:
+    return any(re.search(rf"\b{w}\b", text) for w in words)
+
+
+def plan_rule_based(instruction: str):
+    """Kembalikan (steps, alasan_gagal). steps = list[dict(desc, command)]."""
+    text = instruction.lower()
+    steps = []
+
+    src_ext, dst_ext = _detect_convert(text)
+    want_zip = _has(text, "zip", "arsip", "archive", "kompres", "compress", "tar")
+    want_move = _has(text, "pindah", "move", "backup", "cadangan", "pindahkan")
+    directory = _detect_dir(text)
+
+    if not (src_ext or want_zip or want_move):
+        return [], ("Pola instruksi tidak dikenali oleh perencana aturan. "
+                    "Aktifkan AI lokal (kalacakra doctor / systemctl --user start kalacakra-ai) "
+                    "atau tulis langkah manual.")
+
+    base = directory or os.path.join(HOME, "Downloads")
+    produced = []
+
+    # 1. Konversi gambar
+    if src_ext:
+        tool = next((t for t in IMAGE_CONVERT_TOOLS.get(dst_ext, []) if have(t)), None)
+        if not tool:
+            return [], (f"Alat konversi ke '{dst_ext}' tidak terpasang "
+                        f"(butuh ImageMagick 'magick'/'convert' atau 'cwebp').")
+        # Cari berkas sumber dulu (verifikasi), lalu konversi
+        steps.append({
+            "desc": f"Temukan berkas .{src_ext} di {base}",
+            "command": f"find {json.dumps(base)} -maxdepth 1 -type f -iname '*.{src_ext}'",
+        })
+        if tool == "cwebp":
+            conv = (f"sh -c 'for f in {json.dumps(base)}/*.{src_ext}; do "
+                    f"[ -f \"$f\" ] || continue; cwebp -quiet \"$f\" -o \"${{f%.{src_ext}}}.{dst_ext}\"; done'")
+        else:
+            conv = (f"sh -c 'for f in {json.dumps(base)}/*.{src_ext}; do "
+                    f"[ -f \"$f\" ] || continue; {tool} \"$f\" \"${{f%.{src_ext}}}.{dst_ext}\"; done'")
+        steps.append({"desc": f"Konversi .{src_ext} -> .{dst_ext} ({tool})", "command": conv})
+        produced.append(f"{base}/*.{dst_ext}")
+
+    # 2. Arsipkan (zip)
+    if want_zip:
+        target = os.path.abspath(directory or base)
+        parent = os.path.dirname(target.rstrip("/")) or "/"
+        tname = os.path.basename(target.rstrip("/")) or "arsip"
+        if have("zip"):
+            archive_path = os.path.join(HOME, f"{tname}.zip")
+            steps.append({
+                "desc": f"Buat arsip: {archive_path} (dari {target})",
+                "command": f"sh -c 'cd {json.dumps(parent)} && zip -r "
+                           f"{json.dumps(archive_path)} {json.dumps(tname)}'",
+            })
+        elif have("tar"):
+            archive_path = os.path.join(HOME, f"{tname}.tar.gz")
+            steps.append({
+                "desc": f"Buat arsip: {archive_path} (tar.gz; zip tidak tersedia)",
+                "command": f"tar -czf {json.dumps(archive_path)} -C {json.dumps(parent)} {json.dumps(tname)}",
+            })
+        else:
+            return [], "Tidak ada 'zip' maupun 'tar' untuk membuat arsip."
+        produced.append(archive_path)
+
+    # 3. Pindahkan ke tujuan
+    if want_move:
+        dest = os.path.join(HOME, "Backup")
+        m = re.search(r"(?:ke|to)\s+(~/[^\s'\"]+|/[^\s'\"]+)", text)
+        if m:
+            dest = os.path.expanduser(m.group(1).rstrip(".,"))
+        steps.append({"desc": f"Pastikan folder tujuan ada: {dest}", "command": f"mkdir -p {json.dumps(dest)}"})
+        for p in produced:
+            steps.append({"desc": f"Pindahkan hasil ke {dest}", "command": f"mv -v {p} {json.dumps(dest)}/"})
+        if not produced:
+            steps.append({"desc": "Tidak ada hasil konversi; tidak ada yang dipindah (mungkin perlu konversi dulu)",
+                          "command": "true"})
+
+    return steps, ""
+
+
+def plan_with_ai(instruction: str):
+    """Minta k-ai menyusun rencana JSON. Mengembalikan (steps, err)."""
+    prompt = (
+        "You are a Linux task planner on Kalacakra OS. Split the user's request into "
+        "safe, ordered shell steps. Respond with ONLY JSON: "
+        '{"steps":[{"description":"...","command":"..."}]}. '
+        "Use absolute paths. Never use destructive commands (no rm -rf /, no mkfs, no dd to disks). "
+        f"Request: {instruction}"
+    )
+    try:
+        kai = find_bin("k-ai")
+        cmd = [kai] if os.access(kai, os.X_OK) else [sys.executable, kai]
+        res = subprocess.run(cmd + ["--stream", prompt], capture_output=True, text=True, timeout=120)
+    except (OSError, subprocess.TimeoutExpired) as e:
+        return [], f"k-ai tidak dapat dijalankan: {e}"
+    if res.returncode != 0:
+        return [], "k-ai gagal (daemon AI mungkin nonaktif)."
+    raw = res.stdout.strip()
+    m = re.search(r"\{.*\}", raw, re.DOTALL)
+    if not m:
+        return [], "k-ai tidak mengembalikan JSON rencana yang dapat dibaca."
+    try:
+        data = json.loads(m.group(0))
+    except json.JSONDecodeError as e:
+        return [], f"JSON rencana tidak valid dari k-ai: {e}"
+    steps = []
+    for s in data.get("steps", []):
+        if isinstance(s, dict) and s.get("command"):
+            steps.append({"desc": s.get("description", s["command"]), "command": s["command"]})
+    if not steps:
+        return [], "Rencana k-ai kosong."
+    return steps, ""
+
+
+def make_plan(instruction: str, prefer_ai: bool):
+    """Coba AI dulu (bila diminta/tersedia), lalu fallback aturan."""
+    errors = []
+    if prefer_ai:
+        steps, err = plan_with_ai(instruction)
+        if steps:
+            return steps, "k-ai"
+        errors.append(err)
+    steps, err = plan_rule_based(instruction)
+    if steps:
+        return steps, "rule-based"
+    if err:
+        errors.append(err)
+    return [], " | ".join([e for e in errors if e])
+
+
+def validate_steps(steps: list):
+    """Tolak rencana yang memuat perintah berbahaya. Kembalikan (ok, daftar_alasan)."""
+    problems = []
+    for i, s in enumerate(steps, 1):
+        if is_dangerous_command(s["command"]):
+            problems.append(f"langkah {i} terdeteksi berbahaya: {s['command']}")
+    return (not problems), problems
+
+
+def run_steps(steps: list, assume_yes: bool, sandbox: bool) -> int:
+    use_jail = sandbox and have("bwrap")
+    if sandbox and not have("bwrap"):
+        print("[k-agent WARN] 'bwrap' tidak terpasang - sandbox TIDAK aktif. "
+              "Jalankan langsung tanpa isolasi?\n")
+    ok = failed = 0
+    for i, s in enumerate(steps, 1):
+        print(f"\n[{i}/{len(steps)}] {s['desc']}")
+        print(f"      $ {s['command']}")
+
+    if not assume_yes:
+        try:
+            ans = input("\nJalankan rencana ini? [y/N]: ").strip().lower()
+        except (EOFError, KeyboardInterrupt):
+            print("\nDibatalkan.")
+            return 1
+        if ans not in ("y", "ya", "yes"):
+            print("Dibatalkan. Tidak ada yang dijalankan.")
+            return 1
+
+    print()
+    for i, s in enumerate(steps, 1):
+        print(f"--- Langkah {i}/{len(steps)}: {s['desc']}")
+        if use_jail:
+            cmd = [find_bin("k-jail"), "--", "bash", "-c", s["command"]]
+        else:
+            cmd = ["bash", "-c", s["command"]]
+        try:
+            rc = subprocess.run(cmd).returncode
+        except OSError as e:
+            print(f"[k-agent Error] Gagal menjalankan langkah {i}: {e}")
+            failed += 1
+            break
+        if rc == 0:
+            ok += 1
+        else:
+            print(f"[k-agent] Langkah {i} gagal (exit {rc}). Menghentikan eksekusi.")
+            failed += 1
+            break
+    print(f"\n[k-agent] Selesai: {ok} langkah berhasil, {failed} gagal.")
+    return 0 if failed == 0 else 1
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(
+        prog="k-agent",
+        description="Kalacakra Agent - agen tugas multi-langkah dengan pratinjau rencana",
+    )
+    parser.add_argument("action", nargs="?", default="plan",
+                        help="plan <instruksi> | run <instruksi> | help")
+    parser.add_argument("instruction", nargs="*", help="Instruksi bahasa alami")
+    parser.add_argument("--yes", "-y", action="store_true", help="Lewati konfirmasi")
+    parser.add_argument("--ai", action="store_true", help="Paksa perencana k-ai (LLM lokal)")
+    parser.add_argument("--rule", action="store_true", help="Paksa perencana berbasis aturan")
+    parser.add_argument("--sandbox", action="store_true", help="Jalankan tiap langkah di k-jail (bwrap)")
+    args = parser.parse_args()
+
+    strings, current_lang = get_locale_strings()
+
+    if args.action in ("help", "-h", "--help"):
+        print("=== Kalacakra Agent ===")
+        print("  kalacakra agent plan \"konversi semua PNG di Downloads ke WebP lalu zip\"")
+        print("  kalacakra agent run  \"...\" [--yes] [--ai|--rule] [--sandbox]")
+        return 0
+
+    instruction = " ".join(args.instruction).strip()
+    if not instruction:
+        print("[k-agent Error] Berikan instruksi. Contoh:")
+        print("  kalacakra agent plan \"konversi semua PNG di Downloads ke WebP lalu zip\"")
+        return 1
+
+    prefer_ai = args.ai or (not args.rule and have("k-ai"))
+    if args.rule:
+        prefer_ai = False
+
+    steps, source = make_plan(instruction, prefer_ai)
+    if not steps:
+        print(f"[k-agent] Tidak dapat menyusun rencana.\n  {source}")
+        print("\nTips: aktifkan AI lokal untuk perencanaan bebas:")
+        print("  systemctl --user start kalacakra-ai   (lalu: kalacakra agent plan \"...\" --ai)")
+        return 1
+
+    ok, problems = validate_steps(steps)
+    if not ok:
+        print("[k-agent] RENCANA DITOLAK - memuat perintah berisiko:")
+        for p in problems:
+            print(f"  ! {p}")
+        return 1
+
+    print(f"=== Rencana ({source}) untuk: {instruction} ===")
+    for i, s in enumerate(steps, 1):
+        print(f"  [{i}] {s['desc']}")
+        print(f"       $ {s['command']}")
+
+    if args.action == "plan":
+        print("\nIni hanya PRATINJAU (action plan preview). Tidak ada yang dieksekusi.")
+        print("Jalankan dengan: kalacakra agent run \"%s\"" % instruction)
+        return 0
+
+    if args.action == "run":
+        return run_steps(steps, args.yes, args.sandbox)
+
+    print(f"[k-agent Error] Aksi tidak dikenal: '{args.action}' (pakai: plan|run)")
+    return 1
+
+
+if __name__ == "__main__":
+    sys.exit(main())

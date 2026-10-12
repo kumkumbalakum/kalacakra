@@ -99,6 +99,10 @@ def print_dashboard(strings, current_lang):
     print(" [7] 🎨 Identitas Visual (Kalacakra Look - ganti tema desktop)")
     print("     └─ 5 preset: Mandala Cyberpunk, Nusantara Bronze, Obsidian, Aurora, Kraton Gold")
     print(" [8] 👋 Panduan Penyambutan (Kalacakra Welcome - wizard bahasa/tema/AI)")
+    print(" [9] 🔎 Pencarian Makna Lokal (Kalacakra Semantic - cari berkas via sinonim ID/EN)")
+    print("     └─ Indeks lokal (TF-IDF+sinonim, bukan vektor). index/search/similar")
+    print(" [10] 🤖 Agen Tugas Multi-Langkah (Kalacakra Agent - pratinjau rencana lalu eksekusi)")
+    print("     └─ plan/run; jujur bila AI nonaktif & menolak perintah berbahaya")
     print(" [0] 🚪 Keluar / Exit")
     print("=" * 68)
 
@@ -162,6 +166,20 @@ def interactive_menu():
         elif choice == "8":
             print("\n--- [Panduan Penyambutan / Kalacakra Welcome] ---")
             subprocess.run(["kalacakra", "welcome"], check=False)
+            input("Tekan Enter untuk kembali...")
+        elif choice == "9":
+            print("\n--- [Pencarian Makna Lokal / Kalacakra Semantic] ---")
+            subprocess.run(["kalacakra", "semantic", "status"], check=False)
+            print("\nBangun indeks : kalacakra semantic index ~/Documents")
+            print("Cari          : kalacakra semantic search \"surat sewa tahun lalu\"")
+            print("Mirip berkas  : kalacakra semantic similar <berkas>")
+            input("Tekan Enter untuk kembali...")
+        elif choice == "10":
+            print("\n--- [Agen Tugas / Kalacakra Agent] ---")
+            print("Contoh: kalacakra agent plan \"konversi semua PNG di Downloads ke WebP lalu zip\"")
+            instr = input("Instruksi (kosongkan untuk batal): ").strip()
+            if instr:
+                subprocess.run(["kalacakra", "agent", "plan", instr], check=False)
             input("Tekan Enter untuk kembali...")
 
 def main():
