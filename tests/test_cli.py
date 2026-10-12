@@ -336,10 +336,15 @@ def write_file(path, content):
 
 def load_cli_module(name):
     """Muat script CLI tanpa ekstensi .py sebagai modul Python importable.
-    Wajib memakai SourceFileLoader eksplisit karena nama file tanpa .py."""
+    Wajib memakai SourceFileLoader eksplisit karena nama file tanpa .py.
+    Direktori bin ditambahkan ke sys.path agar `_kalacakra_bootstrap` (modul
+    bersama) dapat diimpor seperti saat skrip dijalankan langsung."""
     import importlib.util
     from importlib.machinery import SourceFileLoader
-    path = os.path.join(ROOTFS_DIR, "usr", "bin", name)
+    bin_dir = os.path.join(ROOTFS_DIR, "usr", "bin")
+    if bin_dir not in sys.path:
+        sys.path.insert(0, bin_dir)
+    path = os.path.join(bin_dir, name)
     loader = SourceFileLoader(f"kalacakra_cli_{name}", path)
     spec = importlib.util.spec_from_loader(f"kalacakra_cli_{name}", loader)
     module = importlib.util.module_from_spec(spec)
@@ -349,11 +354,12 @@ def load_cli_module(name):
 
 class TestKQASync(unittest.TestCase):
     def test_k_qa_expected_bins_matches_actual_bin_dir(self):
-        """Daftar expected_bins di k-qa harus persis sama dengan isi rootfs/usr/bin.
-        Mencegah tool baru (mis. k-voice/k-game) luput dari verifikasi QA."""
+        """Daftar expected_bins di k-qa harus persis sama dengan isi rootfs/usr/bin
+        (kecuali modul privat berawalan '_'). Mencegah tool baru luput dari QA."""
         import re
         bin_dir = os.path.join(ROOTFS_DIR, "usr", "bin")
-        actual = {n for n in os.listdir(bin_dir) if os.path.isfile(os.path.join(bin_dir, n))}
+        actual = {n for n in os.listdir(bin_dir)
+                  if os.path.isfile(os.path.join(bin_dir, n)) and not n.startswith("_")}
 
         qa_path = os.path.join(bin_dir, "k-qa")
         with open(qa_path, "r", encoding="utf-8") as f:

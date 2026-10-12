@@ -12,17 +12,6 @@ import re
 import subprocess
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
-LIB_PATH = os.path.abspath(os.path.join(SCRIPT_DIR, "..", "share", "kalacakra", "lib"))
-if os.path.isdir(LIB_PATH) and LIB_PATH not in sys.path:
-    sys.path.insert(0, LIB_PATH)
-elif "/usr/share/kalacakra/lib" not in sys.path and os.path.isdir("/usr/share/kalacakra/lib"):
-    sys.path.insert(0, "/usr/share/kalacakra/lib")
-
-try:
-    from kalacakra_common import get_locale_strings
-except ImportError:
-    def get_locale_strings(lang_override=None):
-        return {}, "en"
 
 # Unit conversion constants
 UNIT_CONVERSIONS = {
