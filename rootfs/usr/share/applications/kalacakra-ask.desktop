@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Name=Kalacakra Ask AI
+Name[id]=Tanya AI Kalacakra
+Comment=Ask the local AI (k-ai) from the launcher or KRunner
+Comment[id]=Tanya AI lokal (k-ai) dari peluncur atau KRunner
+Icon=system-search
+Exec=/usr/bin/k-ask
+Terminal=true
+Categories=Utility;System;
+Keywords=ai;ask;tanya;kalacakra;summary;ringkas;
+X-KDE-StartupNotify=false

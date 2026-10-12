@@ -23,6 +23,25 @@ from _kalacakra_bootstrap import get_locale_strings, redact_secrets, is_dangerou
 DEFAULT_OLLAMA_URL = os.environ.get("OLLAMA_URL", "http://127.0.0.1:11434/api/generate")
 DEFAULT_MODEL = os.environ.get("KALACAKRA_AI_MODEL", "llama3.2:1b")
 
+def read_text_file(path: str, max_bytes: int = 20000) -> tuple[str, str]:
+    """Baca berkas teks dengan batas aman. Mengembalikan (isi, pesan_error).
+    Jujur: biner dideteksi & ditolak; berkas besar dipotong dengan penanda."""
+    if not os.path.isfile(path):
+        return "", f"berkas tidak ditemukan: {path}"
+    try:
+        with open(path, "rb") as f:
+            raw = f.read(max_bytes + 1)
+    except OSError as e:
+        return "", f"gagal membaca '{path}': {e}"
+    if b"\x00" in raw:
+        return "", f"'{path}' tampaknya berkas biner (bukan teks) - dilewati."
+    truncated = len(raw) > max_bytes
+    text = raw[:max_bytes].decode("utf-8", errors="replace")
+    if truncated:
+        text += f"\n\n[... dipotong pada {max_bytes} byte ...]"
+    return text, ""
+
+
 def _ollama_timeout() -> float:
     """Timeout dapat dikonfigurasi via env (detik). Default 120s agar model
     besar / mesin lambat tidak putus di tengah. Set 0 = tanpa batas."""
@@ -106,11 +125,25 @@ def main():
     parser.add_argument("--model", "-m", default=DEFAULT_MODEL, help="Target Ollama model")
     parser.add_argument("--stream", "-s", action="store_true",
                         help="Tampilkan jawaban token demi token (NDJSON streaming)")
+    parser.add_argument("--file", "-f", help="Ringkas/analisis berkas teks (untuk integrasi Dolphin)")
+    parser.add_argument("--max-bytes", type=int, default=20000,
+                        help="Batas byte berkas yang dibaca untuk --file (default 20000)")
 
     args = parser.parse_args()
     strings, current_lang = get_locale_strings()
 
     raw_query = " ".join(args.query)
+
+    # Mode --file: baca berkas (dibatasi), lalu mode "ringkas/analisis".
+    if args.file:
+        file_text, file_err = read_text_file(args.file, args.max_bytes)
+        if file_err:
+            print(f"[k-ai Error] {file_err}")
+            sys.exit(1)
+        pre = raw_query or ("Ringkas berkas ini dan sebutkan poin-poin pentingnya."
+                            if current_lang == "id" else
+                            "Summarize this file and list the key points.")
+        raw_query = f"{pre}\n\n=== ISI BERKAS: {os.path.basename(args.file)} ===\n{file_text}"
 
     if not sys.stdin.isatty():
         stdin_content = sys.stdin.read().strip()
@@ -130,7 +163,13 @@ def main():
         print(strings.get("ai_secret_redacted", "[k-ai Shield] Sensitive secrets detected and automatically redacted."))
 
     # 2. System prompt bilingual
-    if args.diagnose:
+    if args.file:
+        system_prompt = (
+            "You are a helpful assistant on Kalacakra OS. Summarize the provided file clearly in the "
+            "same language as the user's request. State the file's purpose, key points, and any "
+            "actionable items. Be concise. Do NOT execute anything."
+        )
+    elif args.diagnose:
         system_prompt = (
             "You are a Linux system diagnostic expert on Kalacakra OS (Fedora bootc / KDE Plasma 6). "
             "Analyze the given error and provide a concise diagnosis and the exact command to fix it. "
@@ -153,7 +192,12 @@ def main():
 
     suggested_cmd = clean_code_block(response)
 
-    if args.diagnose:
+    if args.file:
+        # Mode ringkas berkas: hanya tampilkan jawaban, tanpa eksekusi/konfirmasi.
+        print("\n=== [k-ai Ringkasan Berkas] ===" if current_lang == "id" else "\n=== [k-ai File Summary] ===")
+        print(response)
+        print()
+    elif args.diagnose:
         print("\n=== [k-ai Diagnostik] ===")
         print(response)
         print()

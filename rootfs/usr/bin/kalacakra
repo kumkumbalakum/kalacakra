@@ -180,6 +180,9 @@ def main():
     p_welcome = subparsers.add_parser("welcome", help="Kalacakra Welcome - Wizard penyambutan boot pertama (bahasa, tema, AI)")
     p_welcome.add_argument("subaction", nargs="*", help="Welcome arguments (--yes untuk non-interaktif)")
 
+    p_ask = subparsers.add_parser("ask", help="Kalacakra Ask - Tanya AI dari KRunner/Dolphin (wrapper k-ai)")
+    p_ask.add_argument("subaction", nargs="*", help="Pertanyaan / --file <berkas> / --runner")
+
     p_show = subparsers.add_parser("showcase", help="Kalacakra Showcase - Tampilan identitas siap screenshot untuk r/unixporn")
     p_show.add_argument("subaction", nargs="*", help="Showcase arguments (--no-fetch)")
 
@@ -281,6 +284,8 @@ def main():
         if args.lang:
             cmd += ["--lang", args.lang]
         sys.exit(subprocess.run(cmd).returncode)
+    elif args.command == "ask":
+        sys.exit(subprocess.run([find_bin("k-ask")] + args.subaction + unknown).returncode)
     elif args.command == "showcase":
         # Flag bisa muncul di subaction atau unknown (argparse root tak makan
         # opsi yang berada setelah subcommand). Rekonstruksi dengan bersih.

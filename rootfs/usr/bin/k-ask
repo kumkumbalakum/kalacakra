@@ -1,0 +1,74 @@
+#!/usr/bin/env python3
+"""
+Kalacakra OS - k-ask
+Wrapper ramah-desktop untuk k-ai, dirancang agar nyaman dipakai dari KRunner,
+Dolphin (Run in Terminal), atau pintasan keyboard.
+
+Bedanya dengan k-ai langsung:
+- Selalu menampilkan hasil (bahkan bila daemon AI belum aktif) dengan pesan jujur.
+- Mode --runner: ringkas (satu blok), tanpa prompt konfirmasi eksekusi perintah.
+- Bisa membaca pertanyaan dari argumen atau stdin (pipa).
+
+Murni memanggil k-ai di belakang layar - tidak menduplikasi logika AI.
+"""
+
+import os
+import sys
+import argparse
+import subprocess
+
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+
+
+def find_bin(name: str) -> str:
+    for c in (f"/usr/bin/{name}", os.path.join(SCRIPT_DIR, name)):
+        if os.path.isfile(c):
+            return c
+    return name
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(
+        prog="k-ask",
+        description="Tanya Kalacakra AI dari KRunner / Dolphin / pintasan keyboard",
+    )
+    parser.add_argument("query", nargs="*", help="Pertanyaan atau permintaan")
+    parser.add_argument("--runner", "-r", action="store_true",
+                        help="Mode ringkas untuk KRunner (tanpa prompt konfirmasi)")
+    parser.add_argument("--file", "-f", help="Ringkas berkas (mode desktop)")
+    args = parser.parse_args()
+
+    query = " ".join(args.query).strip()
+
+    # Bila tidak ada argumen dan stdin berupa pipe, baca dari stdin.
+    if not query and not args.file and not sys.stdin.isatty():
+        piped = sys.stdin.read().strip()
+        query = piped
+
+    if not query and not args.file:
+        print("[k-ask] Berikan pertanyaan, mis.: k-ask 'ubah semua png ke webp'")
+        print("[k-ask] Provide a question, e.g.: k-ask 'convert all png to webp'")
+        return 0
+
+    cmd = [find_bin("k-ai")]
+    # Bila target bukan berkas eksekutabel (mis. saat dijalankan dari repo),
+    # panggil lewat interpreter Python agar tetap berfungsi.
+    kai_path = cmd[0]
+    if os.path.isfile(kai_path) and not os.access(kai_path, os.X_OK):
+        cmd = [sys.executable, kai_path]
+    if args.runner:
+        cmd.append("--stream")
+    if args.file:
+        cmd += ["--file", args.file]
+    if query:
+        cmd.append(query)
+
+    try:
+        return subprocess.run(cmd).returncode
+    except FileNotFoundError:
+        print("[k-ask Error] k-ai tidak ditemukan di /usr/bin atau direktori script.")
+        return 1
+
+
+if __name__ == "__main__":
+    sys.exit(main())

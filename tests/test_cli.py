@@ -526,6 +526,71 @@ class TestKAiHelpers(unittest.TestCase):
         self.assertEqual(kai.clean_code_block("```\nfind . -name x\n```"), "find . -name x")
         self.assertEqual(kai.clean_code_block("echo plain"), "echo plain")
 
+    def test_read_text_file_honest_limits(self):
+        import tempfile
+        kai = load_cli_module("k-ai")
+        with tempfile.TemporaryDirectory() as d:
+            # teks biasa
+            txt = os.path.join(d, "a.txt")
+            with open(txt, "w", encoding="utf-8") as f:
+                f.write("baris satu\nbaris dua\n")
+            content, err = kai.read_text_file(txt)
+            self.assertEqual(err, "")
+            self.assertIn("baris satu", content)
+            # biner -> ditolak jujur
+            binf = os.path.join(d, "b.bin")
+            with open(binf, "wb") as f:
+                f.write(b"\x00\x01\x02payload")
+            content, err = kai.read_text_file(binf)
+            self.assertEqual(content, "")
+            self.assertIn("biner", err)
+            # berkas hilang -> pesan jelas, tak crash
+            content, err = kai.read_text_file(os.path.join(d, "nope"))
+            self.assertEqual(content, "")
+            self.assertIn("tidak ditemukan", err)
+            # truncation menandai pemotongan
+            big = os.path.join(d, "big.txt")
+            with open(big, "w", encoding="utf-8") as f:
+                f.write("x" * 500)
+            content, err = kai.read_text_file(big, max_bytes=100)
+            self.assertEqual(err, "")
+            self.assertIn("dipotong", content)
+            self.assertLessEqual(len(content), 200)
+
+
+class TestAskWrapper(unittest.TestCase):
+    """k-ask adalah wrapper desktop untuk k-ai; harus jujur bila tanpa argumen
+    dan tidak crash saat daemon AI tidak aktif."""
+
+    def _run_ask(self, args, home, stdin=""):
+        import subprocess
+        path = os.path.join(ROOTFS_DIR, "usr", "bin", "k-ask")
+        env = os.environ.copy()
+        env["HOME"] = home
+        env["XDG_CONFIG_HOME"] = os.path.join(home, ".config")
+        env["XDG_DATA_HOME"] = os.path.join(home, ".local", "share")
+        env["OLLAMA_URL"] = "http://127.0.0.1:1/api/generate"  # port mati -> gagal cepat
+        env["KALACAKRA_AI_TIMEOUT"] = "2"
+        return subprocess.run([sys.executable, path] + args,
+                              capture_output=True, text=True, env=env, input=stdin, timeout=30)
+
+    def test_ask_without_args_prints_help(self):
+        import tempfile
+        with tempfile.TemporaryDirectory() as home:
+            res = self._run_ask([], home)
+            self.assertEqual(res.returncode, 0, res.stderr)
+            self.assertNotIn("Traceback", res.stderr)
+            self.assertIn("k-ask", res.stdout)
+
+    def test_ask_honest_when_daemon_down(self):
+        import tempfile
+        with tempfile.TemporaryDirectory() as home:
+            res = self._run_ask(["apa itu btrfs?"], home)
+            self.assertNotIn("Traceback", res.stderr)
+            # Harus melaporkan kegagalan daemon dengan jelas (k-ai meng-exit non-nol)
+            combined = res.stdout + res.stderr
+            self.assertIn("Ollama", combined)
+
 
 class TestCommonHelpers(unittest.TestCase):
     """Uji perilaku tepi helper bersama di kalacakra_common."""
@@ -892,13 +957,16 @@ class TestShowcase(unittest.TestCase):
 
 
 class TestLocaleCoverage(unittest.TestCase):
-    """Setiap kunci locale baru (look/showcase) harus ada di EN & ID."""
+    """Setiap kunci locale baru (look/showcase/welcome/ask) harus ada di EN & ID."""
 
     def test_new_locale_keys_present_in_both_languages(self):
         import json
         new_keys = ["look_header", "look_applying", "look_done",
                     "look_rollback_done", "look_no_active", "look_share_caption",
-                    "showcase_tagline"]
+                    "showcase_tagline", "welcome_header", "welcome_step_lang",
+                    "welcome_step_theme", "welcome_step_ai", "welcome_step_done",
+                    "hub_module_look", "hub_module_welcome",
+                    "ask_header", "ask_hint"]
         for lang in ("en", "id"):
             with open(os.path.join(os.path.dirname(__file__), "..", "rootfs", "usr",
                                    "share", "kalacakra", "locales", f"{lang}.json"),
@@ -906,6 +974,17 @@ class TestLocaleCoverage(unittest.TestCase):
                 data = json.load(f)
             for k in new_keys:
                 self.assertIn(k, data, f"kunci '{k}' hilang di {lang}.json")
+
+    def test_en_and_id_key_sets_are_identical(self):
+        """CI menegakkan sinkronisasi kunci EN/ID - pastikan juga di unit test."""
+        import json
+        base = os.path.join(os.path.dirname(__file__), "..", "rootfs", "usr",
+                            "share", "kalacakra", "locales")
+        with open(os.path.join(base, "en.json"), encoding="utf-8") as f:
+            en = set(json.load(f))
+        with open(os.path.join(base, "id.json"), encoding="utf-8") as f:
+            id_ = set(json.load(f))
+        self.assertEqual(en, id_, f"EN/ID tidak sinkron: {en ^ id_}")
 
 
 class TestSmokeNoTools(unittest.TestCase):

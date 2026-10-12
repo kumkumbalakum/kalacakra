@@ -104,5 +104,7 @@
   "welcome_step_ai": "Step 3/4 - Local AI & Voice",
   "welcome_step_done": "Step 4/4 - Done! Kalacakra OS is ready.",
   "hub_module_look": "Visual Identity (Kalacakra Look)",
-  "hub_module_welcome": "Welcome Guide (Kalacakra Welcome)"
+  "hub_module_welcome": "Welcome Guide (Kalacakra Welcome)",
+  "ask_header": "Ask Kalacakra AI",
+  "ask_hint": "Provide a question, e.g.: k-ask 'convert all png to webp'"
 }

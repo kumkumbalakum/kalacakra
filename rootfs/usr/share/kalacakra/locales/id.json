@@ -104,5 +104,7 @@
   "welcome_step_ai": "Langkah 3/4 - AI Lokal & Suara",
   "welcome_step_done": "Langkah 4/4 - Selesai! Kalacakra OS siap.",
   "hub_module_look": "Identitas Visual (Kalacakra Look)",
-  "hub_module_welcome": "Panduan Penyambutan (Kalacakra Welcome)"
+  "hub_module_welcome": "Panduan Penyambutan (Kalacakra Welcome)",
+  "ask_header": "Tanya Kalacakra AI",
+  "ask_hint": "Berikan pertanyaan, mis.: k-ask 'ubah semua png ke webp'"
 }

@@ -216,6 +216,10 @@ showcase +args="":
 welcome +args="":
     @/usr/bin/k-welcome {{args}}
 
+# Kalacakra Ask - Tanya AI dari KRunner/Dolphin (wrapper k-ai)
+ask +args="":
+    @/usr/bin/k-ask {{args}}
+
 # --- Build lokal (meniru CI GitHub Actions; butuh podman/docker) ---
 # Cek prasyarat build (engine, disk, RAM)
 build-check:
