@@ -34,12 +34,26 @@ except ImportError:
 DEFAULT_OLLAMA_URL = os.environ.get("OLLAMA_URL", "http://127.0.0.1:11434/api/generate")
 DEFAULT_MODEL = os.environ.get("KALACAKRA_AI_MODEL", "llama3.2:1b")
 
-def call_ollama(prompt: str, system_prompt: str, model: str = DEFAULT_MODEL) -> str:
+def _ollama_timeout() -> float:
+    """Timeout dapat dikonfigurasi via env (detik). Default 120s agar model
+    besar / mesin lambat tidak putus di tengah. Set 0 = tanpa batas."""
+    raw = os.environ.get("KALACAKRA_AI_TIMEOUT", "120")
+    try:
+        val = float(raw)
+    except ValueError:
+        return 120.0
+    return None if val <= 0 else val
+
+def call_ollama(prompt: str, system_prompt: str, model: str = DEFAULT_MODEL,
+                stream: bool = False) -> str:
+    """Panggil Ollama. Jika stream=True, tampilkan token secara bertahap
+    (NDJSON) dan kembalikan teks lengkap; jika urllib gagal, kembalikan
+    string berawalan 'ERROR:'."""
     payload = {
         "model": model,
         "prompt": prompt,
         "system": system_prompt,
-        "stream": False
+        "stream": bool(stream)
     }
     data = json.dumps(payload).encode("utf-8")
     req = urllib.request.Request(
@@ -47,12 +61,37 @@ def call_ollama(prompt: str, system_prompt: str, model: str = DEFAULT_MODEL) -> 
         data=data,
         headers={"Content-Type": "application/json"}
     )
+    timeout = _ollama_timeout()
     try:
-        with urllib.request.urlopen(req, timeout=30) as resp:
-            result = json.loads(resp.read().decode("utf-8"))
-            return result.get("response", "").strip()
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
+            if not stream:
+                result = json.loads(resp.read().decode("utf-8"))
+                return result.get("response", "").strip()
+
+            # Mode streaming: Ollama mengirim NDJSON (satu objek JSON per baris).
+            chunks = []
+            for raw_line in resp:
+                line = raw_line.decode("utf-8", errors="replace").strip()
+                if not line:
+                    continue
+                try:
+                    obj = json.loads(line)
+                except json.JSONDecodeError:
+                    continue
+                piece = obj.get("response", "")
+                if piece:
+                    chunks.append(piece)
+                    sys.stdout.write(piece)
+                    sys.stdout.flush()
+                if obj.get("done"):
+                    break
+            sys.stdout.write("\n")
+            return "".join(chunks).strip()
     except urllib.error.URLError as e:
         return f"ERROR: Tidak dapat terhubung ke Ollama daemon (localhost:11434). Pastikan 'systemctl --user start kalacakra-ai' aktif. Detail: {e}"
+    except OSError as e:
+        return (f"ERROR: Koneksi ke Ollama gagal / timeout setelah {timeout}s "
+                f"(naikkan via KALACAKRA_AI_TIMEOUT). Detail: {e}")
 
 def clean_code_block(text: str) -> str:
     match = re.search(r"```(?:bash|sh)?\n?(.*?)\n?```", text, re.DOTALL)
@@ -76,6 +115,8 @@ def main():
     parser.add_argument("--diagnose", "-d", action="store_true", help="Diagnose last terminal error")
     parser.add_argument("--yes", "-y", action="store_true", help="Skip safety prompt")
     parser.add_argument("--model", "-m", default=DEFAULT_MODEL, help="Target Ollama model")
+    parser.add_argument("--stream", "-s", action="store_true",
+                        help="Tampilkan jawaban token demi token (NDJSON streaming)")
 
     args = parser.parse_args()
     strings, current_lang = get_locale_strings()
@@ -115,7 +156,7 @@ def main():
         )
 
     print(f"[k-ai] Berpikir / Thinking using '{args.model}'...")
-    response = call_ollama(sanitized_query, system_prompt, model=args.model)
+    response = call_ollama(sanitized_query, system_prompt, model=args.model, stream=args.stream)
 
     if response.startswith("ERROR:"):
         print(response)

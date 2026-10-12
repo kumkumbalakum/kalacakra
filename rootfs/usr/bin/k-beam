@@ -128,36 +128,92 @@ def start_beam_receiver(port: int = 53317, save_dir: str = None, token: str = No
                     self.send_error(403, "Invalid or missing token")
                     return
                 content_type = self.headers.get("Content-Type", "")
-                if "multipart/form-data" in content_type:
-                    length = int(self.headers.get('content-length', 0))
-                    data = self.rfile.read(length)
-                    # Simple multipart boundary extractor
-                    boundary = content_type.split("boundary=")[-1].encode()
-                    parts = data.split(boundary)
-                    for part in parts:
-                        if b'filename="' in part:
-                            head, file_data = part.split(b"\r\n\r\n", 1)
-                            fname_match = head.split(b'filename="')[-1].split(b'"')[0].decode('utf-8', errors='ignore')
-                            # Pertahanan path traversal: hanya pakai basename, tolak path berisi direktori
-                            fname_match = os.path.basename(fname_match.replace("\\", "/"))
-                            if fname_match and fname_match not in (".", ".."):
-                                file_data = file_data.rsplit(b"\r\n--", 1)[0]
-                                out_path = os.path.abspath(os.path.join(save_dir, fname_match))
-                                # Double-check: hasil join wajib masih di dalam save_dir
-                                if not out_path.startswith(save_dir + os.sep):
-                                    print(f"[Kalacakra Beam] DITOLAK (path traversal): {fname_match}")
-                                    continue
-                                with open(out_path, "wb") as f:
-                                    f.write(file_data)
-                                print(f"[Kalacakra Beam] File diterima: {fname_match} ({len(file_data)} bytes)")
-
-                    self.send_response(200)
-                    self.send_header("Content-Type", "text/html")
-                    self.end_headers()
-                    self.wfile.write(b"<h2>File Berhasil Dikirim! / File Received Successfully!</h2><a href='/'>Kembali</a>")
+                if "multipart/form-data" not in content_type:
+                    self.send_error(400, "Expected multipart/form-data")
                     return
+
+                try:
+                    length = int(self.headers.get('content-length', 0))
+                except ValueError:
+                    length = 0
+
+                # Batasi ukuran body untuk mencegah DoS memori (file besar sebaiknya
+                # dikirim lewat kanal lain). Dapat disetel ulang via env.
+                max_upload = int(os.environ.get("KALACAKRA_BEAM_MAX_BYTES", str(2 * 1024 * 1024 * 1024)))
+                if length <= 0:
+                    self.send_error(411, "Length Required")
+                    return
+                if length > max_upload:
+                    self.send_error(413, f"Payload too large (limit {max_upload} bytes)")
+                    return
+
+                data = self.rfile.read(length)
+                saved, rejected = self._save_multipart(data, content_type)
+
+                self.send_response(200)
+                self.send_header("Content-Type", "text/html; charset=utf-8")
+                self.end_headers()
+                summary = f"{len(saved)} file tersimpan"
+                if rejected:
+                    summary += f", {len(rejected)} ditolak"
+                self.wfile.write(
+                    f"<h2>File Berhasil Dikirim! / File Received Successfully! ({summary})</h2>"
+                    f"<a href='/'>Kembali</a>".encode("utf-8")
+                )
+                return
             self.send_response(400)
             self.end_headers()
+
+        def _save_multipart(self, data: bytes, content_type: str):
+            """Parse multipart secara benar & aman, simpan tiap file ke save_dir.
+            Mengembalikan (list_nama_tersimpan, list_nama_ditolak)."""
+            import email
+            saved, rejected = [], []
+
+            # Bangun pesan MIME lengkap agar email.parser menangani boundary,
+            # header filename, dan encoding dengan benar (bukan split manual).
+            header = f"Content-Type: {content_type}\r\nMIME-Version: 1.0\r\n\r\n".encode("utf-8")
+            msg = email.message_from_bytes(header + data)
+
+            if not msg.is_multipart():
+                return saved, rejected
+
+            for part in msg.walk():
+                if part.get_content_maintype() == "multipart":
+                    continue
+                filename = part.get_filename()
+                if not filename:
+                    continue
+                payload = part.get_payload(decode=True)
+                if payload is None:
+                    continue
+
+                # Pertahanan path traversal: hanya basename, tolak path direktori
+                safe_name = os.path.basename(filename.replace("\\", "/"))
+                if not safe_name or safe_name in (".", ".."):
+                    rejected.append(filename)
+                    print(f"[Kalacakra Beam] DITOLAK (nama tak valid): {filename!r}")
+                    continue
+
+                out_path = os.path.abspath(os.path.join(save_dir, safe_name))
+                # Double-check: hasil join wajib masih di dalam save_dir
+                if not out_path.startswith(save_dir + os.sep):
+                    rejected.append(safe_name)
+                    print(f"[Kalacakra Beam] DITOLAK (path traversal): {safe_name}")
+                    continue
+
+                try:
+                    with open(out_path, "wb") as f:
+                        f.write(payload)
+                except OSError as e:
+                    rejected.append(safe_name)
+                    print(f"[Kalacakra Beam] GAGAL menulis {safe_name}: {e}")
+                    continue
+
+                saved.append(safe_name)
+                print(f"[Kalacakra Beam] File diterima: {safe_name} ({len(payload)} bytes)")
+
+            return saved, rejected
 
     socketserver.TCPServer.allow_reuse_address = True
     with socketserver.TCPServer(("", port), BeamUploadHandler) as httpd:

@@ -102,20 +102,36 @@ def main():
         source_file = os.path.join(snap_path, rel_path)
 
         print(strings.get("rewind_restoring", "Restoring file from snapshot {id}...").format(id=args.snapshot_id))
-        if os.path.exists(source_file):
+        # lexists: juga menangkap symlink rusak yang ada di dalam snapshot
+        if os.path.lexists(source_file):
             target = os.path.abspath(args.path)
             backup = f"{target}.before-rewind"
-            if os.path.exists(target):
+            renamed = False
+
+            if os.path.lexists(target):
                 try:
                     os.rename(target, backup)
+                    renamed = True
                     print(f"[k-rewind] Versi saat ini dicadangkan ke: {backup}")
-                except PermissionError:
-                    print(f"[k-rewind Error] Tidak punya izin menulis ke '{target}' (mungkin butuh sudo / path read-only).")
+                except OSError as e:
+                    # PermissionError / EROFS (read-only) / EXDEV (beda filesystem)
+                    print(f"[k-rewind Error] Tidak bisa menyiapkan backup untuk '{target}': {e}")
+                    print("              (butuh sudo, atau path read-only / beda filesystem).")
                     sys.exit(1)
 
             res = subprocess.run(["cp", "-a", source_file, target])
             if res.returncode != 0:
-                print(f"[k-rewind Error] Gagal menyalin (kode {res.returncode}). Backup tersimpan di: {backup}")
+                # Pemulihan: jika kita sudah mengganti nama file lama, kembalikan
+                # agar user TIDAK kehilangan berkas asli karena restore gagal.
+                if renamed:
+                    try:
+                        os.replace(backup, target)
+                        print(f"[k-rewind Error] Gagal menyalin (kode {res.returncode}); berkas asli dikembalikan dari backup.")
+                    except OSError as e2:
+                        print(f"[k-rewind Error] Gagal menyalin (kode {res.returncode}) DAN gagal memulihkan backup: {e2}")
+                        print(f"              Backup Anda masih ada di: {backup}")
+                else:
+                    print(f"[k-rewind Error] Gagal menyalin (kode {res.returncode}).")
                 sys.exit(res.returncode)
             print(strings.get("rewind_success", "File successfully restored to {path}!").format(path=target))
         else:

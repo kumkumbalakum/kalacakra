@@ -324,6 +324,16 @@ class TestRepoConsistency(unittest.TestCase):
             )
 
 
+def read_file(path):
+    with open(path, "r") as f:
+        return f.read()
+
+
+def write_file(path, content):
+    with open(path, "w") as f:
+        f.write(content)
+
+
 def load_cli_module(name):
     """Muat script CLI tanpa ekstensi .py sebagai modul Python importable.
     Wajib memakai SourceFileLoader eksplisit karena nama file tanpa .py."""
@@ -421,6 +431,95 @@ class TestPureLogicUnits(unittest.TestCase):
         self.assertFalse(ksig.ed25519_verify(sig1, msg, pk2),
                          "Tanda tangan penyerang tidak boleh lolos verifikasi kunci lain")
 
+    def test_beam_multipart_saves_and_blocks_traversal(self):
+        """k-beam harus menyimpan file multipart dengan aman: nama dengan titik/spasi
+        oke, tapi path traversal dinetralkan ke basename (tak keluar save_dir)."""
+        import tempfile
+
+        def build_body(boundary, filename, content):
+            return (
+                f"--{boundary}\r\n"
+                f'Content-Disposition: form-data; name="file"; filename="{filename}"\r\n'
+                f"Content-Type: application/octet-stream\r\n\r\n"
+            ).encode() + content + f"\r\n--{boundary}--\r\n".encode()
+
+        def save_multipart(data, content_type, save_dir):
+            # Logika inti sama dengan k-beam.BeamUploadHandler._save_multipart
+            import email
+            header = f"Content-Type: {content_type}\r\nMIME-Version: 1.0\r\n\r\n".encode("utf-8")
+            msg = email.message_from_bytes(header + data)
+            saved, rejected = [], []
+            if not msg.is_multipart():
+                return saved, rejected
+            for part in msg.walk():
+                if part.get_content_maintype() == "multipart":
+                    continue
+                filename = part.get_filename()
+                if not filename:
+                    continue
+                payload = part.get_payload(decode=True)
+                if payload is None:
+                    continue
+                safe_name = os.path.basename(filename.replace("\\", "/"))
+                if not safe_name or safe_name in (".", ".."):
+                    rejected.append(filename)
+                    continue
+                out_path = os.path.abspath(os.path.join(save_dir, safe_name))
+                if not out_path.startswith(save_dir + os.sep):
+                    rejected.append(safe_name)
+                    continue
+                with open(out_path, "wb") as f:
+                    f.write(payload)
+                saved.append(safe_name)
+            return saved, rejected
+
+        boundary = "----KalacakraTestBoundary"
+        ct = f"multipart/form-data; boundary={boundary}"
+        with tempfile.TemporaryDirectory() as d:
+            d = os.path.abspath(d)
+            # Nama normal
+            saved, _ = save_multipart(build_body(boundary, "dokumen.txt", b"halo"), ct, d)
+            self.assertEqual(saved, ["dokumen.txt"])
+            with open(os.path.join(d, "dokumen.txt"), "rb") as f:
+                self.assertEqual(f.read(), b"halo")
+            # Nama dengan spasi & titik berganda (regresi: nama harus utuh)
+            saved, _ = save_multipart(build_body(boundary, "laporan final v2.tar.gz", b"X"), ct, d)
+            self.assertEqual(saved, ["laporan final v2.tar.gz"])
+            self.assertTrue(os.path.isfile(os.path.join(d, "laporan final v2.tar.gz")))
+            # Path traversal -> dinetralkan ke basename, tidak keluar dari d
+            saved, _ = save_multipart(build_body(boundary, "../../etc/evil", b"Y"), ct, d)
+            self.assertEqual(saved, ["evil"])
+            self.assertTrue(os.path.isfile(os.path.join(d, "evil")))
+            self.assertFalse(os.path.exists(os.path.abspath(os.path.join(d, "..", "..", "etc", "evil"))))
+            # File berisi byte mirip boundary tetap roundtrip utuh
+            tricky = b"prefix --" + boundary.encode() + b" suffix"
+            saved, _ = save_multipart(build_body(boundary, "tricky.bin", tricky), ct, d)
+            self.assertEqual(saved, ["tricky.bin"])
+            with open(os.path.join(d, "tricky.bin"), "rb") as f:
+                self.assertEqual(f.read(), tricky)
+
+
+class TestKAiHelpers(unittest.TestCase):
+    def test_ollama_timeout_configurable(self):
+        kai = load_cli_module("k-ai")
+        cases = [("", 120.0), ("60", 60.0), ("0", None), ("-5", None), ("abc", 120.0)]
+        for raw, expected in cases:
+            old = os.environ.get("KALACAKRA_AI_TIMEOUT")
+            os.environ["KALACAKRA_AI_TIMEOUT"] = raw
+            try:
+                self.assertEqual(kai._ollama_timeout(), expected, f"timeout env={raw!r}")
+            finally:
+                if old is None:
+                    os.environ.pop("KALACAKRA_AI_TIMEOUT", None)
+                else:
+                    os.environ["KALACAKRA_AI_TIMEOUT"] = old
+
+    def test_clean_code_block_extraction(self):
+        kai = load_cli_module("k-ai")
+        self.assertEqual(kai.clean_code_block("```bash\nls -la\n```"), "ls -la")
+        self.assertEqual(kai.clean_code_block("```\nfind . -name x\n```"), "find . -name x")
+        self.assertEqual(kai.clean_code_block("echo plain"), "echo plain")
+
 
 class TestCommonHelpers(unittest.TestCase):
     """Uji perilaku tepi helper bersama di kalacakra_common."""
@@ -449,6 +548,113 @@ class TestCommonHelpers(unittest.TestCase):
         self.assertFalse(is_dangerous_command("rm -rf ./build"))
         self.assertTrue(is_dangerous_command("dd if=/dev/zero of=/dev/sda"))
         self.assertTrue(is_dangerous_command("chmod -R 777 /"))
+
+
+class TestRewindRestoreLogic(unittest.TestCase):
+    """Uji logika inti k-rewind restore (tanpa snapshot nyata, yang butuh root).
+    Fokus: tidak boleh kehilangan berkas asli bila restore gagal."""
+
+    @staticmethod
+    def _restore(source_file, target):
+        # Replika logika inti yang sama dengan k-rewind restore (jaga paritas).
+        import subprocess
+        backup = f"{target}.before-rewind"
+        renamed = False
+        if os.path.lexists(target):
+            try:
+                os.rename(target, backup)
+                renamed = True
+            except OSError:
+                return "ERR-backup"
+        res = subprocess.run(["cp", "-a", source_file, target],
+                             capture_output=True)
+        if res.returncode != 0:
+            if renamed:
+                os.replace(backup, target)
+                return "ERR-copy-restored"
+            return "ERR-copy"
+        return "OK"
+
+    def test_restore_normal_keeps_backup(self):
+        import tempfile
+        with tempfile.TemporaryDirectory() as d:
+            src = os.path.join(d, "src"); write_file(src, "BARU")
+            tgt = os.path.join(d, "tgt"); write_file(tgt, "LAMA")
+            self.assertEqual(self._restore(src, tgt), "OK")
+            self.assertEqual(read_file(tgt), "BARU")
+            self.assertEqual(read_file(tgt + ".before-rewind"), "LAMA")
+
+    def test_restore_new_target(self):
+        import tempfile
+        with tempfile.TemporaryDirectory() as d:
+            src = os.path.join(d, "src"); write_file(src, "BARU")
+            tgt = os.path.join(d, "missing")
+            self.assertEqual(self._restore(src, tgt), "OK")
+            self.assertEqual(read_file(tgt), "BARU")
+
+    def test_restore_failure_preserves_original(self):
+        import tempfile
+        with tempfile.TemporaryDirectory() as d:
+            tgt = os.path.join(d, "keep"); write_file(tgt, "ASLI")
+            # source tidak ada -> cp gagal -> backup WAJIB dipulihkan
+            self.assertEqual(self._restore("/nonexistent/src", tgt), "ERR-copy-restored")
+            self.assertEqual(read_file(tgt), "ASLI")
+
+    def test_restore_handles_broken_symlink_target(self):
+        import tempfile
+        with tempfile.TemporaryDirectory() as d:
+            src = os.path.join(d, "src"); write_file(src, "BARU")
+            tgt = os.path.join(d, "broken")
+            os.symlink("/nonexistent/path", tgt)
+            # lexists menangkap symlink rusak -> rename berhasil -> restore OK
+            self.assertEqual(self._restore(src, tgt), "OK")
+            self.assertFalse(os.path.islink(tgt))
+            self.assertEqual(read_file(tgt), "BARU")
+
+
+class TestSmokeNoTools(unittest.TestCase):
+    """Smoke test: tool harus tetap jujur & tidak crash saat dependensi eksternal
+    benar-benar absen (PATH kosong) - skenario paling keras."""
+
+    def _run_with_empty_path(self, script, args=None, stdin=None):
+        import subprocess, tempfile
+        path = os.path.join(ROOTFS_DIR, "usr", "bin", script)
+        with tempfile.TemporaryDirectory() as empty_bin:
+            env = os.environ.copy()
+            # PATH ke python + folder kosong: tool eksternal (bootc, podman, ...) absen
+            env["PATH"] = empty_bin
+            env["LANG"] = "en_US.UTF-8"
+            return subprocess.run(
+                [sys.executable, path] + (args or []),
+                capture_output=True, text=True, env=env,
+                input=stdin, timeout=60
+            )
+
+    def test_k_doctor_full_run_without_external_tools(self):
+        res = self._run_with_empty_path("k-doctor")
+        self.assertEqual(res.returncode, 0, f"stderr: {res.stderr}\nstdout: {res.stdout}")
+        self.assertNotIn("Traceback", res.stderr)
+        self.assertNotIn("Traceback", res.stdout)
+        # Harus tetap melaporkan hasil, bukan diam
+        self.assertIn("Immutable Core", res.stdout)
+
+    def test_k_interceptor_no_packages(self):
+        # 'apt install' tanpa paket: harus tetap tampil menu, tidak crash
+        res = self._run_with_empty_path("k-interceptor", ["apt", "install"], stdin="\n")
+        self.assertNotIn("Traceback", res.stderr)
+        self.assertIn("Immutable", res.stdout)
+
+    def test_k_interceptor_no_args(self):
+        res = self._run_with_empty_path("k-interceptor", [])
+        self.assertEqual(res.returncode, 1)
+        self.assertIn("Usage", res.stdout + res.stderr)
+
+    def test_k_interceptor_missing_backend_degrades_honestly(self):
+        # Pilih opsi 4 (Homebrew) yang pasti absen di PATH kosong -> pesan jujur, exit 1
+        res = self._run_with_empty_path("k-interceptor", ["apt", "install", "vlc"], stdin="4\n")
+        self.assertEqual(res.returncode, 1)
+        self.assertNotIn("Traceback", res.stderr)
+        self.assertIn("brew", res.stdout.lower() + res.stderr.lower())
 
 
 if __name__ == "__main__":

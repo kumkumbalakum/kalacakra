@@ -59,10 +59,37 @@ def check_bootc_status():
     return "WARN", "bootc/rpm-ostree status tidak tersedia"
 
 def check_rollback_protection():
-    """Perlindungan rollback: bootloader harus mendukung pilih deployment lama."""
-    for path in ("/boot/loader.1", "/boot/loader", "/boot/efi/EFI/fedora"):
+    """Perlindungan rollback: bootloader harus mendukung pilih deployment lama.
+    Indikator paling andal di bootc/ostree adalah jumlah deployment terdaftar;
+    fallback ke deteksi lokasi bootloader (systemd-boot/GRUB)."""
+    # 1. Cara paling akurat: ada >1 deployment = rollback benar-benar mungkin
+    out, code = run_cmd(["rpm-ostree", "status", "--json"])
+    if code == 0 and out:
+        try:
+            import json
+            deployments = json.loads(out).get("deployments", [])
+            if len(deployments) > 1:
+                return "OK", f"{len(deployments)} deployment terdaftar (rollback tersedia)"
+            if len(deployments) == 1:
+                return "INFO", "Hanya 1 deployment - rollback ke versi lain belum tersedia"
+        except Exception:
+            pass
+
+    # 2. Deteksi lokasi bootloader (systemd-boot & GRUB) - jalur nyata di Fedora bootc
+    systemd_boot_markers = [
+        "/boot/loader/entries",            # entri systemd-boot (bootc pakai ini)
+        "/boot/efi/EFI/systemd",           # binary systemd-bootx64.efi
+        "/boot/efi/EFI/BOOT",
+    ]
+    for path in systemd_boot_markers:
         if os.path.isdir(path):
-            return "OK", "Boot menu multi-deployment aktif"
+            return "OK", "systemd-boot terdeteksi (menu multi-deployment aktif)"
+
+    # GRUB: cek keberadaan direktori konfigurasi (bukan loader.1 yang tak standar)
+    for path in ("/boot/grub2", "/boot/grub", "/boot/efi/EFI/fedora"):
+        if os.path.isdir(path):
+            return "OK", "GRUB terdeteksi (menu multi-deployment aktif)"
+
     # grub2-editenv menyimpan hitungan boot gagal (boot-counting ala systemd)
     out, code = run_cmd(["grub2-editenv", "list"])
     if code == 0 and out:
