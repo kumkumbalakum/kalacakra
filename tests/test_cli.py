@@ -693,6 +693,67 @@ class TestLookManager(unittest.TestCase):
             self.assertNotIn("Traceback", res.stderr)
             self.assertIn("tidak ditemukan", res.stdout)
 
+    def test_look_dry_run_changes_nothing(self):
+        import tempfile
+        with tempfile.TemporaryDirectory() as home:
+            res = self._run_look(["apply", "kraton-gold", "--dry-run"], home)
+            self.assertEqual(res.returncode, 0, res.stderr)
+            self.assertIn("DRY-RUN", res.stdout)
+            # Tidak boleh ada berkas konfigurasi yang dibuat
+            cfg = os.path.join(home, ".config")
+            leftovers = []
+            if os.path.isdir(cfg):
+                for root, _, files in os.walk(cfg):
+                    leftovers += files
+            self.assertEqual(leftovers, [], f"dry-run menulis berkas: {leftovers}")
+            # active.json juga tidak boleh dibuat
+            active = os.path.join(home, ".local", "share", "kalacakra", "look", "active.json")
+            self.assertFalse(os.path.isfile(active))
+
+    def test_look_validate_preset(self):
+        look = load_cli_module("k-look")
+        ok, problems = look.validate_preset({"id": "x", "name": "X"})
+        self.assertTrue(ok, problems)
+        bad, problems = look.validate_preset({"description": "tanpa id/name"})
+        self.assertFalse(bad)
+        self.assertTrue(any("wajib" in p for p in problems))
+
+    def test_look_import_preview_and_install(self):
+        import tempfile, json
+        with tempfile.TemporaryDirectory() as home:
+            env = os.environ.copy()
+            env["XDG_DATA_HOME"] = os.path.join(home, ".local", "share")
+            env["HOME"] = home
+            preset_file = os.path.join(home, "community.json")
+            with open(preset_file, "w") as f:
+                json.dump({"id": "komunitas-1", "name": "Komunitas Satu",
+                           "color_scheme": "BreezeDark"}, f)
+            # Preview (tanpa --install) tidak menulis apa pun
+            import subprocess
+            path = os.path.join(ROOTFS_DIR, "usr", "bin", "k-look")
+            r1 = subprocess.run([sys.executable, path, "import", preset_file],
+                                capture_output=True, text=True, env=env)
+            self.assertEqual(r1.returncode, 0, r1.stderr)
+            self.assertIn("Validasi selesai", r1.stdout)
+            user_dir = os.path.join(env["XDG_DATA_HOME"], "kalacakra", "look", "presets")
+            self.assertFalse(os.path.isfile(os.path.join(user_dir, "komunitas-1.json")))
+            # --install menulis ke direktori user
+            r2 = subprocess.run([sys.executable, path, "import", preset_file, "--install"],
+                                capture_output=True, text=True, env=env)
+            self.assertEqual(r2.returncode, 0, r2.stderr)
+            self.assertTrue(os.path.isfile(os.path.join(user_dir, "komunitas-1.json")))
+
+    def test_look_import_rejects_invalid_json(self):
+        import tempfile
+        with tempfile.TemporaryDirectory() as home:
+            bad = os.path.join(home, "bad.json")
+            with open(bad, "w") as f:
+                f.write("{ bukan json }")
+            res = self._run_look(["import", bad], home)
+            self.assertEqual(res.returncode, 1)
+            self.assertNotIn("Traceback", res.stderr)
+            self.assertIn("tidak valid", res.stdout)
+
 
 class TestInterceptorSmartRecommend(unittest.TestCase):
     """k-interceptor: rekomendasi backend cerdas & jujur (tanpa memalsukan)."""

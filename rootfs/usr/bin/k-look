@@ -44,6 +44,14 @@ def presets_dir() -> str:
 CONFIG_HOME = os.environ.get("XDG_CONFIG_HOME", os.path.expanduser("~/.config"))
 DATA_HOME = os.environ.get("XDG_DATA_HOME", os.path.expanduser("~/.local/share"))
 LOOK_STATE_DIR = os.path.join(DATA_HOME, "kalacakra", "look")
+# Preset komunitas milik user (tidak mengubah image immutable).
+USER_PRESETS_DIR = os.path.join(DATA_HOME, "kalacakra", "look", "presets")
+# Skema minimal yang harus dimiliki preset komunitas agar valid.
+REQUIRED_PRESET_FIELDS = ("id", "name")
+KNOWN_PRESET_KEYS = {
+    "id", "name", "description", "plasma_theme", "color_scheme", "wallpaper",
+    "cursor", "icons", "fonts", "terminal", "terminal_colors", "fastfetch", "starship",
+}
 LOOK_ACTIVE_FILE = os.path.join(LOOK_STATE_DIR, "active.json")
 
 
@@ -63,25 +71,31 @@ def have(name: str) -> bool:
 
 
 def list_presets() -> list[dict]:
-    """Kembalikan daftar preset yang valid (JSON dengan field minimal)."""
+    """Kembalikan daftar preset yang valid, menggabungkan preset bawaan (sistem)
+    dengan preset komunitas milik user. Preset user menang bila id sama."""
     result = []
-    d = presets_dir()
-    if not os.path.isdir(d):
-        return result
-    for fname in sorted(os.listdir(d)):
-        if not fname.endswith(".json"):
+    seen = set()
+    # User presets lebih dulu agar bisa menimpa preset bawaan dengan id sama.
+    for d in (USER_PRESETS_DIR, presets_dir()):
+        if not os.path.isdir(d):
             continue
-        path = os.path.join(d, fname)
-        try:
-            with open(path, "r", encoding="utf-8") as f:
-                data = json.load(f)
-        except (OSError, json.JSONDecodeError):
-            continue
-        if not isinstance(data, dict):
-            continue
-        data.setdefault("id", fname[:-5])
-        data["__path__"] = path
-        result.append(data)
+        for fname in sorted(os.listdir(d)):
+            if not fname.endswith(".json"):
+                continue
+            path = os.path.join(d, fname)
+            try:
+                with open(path, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+            except (OSError, json.JSONDecodeError):
+                continue
+            if not isinstance(data, dict):
+                continue
+            data.setdefault("id", fname[:-5])
+            if data["id"] in seen:
+                continue
+            seen.add(data["id"])
+            data["__path__"] = path
+            result.append(data)
     return result
 
 
@@ -446,12 +460,15 @@ def cmd_show(preset_id: str) -> int:
     return 0
 
 
-def cmd_apply(preset_id: str, do_shot: bool) -> int:
+def cmd_apply(preset_id: str, do_shot: bool, dry_run: bool = False) -> int:
     p = find_preset(preset_id)
     if not p:
         print(f"[k-look Error] Preset '{preset_id}' tidak ditemukan.")
         print("   Jalankan 'kalacakra look' untuk melihat daftar preset.")
         return 1
+
+    if dry_run:
+        return _render_dry_run(p)
 
     print(f"[k-look] Menerapkan tampilan '{p.get('name', preset_id)}'...")
     # Snapshot konfigurasi sebelum berubah -> aman & bisa di-rollback.
@@ -497,6 +514,55 @@ def cmd_apply(preset_id: str, do_shot: bool) -> int:
     return 0
 
 
+def _render_dry_run(p: dict) -> int:
+    """Tampilkan persis apa yang AKAN berubah tanpa menyentuh sistem."""
+    print(f"[k-look] DRY-RUN untuk '{p.get('name', p.get('id'))}' - tidak ada berkas yang diubah.\n")
+    steps = []
+    for key in APPLIERS:
+        if key in ("fastfetch", "starship"):
+            if p.get(key):
+                steps.append((key, "akan menulis config preset-level"))
+            continue
+        val = p.get(key)
+        if not val:
+            continue
+        if key == "wallpaper":
+            path = _resolve_wallpaper_path(val)
+            steps.append((key, f"-> {path}" + ("" if os.path.isfile(path) else "  [BERKAS HILANG]")))
+        elif key == "terminal":
+            steps.append((key, f"tema={val}, colors={bool(p.get('terminal_colors'))}"))
+        elif key == "fonts":
+            steps.append((key, "; ".join(f"{k}={v.split(',')[0]}" for k, v in val.items())))
+        else:
+            steps.append((key, str(val)))
+
+    print(f"  Target config dir : {CONFIG_HOME}")
+    print(f"  Berkas yang mungkin disentuh ({len(_files_we_touch())}):")
+    for rel in _files_we_touch():
+        exists = "ada" if os.path.lexists(os.path.join(CONFIG_HOME, rel)) else "belum ada"
+        print(f"      - {rel}  ({exists})")
+    print("\n  Langkah yang akan dijalankan:")
+    for key, desc in steps:
+        print(f"      [{key:<14}] {desc}")
+    print("\n  Prasyarat terdeteksi:")
+    for tool in ("plasma-apply-lookandfeel", "plasma-apply-colorscheme",
+                 "plasma-apply-wallpaperimage", "kwriteconfig6", "grim"):
+        print(f"      {'OK  ' if have(tool) else 'ABSN'}  {tool}")
+    print("\n[k-look] Jalankan tanpa --dry-run untuk menerapkan.")
+    return 0
+
+
+def _resolve_wallpaper_path(image: str) -> str:
+    if not image:
+        return ""
+    if os.path.isabs(image):
+        return image
+    local = os.path.join(presets_dir(), "..", "wallpapers", image)
+    if os.path.isfile(local):
+        return os.path.abspath(local)
+    return image
+
+
 def cmd_rollback() -> int:
     return rollback()
 
@@ -526,16 +592,102 @@ def cmd_share(preset_id: str | None) -> int:
     return 0
 
 
+def validate_preset(data: dict) -> tuple[bool, list]:
+    """Validasi sederhana struktur preset. Mengembalikan (valid, daftar_masalah)."""
+    problems = []
+    if not isinstance(data, dict):
+        return False, ["preset harus berupa objek JSON (dict)"]
+    for field in REQUIRED_PRESET_FIELDS:
+        if not data.get(field):
+            problems.append(f"field wajib '{field}' kosong/tidak ada")
+    unknown = set(data) - KNOWN_PRESET_KEYS
+    if unknown:
+        problems.append(f"key tak dikenal (diabaikan): {sorted(unknown)}")
+    # Wallpaper (bila ada & bukan URL/absolut) harus dapat dipastikan keberadaannya.
+    wp = data.get("wallpaper")
+    if wp and not os.path.isabs(wp) and not wp.startswith(("http://", "https://")):
+        if not os.path.isfile(os.path.join(presets_dir(), "..", "wallpapers", wp)):
+            problems.append(f"wallpaper '{wp}' tidak ditemukan (preset tetap bisa dipakai tanpa wallpaper)")
+    return (not [p for p in problems if "wajib" in p]), problems
+
+
+def cmd_import(source: str, install: bool) -> int:
+    """Impor preset komunitas dari berkas JSON lokal atau URL. Default: validasi
+    + preview (dry). Dengan --install, salin ke direktori preset user."""
+    import json
+    import urllib.request
+
+    raw = None
+    if source.startswith(("http://", "https://")):
+        try:
+            with urllib.request.urlopen(source, timeout=15) as resp:
+                raw = resp.read().decode("utf-8")
+        except Exception as e:
+            print(f"[k-look Error] Gagal mengunduh preset dari '{source}': {e}")
+            return 1
+    else:
+        if not os.path.isfile(source):
+            print(f"[k-look Error] Berkas preset tidak ditemukan: {source}")
+            return 1
+        try:
+            with open(source, "r", encoding="utf-8") as f:
+                raw = f.read()
+        except OSError as e:
+            print(f"[k-look Error] Gagal membaca '{source}': {e}")
+            return 1
+
+    try:
+        data = json.loads(raw)
+    except json.JSONDecodeError as e:
+        print(f"[k-look Error] JSON preset tidak valid: {e}")
+        return 1
+
+    valid, problems = validate_preset(data)
+    print(f"[k-look] Preset: {data.get('name', '(tanpa nama)')} ({data.get('id', '?')})")
+    if problems:
+        for pr in problems:
+            print(f"         perhatian: {pr}")
+    if not valid:
+        print("[k-look Error] Preset tidak memenuhi skema minimal (id & name wajib).")
+        return 1
+
+    if not install:
+        print("[k-look] Validasi selesai. Jalankan dengan --install untuk memasang preset ini.")
+        print("         Preset komunitas disimpan di:")
+        print(f"             {USER_PRESETS_DIR}")
+        return 0
+
+    os.makedirs(USER_PRESETS_DIR, exist_ok=True)
+    out = os.path.join(USER_PRESETS_DIR, f"{data['id']}.json")
+    if os.path.exists(out):
+        print(f"[k-look Error] Preset '{data['id']}' sudah ada di {out}. Hapus dulu bila ingin menimpa.")
+        return 1
+    try:
+        with open(out, "w", encoding="utf-8") as f:
+            json.dump(data, f, indent=2, ensure_ascii=False)
+            f.write("\n")
+    except OSError as e:
+        print(f"[k-look Error] Gagal menulis preset: {e}")
+        return 1
+    print(f"[k-look] Preset '{data['id']}' terpasang di {out}.")
+    print(f"[k-look] Terapkan dengan: kalacakra look apply {data['id']}")
+    return 0
+
+
 def main():
     parser = argparse.ArgumentParser(
         prog="k-look",
         description="Kalacakra Look - Manajer identitas & tampilan desktop satu perintah",
     )
     parser.add_argument("action", nargs="?", default="list",
-                        help="list | apply <id> | rollback | current | show <id> | share [id]")
+                        help="list | apply <id> | rollback | current | show <id> | share [id] | import <file/url>")
     parser.add_argument("args", nargs="*", help="Argumen tambahan untuk aksi")
     parser.add_argument("--screenshot", "-s", action="store_true",
                         help="Ambil screenshot + caption setelah apply")
+    parser.add_argument("--dry-run", "-n", action="store_true",
+                        help="Tampilkan langkah yang AKAN dijalankan tanpa mengubah apa pun")
+    parser.add_argument("--install", action="store_true",
+                        help="Untuk 'import': pasang preset ke direktori preset user")
     parsed = parser.parse_args()
 
     action = parsed.action
@@ -555,14 +707,20 @@ def main():
         return cmd_show(rest[0])
     if action == "share":
         return cmd_share(rest[0] if rest else None)
+    if action == "import":
+        if not rest:
+            print("[k-look Error] 'import' butuh berkas JSON atau URL preset.")
+            print("   Contoh: kalacakra look import tema-ku.json --install")
+            return 1
+        return cmd_import(rest[0], install=parsed.install)
     if action == "apply":
         if not rest:
             print("[k-look Error] 'apply' butuh id preset. Contoh: kalacakra look apply obsidian-minimal")
             return 1
-        return cmd_apply(rest[0], do_shot=parsed.screenshot)
+        return cmd_apply(rest[0], do_shot=parsed.screenshot, dry_run=parsed.dry_run)
 
     print(f"[k-look Error] Aksi tidak dikenal: '{action}'")
-    print("   Aksi: list | apply <id> | rollback | current | show <id> | share [id]")
+    print("   Aksi: list | apply <id> | rollback | current | show <id> | share [id] | import <file/url>")
     return 1
 
 

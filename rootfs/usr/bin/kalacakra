@@ -172,8 +172,10 @@ def main():
 
     # Fitur ikonik (pilar viral): Look, Showcase
     p_look = subparsers.add_parser("look", help="Kalacakra Look - Manajer identitas & tampilan desktop (1 perintah)")
-    p_look.add_argument("subaction", nargs="*", help="Look arguments (list/apply <id>/rollback/current/show/share)")
+    p_look.add_argument("subaction", nargs="*", help="Look arguments (list/apply <id>/rollback/current/show/share/import)")
     p_look.add_argument("--screenshot", "-s", action="store_true", help="Ambil screenshot + caption setelah apply")
+    p_look.add_argument("--dry-run", "-n", action="store_true", help="Tampilkan langkah tanpa mengubah apa pun")
+    p_look.add_argument("--install", action="store_true", help="Untuk 'import': pasang preset ke direktori user")
 
     p_show = subparsers.add_parser("showcase", help="Kalacakra Showcase - Tampilan identitas siap screenshot untuk r/unixporn")
     p_show.add_argument("subaction", nargs="*", help="Showcase arguments (--no-fetch)")
@@ -257,10 +259,18 @@ def main():
     elif args.command == "game":
         sys.exit(subprocess.run([find_bin("k-game")] + args.subaction).returncode)
     elif args.command == "look":
-        extra = [a for a in args.subaction if a not in ("--screenshot", "-s")]
+        # Flag bisa mendarat di subaction ATAU unknown (argparse root tak makan
+        # opsi setelah subcommand). Gabungkan & pisahkan dengan bersih.
+        tokens = list(args.subaction) + list(unknown)
+        flag_set = {"--screenshot", "-s", "--dry-run", "-n", "--install"}
+        extra = [a for a in tokens if a not in flag_set]
         cmd = [find_bin("k-look")] + extra
-        if args.screenshot or "--screenshot" in args.subaction or "-s" in args.subaction:
+        if args.screenshot or any(f in tokens for f in ("--screenshot", "-s")):
             cmd.append("--screenshot")
+        if getattr(args, "dry_run", False) or any(f in tokens for f in ("--dry-run", "-n")):
+            cmd.append("--dry-run")
+        if getattr(args, "install", False) or "--install" in tokens:
+            cmd.append("--install")
         sys.exit(subprocess.run(cmd).returncode)
     elif args.command == "showcase":
         # Flag bisa muncul di subaction atau unknown (argparse root tak makan
