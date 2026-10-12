@@ -105,9 +105,9 @@ Itulah momen viral-nya.
 
 ## 5. Langkah konkret berikutnya (prioritas)
 
-1. **Preset komunitas** — bikin kontes/format preset mudah dibuat orang lain.
-2. **Wizard first-run** (`kalacakra welcome`) — gabungkan Look + AI + bahasa dalam alur pertama.
-3. **Galeri showcase daring** — halaman statis yang menampilkan screenshot komunitas.
-4. **Konten** — tutorial dwibahasa, video "1 perintah ubah tampilan".
+1. ✅ **Preset komunitas** — `kalacakra look import <berkas/URL> [--install]` (format JSON tervalidasi; preset user menimpa preset bawaan).
+2. ✅ **Wizard first-run** (`kalacakra welcome`) — alur bahasa → tema Look → status AI/voice → ringkasan (dwibahasa, bisa non-interaktif `--yes`).
+3. ⬜ **Galeri showcase daring** — halaman statis yang menampilkan screenshot komunitas (belum ada).
+4. ⬜ **Konten** — tutorial dwibahasa, video "1 perintah ubah tampilan" (belum ada).
 
-> Semua ini **belum** dikerjakan. Dokumen ini adalah peta, bukan klaim.
+> **Status jujur:** Item 1 & 2 **sudah dikerjakan** dan diuji (`tests/test_cli.py`, kini 65 test). Item 3 & 4 masih rencana. Dokumen ini peta, bukan klaim.
