@@ -26,6 +26,22 @@ except ImportError:
 PID_FILE = "/tmp/kalacakra-flow.pid"
 CONFIG_FILE = os.path.expanduser("~/.config/kalacakra/flow.conf")
 
+# Deskflow adalah penerus Barrier; nama biner server & klien berbeda antar paket.
+# Cek ketersediaan di muka agar pesan error akurat, bukan gagal setelah Popen.
+SERVER_BINARIES = ("deskflow", "barriers", "barrier")
+CLIENT_BINARIES = ("deskflow", "barrierc", "barrier")
+
+def shutil_which(cmd: str) -> bool:
+    import shutil
+    return shutil.which(cmd) is not None
+
+def find_first_available(candidates) -> str:
+    """Kembalikan biner pertama yang tersedia di PATH, atau None."""
+    for c in candidates:
+        if shutil_which(c):
+            return c
+    return None
+
 def ensure_config():
     os.makedirs(os.path.dirname(CONFIG_FILE), exist_ok=True)
     if not os.path.isfile(CONFIG_FILE):
@@ -55,21 +71,21 @@ def start_server(port: int = 24800):
     print("Di laptop kedua (Windows/Mac/Linux), hubungkan ke IP laptop ini via Barrier/Deskflow.")
     print("-" * 60)
 
-    binary = "deskflow" if shutil_which("deskflow") else ("barriers" if shutil_which("barriers") else None)
+    binary = find_first_available(SERVER_BINARIES)
     if binary:
         proc = subprocess.Popen([binary, "-f", "--config", CONFIG_FILE, "--address", f":{port}"])
         with open(PID_FILE, "w") as f:
             f.write(str(proc.pid))
         print(f"[k-flow] Backend aktif: {binary} (PID {proc.pid})")
     else:
-        print("[k-flow Error] 'deskflow' atau 'barriers' tidak terpasang - server TIDAK berjalan.")
+        print("[k-flow Error] 'deskflow' atau 'barrier' tidak terpasang - server TIDAK berjalan.")
         print("[k-flow] Pasang salah satu terlebih dahulu, misalnya:")
-        print("         sudo rpm-ostree install barrier   (atau deskflow)")
+        print("         sudo rpm-ostree install deskflow   (atau barrier)")
         sys.exit(1)
 
 def connect_client(server_ip: str, port: int = 24800):
     print(f"[Kalacakra Flow] Menghubungkan mouse/keyboard ke server di {server_ip}:{port}...")
-    binary = "deskflow" if shutil_which("deskflow") else ("barrierc" if shutil_which("barrierc") else None)
+    binary = find_first_available(CLIENT_BINARIES)
     if binary:
         proc = subprocess.Popen([binary, "-f", f"{server_ip}:{port}"])
         with open(PID_FILE, "w") as f:
@@ -78,7 +94,7 @@ def connect_client(server_ip: str, port: int = 24800):
     else:
         print("[k-flow Error] 'deskflow' atau 'barrierc' tidak terpasang - koneksi TIDAK dibuat.")
         print("[k-flow] Pasang salah satu terlebih dahulu, misalnya:")
-        print("         sudo rpm-ostree install barrier   (atau deskflow)")
+        print("         sudo rpm-ostree install deskflow   (atau barrier)")
         sys.exit(1)
 
 def kill_process(name: str):
@@ -107,13 +123,7 @@ def stop_flow():
             pass
     kill_process("deskflow")
     kill_process("barrier")
-    kill_process("barriers")
-    kill_process("barrierc")
     print("[Kalacakra Flow] Layanan Universal Control dinonaktifkan.")
-
-def shutil_which(cmd: str) -> bool:
-    import shutil
-    return shutil.which(cmd) is not None
 
 def main():
     parser = argparse.ArgumentParser(
@@ -141,8 +151,9 @@ def main():
     elif args.command == "stop":
         stop_flow()
     elif args.command == "status":
-        active = os.path.isfile(PID_FILE) or is_process_running("barrier") or is_process_running("deskflow")
-        backend = "deskflow" if is_process_running("deskflow") else ("barrier" if is_process_running("barrier") else "-")
+        running_backends = [b for b in ("deskflow", "barrier", "barriers", "barrierc") if is_process_running(b)]
+        active = os.path.isfile(PID_FILE) or bool(running_backends)
+        backend = ", ".join(running_backends) if running_backends else "-"
         print(f"[k-flow] Status: {'AKTIF' if active else 'NONAKTIF'} (backend: {backend})")
 
 

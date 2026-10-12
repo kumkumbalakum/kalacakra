@@ -324,5 +324,132 @@ class TestRepoConsistency(unittest.TestCase):
             )
 
 
+def load_cli_module(name):
+    """Muat script CLI tanpa ekstensi .py sebagai modul Python importable.
+    Wajib memakai SourceFileLoader eksplisit karena nama file tanpa .py."""
+    import importlib.util
+    from importlib.machinery import SourceFileLoader
+    path = os.path.join(ROOTFS_DIR, "usr", "bin", name)
+    loader = SourceFileLoader(f"kalacakra_cli_{name}", path)
+    spec = importlib.util.spec_from_loader(f"kalacakra_cli_{name}", loader)
+    module = importlib.util.module_from_spec(spec)
+    loader.exec_module(module)
+    return module
+
+
+class TestKQASync(unittest.TestCase):
+    def test_k_qa_expected_bins_matches_actual_bin_dir(self):
+        """Daftar expected_bins di k-qa harus persis sama dengan isi rootfs/usr/bin.
+        Mencegah tool baru (mis. k-voice/k-game) luput dari verifikasi QA."""
+        import re
+        bin_dir = os.path.join(ROOTFS_DIR, "usr", "bin")
+        actual = {n for n in os.listdir(bin_dir) if os.path.isfile(os.path.join(bin_dir, n))}
+
+        qa_path = os.path.join(bin_dir, "k-qa")
+        with open(qa_path, "r", encoding="utf-8") as f:
+            content = f.read()
+        block = re.search(r"expected_bins = \[(.*?)\]", content, re.DOTALL)
+        self.assertIsNotNone(block, "expected_bins tidak ditemukan di k-qa")
+        listed = set(re.findall(r'"([^"]+)"', block.group(1)))
+
+        self.assertEqual(
+            listed, actual,
+            f"k-qa expected_bins tidak sinkron dengan rootfs/usr/bin. "
+            f"Kurang: {sorted(actual - listed)} | Berlebih: {sorted(listed - actual)}"
+        )
+
+
+class TestPureLogicUnits(unittest.TestCase):
+    """Unit test untuk logika murni yang tidak butuh sistem berjalan."""
+
+    def test_wx_parse_elf_self_and_system(self):
+        """k-wx.parse_elf harus mengenali ELF asli (pakai biner sistem /usr/bin/ls)."""
+        kwx = load_cli_module("k-wx")
+        target = "/usr/bin/ls"
+        if not os.path.isfile(target):
+            self.skipTest("/usr/bin/ls tidak ada")
+        res = kwx.parse_elf(target)
+        self.assertTrue(res["is_elf"], "ls harus terdeteksi sebagai ELF")
+        self.assertEqual(res["compliant"], len(res["wx_violations"]) == 0 and not res["exec_stack"])
+
+        # File non-ELF harus ditandai jujur
+        non_elf = load_cli_module("k-wx").parse_elf(__file__)
+        self.assertFalse(non_elf["is_elf"])
+
+    def test_wx_parse_elf_missing_file(self):
+        kwx = load_cli_module("k-wx")
+        res = kwx.parse_elf("/nonexistent/binary/xyz")
+        self.assertFalse(res["is_elf"])
+
+    def test_spotlight_math_evaluation(self):
+        ks = load_cli_module("k-spotlight")
+        self.assertIn("4", ks.evaluate_math("2 + 2"))
+        self.assertIn("2", ks.evaluate_math("4 / 2"))
+        # Ekspresi berbahaya dibersihkan: tidak boleh mengeksekusi kode arbitrer
+        self.assertIsNone(ks.evaluate_math("__import__('os').system('echo pwn')"))
+
+    def test_spotlight_unit_conversion(self):
+        ks = load_cli_module("k-spotlight")
+        conv = ks.evaluate_conversion("100 usd to idr")
+        self.assertIsNotNone(conv)
+        self.assertIn("Rp", conv)
+        temp = ks.evaluate_conversion("100 c to f")
+        self.assertIsNotNone(temp)
+
+    def test_signify_ed25519_roundtrip(self):
+        """Ed25519 pure-python harus tahan verifikasi: sign lalu verify, dan
+        tanda tangan harus GAGAL untuk pesan yang dimodifikasi (anti-tamper)."""
+        ksig = load_cli_module("k-signify")
+        sk = bytes(range(32))
+        pk = ksig.ed25519_publickey(sk)
+        self.assertEqual(len(pk), 32)
+
+        msg = b"Kalacakra OS - integritas berkas"
+        sig = ksig.ed25519_sign(msg, sk, pk)
+        self.assertEqual(len(sig), 64)
+        self.assertTrue(ksig.ed25519_verify(sig, msg, pk))
+        self.assertFalse(ksig.ed25519_verify(sig, msg + b"tampered", pk))
+
+    def test_signify_rejects_wrong_signer(self):
+        ksig = load_cli_module("k-signify")
+        sk1 = bytes(range(32))
+        sk2 = bytes(range(1, 33))
+        pk1 = ksig.ed25519_publickey(sk1)
+        pk2 = ksig.ed25519_publickey(sk2)
+        msg = b"payload"
+        sig1 = ksig.ed25519_sign(msg, sk1, pk1)
+        self.assertFalse(ksig.ed25519_verify(sig1, msg, pk2),
+                         "Tanda tangan penyerang tidak boleh lolos verifikasi kunci lain")
+
+
+class TestCommonHelpers(unittest.TestCase):
+    """Uji perilaku tepi helper bersama di kalacakra_common."""
+
+    def test_redact_multiple_secret_types(self):
+        from kalacakra_common import redact_secrets
+        text = (
+            "aws AKIAIOSFODNN7EXAMPLE and jwt "
+            "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.dozjgNryP4J3jVmNHl0w5N_XgL0n3I9PlFUP0THsR8U"
+        )
+        redacted, found = redact_secrets(text)
+        self.assertTrue(found)
+        self.assertNotIn("AKIAIOSFODNN7EXAMPLE", redacted)
+        self.assertIn("[REDACTED_SECRET]", redacted)
+
+    def test_locale_fallback_for_unknown_lang(self):
+        from kalacakra_common import get_locale_strings
+        strings, lang = get_locale_strings("en")
+        self.assertEqual(lang, "en")
+        strings_id, lang_id = get_locale_strings("id")
+        self.assertEqual(lang_id, "id")
+
+    def test_dangerous_and_safe_boundary(self):
+        from kalacakra_common import is_dangerous_command
+        # Batas: rm -rf ke path relatif aman, destructive tidak
+        self.assertFalse(is_dangerous_command("rm -rf ./build"))
+        self.assertTrue(is_dangerous_command("dd if=/dev/zero of=/dev/sda"))
+        self.assertTrue(is_dangerous_command("chmod -R 777 /"))
+
+
 if __name__ == "__main__":
     unittest.main()

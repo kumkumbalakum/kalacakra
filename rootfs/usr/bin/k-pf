@@ -192,8 +192,37 @@ def action_run(cmd_list: list):
         print("[GAGAL] 'unshare' (util-linux) tidak tersedia - isolasi namespace mustahil.", file=sys.stderr)
         return 1
 
+    # 'unshare --net' TANPA hak istimewa biasanya ditolak kernel ("Operation not
+    # permitted"), kecuali user namespace diizinkan. Probe dulu dengan perintah
+    # sepele (capture_output agar tidak mengotori layar), lalu jalankan aplikasi
+    # sesungguhnya dengan stdio yang diwarisi supaya tetap interaktif.
+    probes = [
+        [unshare_bin, "--net", "--map-root-user"],
+        [unshare_bin, "--net"],
+        ["sudo", unshare_bin, "--net"],
+    ]
+    if os.geteuid() == 0:
+        probes = [[unshare_bin, "--net"]]
+
+    chosen = None
+    for probe in probes:
+        try:
+            res = subprocess.run(probe + ["true"], capture_output=True, text=True, timeout=15)
+        except Exception:
+            continue
+        if res.returncode == 0:
+            chosen = probe
+            break
+
+    if chosen is None:
+        print(" [PF] GAGAL membuat network namespace terisolasi.", file=sys.stderr)
+        print("      Kernel menolak 'unshare --net' untuk pengguna ini.", file=sys.stderr)
+        print("      Solusi: jalankan dengan sudo, atau aktifkan user namespace "
+              "('sysctl kernel.unprivileged_userns_clone=1').", file=sys.stderr)
+        return 1
+
     print(f" [PF] Menjalankan '{cmd_list[0]}' di network namespace TERISOLASI (tanpa internet)...")
-    res = subprocess.run([unshare_bin, "--net"] + cmd_list)
+    res = subprocess.run(chosen + ["--"] + cmd_list)
     if res.returncode != 0:
         print(f" [PF] Aplikasi selesai dengan kode {res.returncode}.")
     return res.returncode

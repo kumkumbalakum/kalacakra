@@ -529,6 +529,8 @@ RUN systemctl enable zram-generator.service && \
 
 ### **Fase 2: Pengembangan Tooling Khusus (Kalacakra Core Suite - Native i18n)**
 
+> **Catatan status:** Sebagian besar tool di bawah ini **sudah diimplementasikan** (Python 3, di `rootfs/usr/bin/`) dan diverifikasi oleh `tests/test_cli.py`. Tool nomor **4 (`k-semantic`) dan 5 (`k-agent`)** **belum ada** dan masih masuk roadmap Fase 2 (lihat §8). Referensi implementasi terkini ada di README bagian "Status Implementasi".
+
 Membangun utilitas inti dengan arsitektur i18n (menggunakan Rust / Go untuk performa instan dan konsumsi memori minim):
 
 1. `kalacakra` (atau `k-just`): Central CLI & Recipe Runner berbasis *just* untuk automasi maintenance, rebase, battery cap, language switch, dan toggle sistem.

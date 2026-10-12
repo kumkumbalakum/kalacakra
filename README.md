@@ -44,6 +44,39 @@
 
 ---
 
+## 🧭 Status Implementasi (Jujur & Transparan)
+
+README dan `plan.md` menggambarkan visi lengkap Kalacakra OS. Agar tidak menyesatkan, berikut pembagian jelas antara **yang sudah ada di repositori ini** dan **yang masih roadmap**:
+
+**✅ Sudah diimplementasikan (ada kodenya di repo ini):**
+* Seluruh 33 tool CLI di `rootfs/usr/bin/` (`kalacakra`, `k-interceptor`, `k-ai`, `k-aur`, `k-doctor`, `k-rewind`, `k-beam`, `k-portal`, `k-ocr`, `k-survival`, `k-precache`, `k-preview`, `k-spotlight`, `k-flow`, `k-snippet`, `k-keyring`, `k-hub`, `k-qa`, `k-snapboot`, `k-profile`, `k-pkg`, `k-jail`, `k-be`, `k-scrub`, `k-trace`, `k-sysrc`, `k-unveil`, `k-signify`, `k-pf`, `k-doas`, `k-wx`, `k-voice`, `k-game`).
+* i18n EN/ID dwibahasa (kamus `locales/en.json` & `id.json`).
+* Konfigurasi sistem: hardening sysctl, DNS-over-TLS, ZRAM zstd, service AI Ollama.
+* Integrasi desktop: KDE shortcuts (`.desktop`) & KIO service menu Dolphin.
+* Build pipeline OCI + ISO (`Containerfile`, `Containerfile.nvidia`, GitHub Actions) & test suite.
+* Secret sanitizer, safety-gate perintah destruktif, deteksi perangkat lunak yang absen (fail-soft).
+
+**🧪 Sudah berjalan, tetapi bergantung pada komponen eksternal yang tidak dipaketkan di sini:**
+* `k-aur` butuh `distrobox` + `podman` + image Arch.
+* `k-beam` P2P lokal, `k-portal` (wayvnc), `k-flow` (deskflow/barrier) — backend opsional; tool memberi instruksi jika tak terpasang.
+* `k-ai` butuh daemon Ollama + model yang diunduh terpisah.
+* `k-voice` butuh `whisper-cli` + model `ggml-*.bin`.
+* `k-game` butuh `umu-launcher` (repo Terra, tidak ada di Fedora resmi).
+
+**🗺️ Masih roadmap (BELUM ada kodenya di repo ini):**
+* Hybrid tiling Polonium (`Super + Y`) & konfigurasi KDE Plasma tema/rice.
+* HDR / Wide Color Gamut pipeline bawaan.
+* Konfigurasi installer Calamares (Btrfs `@/@home/@var`, LUKS2 + TPM2 auto-unlock) — ISO dihasilkan `bootc-image-builder`, bukan Calamares.
+* Otomatisasi MOK Secure Boot enrollment & PQC (ML-KEM/ML-DSA) di seluruh stack.
+* `k-semantic` (vector index) & `k-agent` (agen otonom) — disebut di Fase 2 roadmap.
+* Firmware-level battery cap ASUS/Lenovo (saat ini bergantung dukungan driver kernel vendor).
+* Kalacakra Welcome / First-Run Wizard.
+
+> Prinsip proyek ini: **jangan mengklaim fitur yang belum ada**. Setiap tool yang bergantung komponen absen akan memberi pesan instalasi yang jelas, bukan error misterius atau sukses palsu.
+
+---
+
+
 ## ⚡ 6 Fitur Dahsyat (Killer Superpowers)
 
 ### ⏳ 1. Kalacakra Rewind (Time-Travel File Recovery)
