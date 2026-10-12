@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Name=Kalacakra Welcome
+Name[id]=Kalacakra Selamat Datang
+Comment=First-run setup wizard (language, theme, local AI)
+Comment[id]=Wizard pengaturan pertama (bahasa, tema, AI lokal)
+Icon=system-software-install
+Exec=/usr/bin/k-welcome
+Terminal=true
+Categories=System;Settings;
+Keywords=welcome;setup;onboarding;selamat datang;perkenalan;
+X-KDE-StartupNotify=false

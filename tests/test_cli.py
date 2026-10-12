@@ -787,6 +787,95 @@ class TestInterceptorSmartRecommend(unittest.TestCase):
             self.assertEqual(name, name.lower())
 
 
+class TestWelcomeWizard(unittest.TestCase):
+    def _run_welcome(self, args, home, lang="en_US.UTF-8"):
+        import subprocess
+        path = os.path.join(ROOTFS_DIR, "usr", "bin", "k-welcome")
+        env = os.environ.copy()
+        env["HOME"] = home
+        env["XDG_CONFIG_HOME"] = os.path.join(home, ".config")
+        env["XDG_DATA_HOME"] = os.path.join(home, ".local", "share")
+        env["LANG"] = lang
+        env["NO_COLOR"] = "1"
+        return subprocess.run([sys.executable, path] + args,
+                              capture_output=True, text=True, env=env, timeout=60, input="")
+
+    def test_welcome_noninteractive_runs_clean(self):
+        import tempfile
+        with tempfile.TemporaryDirectory() as home:
+            res = self._run_welcome(["--yes"], home)
+            self.assertEqual(res.returncode, 0, res.stderr)
+            self.assertNotIn("Traceback", res.stderr)
+            self.assertIn("KALACAKRA OS", res.stdout)
+            # Wizard menerapkan tema default -> config KDE tertulis
+            self.assertTrue(os.path.isfile(os.path.join(home, ".config", "kdeglobals")))
+
+    def test_welcome_indonesian_flow(self):
+        import tempfile
+        with tempfile.TemporaryDirectory() as home:
+            res = self._run_welcome(["--yes", "--lang", "id"], home, lang="id_ID.UTF-8")
+            self.assertEqual(res.returncode, 0, res.stderr)
+            self.assertIn("Selamat", res.stdout)
+
+    def test_welcome_interactive_language_choice(self):
+        import tempfile, subprocess
+        with tempfile.TemporaryDirectory() as home:
+            path = os.path.join(ROOTFS_DIR, "usr", "bin", "k-welcome")
+            env = os.environ.copy()
+            env["HOME"] = home
+            env["XDG_CONFIG_HOME"] = os.path.join(home, ".config")
+            env["XDG_DATA_HOME"] = os.path.join(home, ".local", "share")
+            env["NO_COLOR"] = "1"
+            # Pilih bahasa Indonesia (2), tema 5, lalu selesai
+            res = subprocess.run([sys.executable, path], capture_output=True, text=True,
+                                 env=env, input="2\n0\n", timeout=60)
+            self.assertEqual(res.returncode, 0, res.stderr)
+            self.assertNotIn("Traceback", res.stderr)
+
+
+class TestLookPick(unittest.TestCase):
+    def test_pick_applies_selected_theme(self):
+        import tempfile, subprocess
+        with tempfile.TemporaryDirectory() as home:
+            path = os.path.join(ROOTFS_DIR, "usr", "bin", "k-look")
+            env = os.environ.copy()
+            env["HOME"] = home
+            env["XDG_CONFIG_HOME"] = os.path.join(home, ".config")
+            env["XDG_DATA_HOME"] = os.path.join(home, ".local", "share")
+            env["KALACAKRA_FORCE_COLOR"] = "0"
+            res = subprocess.run([sys.executable, path, "pick"], capture_output=True,
+                                 text=True, env=env, input="1\nn\n", timeout=60)
+            self.assertEqual(res.returncode, 0, res.stderr)
+            self.assertIn("Selesai", res.stdout)
+
+    def test_pick_cancel_changes_nothing(self):
+        import tempfile, subprocess
+        with tempfile.TemporaryDirectory() as home:
+            path = os.path.join(ROOTFS_DIR, "usr", "bin", "k-look")
+            env = os.environ.copy()
+            env["HOME"] = home
+            env["XDG_CONFIG_HOME"] = os.path.join(home, ".config")
+            env["XDG_DATA_HOME"] = os.path.join(home, ".local", "share")
+            res = subprocess.run([sys.executable, path, "pick"], capture_output=True,
+                                 text=True, env=env, input="0\n", timeout=60)
+            self.assertEqual(res.returncode, 0, res.stderr)
+            self.assertIn("Dibatalkan", res.stdout)
+            self.assertFalse(os.path.isfile(os.path.join(home, ".config", "kdeglobals")))
+
+
+class TestHubIntegration(unittest.TestCase):
+    def test_hub_status_mentions_look_and_welcome(self):
+        import subprocess
+        path = os.path.join(ROOTFS_DIR, "usr", "bin", "k-hub")
+        env = os.environ.copy()
+        env["LANG"] = "en_US.UTF-8"
+        res = subprocess.run([sys.executable, path, "--status"], capture_output=True,
+                             text=True, env=env, timeout=30)
+        self.assertEqual(res.returncode, 0, res.stderr)
+        self.assertIn("[7]", res.stdout)
+        self.assertIn("[8]", res.stdout)
+
+
 class TestShowcase(unittest.TestCase):
     def test_showcase_runs_and_lists_themes(self):
         import subprocess

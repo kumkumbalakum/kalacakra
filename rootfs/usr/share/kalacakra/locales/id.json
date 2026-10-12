@@ -97,5 +97,12 @@
   "look_rollback_done": "Tampilan dipulihkan ke konfigurasi sebelumnya.",
   "look_no_active": "Tidak ada preset Look aktif (tampilan bawaan).",
   "look_share_caption": "Caption siap-tempel untuk r/unixporn & media sosial:",
-  "showcase_tagline": "Distro Linux Immutable yang Cantik, Aman, & Berjiwa Indonesia"
+  "showcase_tagline": "Distro Linux Immutable yang Cantik, Aman, & Berjiwa Indonesia",
+  "welcome_header": "Selamat datang di KALACAKRA OS - Roda Waktu",
+  "welcome_step_lang": "Langkah 1/4 - Bahasa",
+  "welcome_step_theme": "Langkah 2/4 - Identitas Visual (Kalacakra Look)",
+  "welcome_step_ai": "Langkah 3/4 - AI Lokal & Suara",
+  "welcome_step_done": "Langkah 4/4 - Selesai! Kalacakra OS siap.",
+  "hub_module_look": "Identitas Visual (Kalacakra Look)",
+  "hub_module_welcome": "Panduan Penyambutan (Kalacakra Welcome)"
 }

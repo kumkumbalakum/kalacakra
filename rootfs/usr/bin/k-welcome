@@ -1,0 +1,198 @@
+#!/usr/bin/env python3
+"""
+Kalacakra OS - k-welcome
+Wizard penyambutan boot pertama (First-Run Wizard).
+
+Alur ringkas yang menyatukan tiga pilar Kalacakra:
+  1. Bahasa (English / Bahasa Indonesia)
+  2. Identitas visual (pilih preset Kalacakra Look)
+  3. AI lokal & suara (status + opsi unduh model)
+  4. Ringkasan + langkah berikutnya
+
+Tanpa asumsi: setiap langkah memanggil tool nyata (k-look, k-ai, k-voice) dan
+jujur bila prasyaratnya belum ada. Bisa dijalankan non-interaktif (--yes) agar
+dapat diuji & dipakai skrip provisioning.
+"""
+
+import os
+import sys
+import argparse
+import subprocess
+
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+# Bootstrap bersama (jalur library, locale, dll.)
+from _kalacakra_bootstrap import get_locale_strings
+
+# Preset Look default yang disarankan di wizard (urutan tampil).
+SUGGESTED_PRESETS = [
+    ("mandala-cyberpunk", "Mandala Cyberpunk", "Neon mandala Nusantara (gelap)"),
+    ("nusantara-bronze", "Nusantara Bronze", "Tembaga hangat yang tenang"),
+    ("obsidian-minimal", "Obsidian Minimal", "Hitam bersih, fokus"),
+    ("aurora-borealis", "Aurora Borealis", "Hijau aurora sejuk"),
+    ("kraton-gold", "Kraton Gold", "Hitam keraton, aksen emas"),
+]
+
+
+def find_bin(name: str) -> str:
+    for c in (f"/usr/bin/{name}", os.path.join(SCRIPT_DIR, name)):
+        if os.path.isfile(c):
+            return c
+    return name
+
+
+def have(name: str) -> bool:
+    import shutil
+    return shutil.which(name) is not None
+
+
+def banner(lang: str) -> None:
+    print()
+    print("=" * 66)
+    if lang == "id":
+        print("   Selamat datang di KALACAKRA OS - Roda Waktu")
+        print("   Mari siapkan desktop Anda dalam beberapa langkah singkat.")
+    else:
+        print("   Welcome to KALACAKRA OS - The Wheel of Time")
+        print("   Let's set up your desktop in a few short steps.")
+    print("=" * 66)
+
+
+def ask(prompt: str, default: str = "") -> str:
+    try:
+        val = input(prompt).strip()
+    except (EOFError, KeyboardInterrupt):
+        print()
+        return default
+    return val or default
+
+
+def step_language(lang: str, assume_yes: bool) -> str:
+    print()
+    if lang == "id":
+        print("[Langkah 1/4] Bahasa / Language")
+        print("   [1] Bahasa Indonesia")
+        print("   [2] English")
+        chosen = "1" if assume_yes else ask("   Pilih bahasa [1/2] (default 1): ", "1")
+    else:
+        print("[Step 1/4] Language / Bahasa")
+        print("   [1] English")
+        print("   [2] Bahasa Indonesia")
+        chosen = "1" if assume_yes else ask("   Choose language [1/2] (default 1): ", "1")
+
+    new_lang = "id" if chosen in ("1", "id") else "en"
+    # Cermin pilihan ke bahasa yang dipilih untuk sisa wizard.
+    if new_lang == "id":
+        print("   -> Bahasa diatur ke Bahasa Indonesia.")
+    else:
+        print("   -> Language set to English.")
+    return new_lang
+
+
+def step_theme(lang: str, assume_yes: bool) -> int:
+    print()
+    header = "[Langkah 2/4] Identitas Visual (Kalacakra Look)" if lang == "id" else "[Step 2/4] Visual Identity (Kalacakra Look)"
+    print(header)
+    for i, (_pid, name, desc) in enumerate(SUGGESTED_PRESETS, 1):
+        print(f"   [{i}] {name} - {desc}")
+    print("   [0] Lewati / Skip")
+    if assume_yes:
+        chosen = "1"
+    else:
+        prompt = "   Pilih tema [0-5] (default 1): " if lang == "id" else "   Choose theme [0-5] (default 1): "
+        chosen = ask(prompt, "1")
+
+    if chosen == "0":
+        print("   (Tema dilewati - Anda bisa jalankan 'kalacakra look' kapan saja.)"
+              if lang == "id" else
+              "   (Theme skipped - run 'kalacakra look' anytime.)")
+        return 0
+
+    try:
+        idx = int(chosen) - 1
+        if not (0 <= idx < len(SUGGESTED_PRESETS)):
+            raise ValueError
+    except ValueError:
+        idx = 0
+    pid, name, _ = SUGGESTED_PRESETS[idx]
+    print(f"   -> Menerapkan '{name}'..." if lang == "id" else f"   -> Applying '{name}'...")
+    res = subprocess.run([find_bin("k-look"), "apply", pid])
+    if res.returncode != 0:
+        print("   (k-look melaporkan masalah; Anda bisa ulangi manual: kalacakra look apply %s)" % pid)
+    return res.returncode
+
+
+def step_ai(lang: str, assume_yes: bool) -> int:
+    print()
+    header = "[Langkah 3/4] AI Lokal & Suara" if lang == "id" else "[Step 3/4] Local AI & Voice"
+    print(header)
+    ollama = "aktif" if _svc_active("kalacakra-ai.service") else "nonaktif"
+    print(f"   Ollama daemon : {ollama}")
+    print(f"   k-ai          : {'tersedia' if have('k-ai') or os.path.isfile(find_bin('k-ai')) else 'tidak ditemukan'}")
+    print(f"   whisper (k-voice): {'biner ada' if have('whisper-cli') or have('whisper-cpp') else 'belum ada model/biner'}")
+    if lang == "id":
+        print("   Anda bisa mengunduh model AI nanti: kalacakra install-model llama3.2:1b")
+        print("   (Model besar butuh waktu; dibiarkan manual agar tak menghambat.)")
+    else:
+        print("   You can download an AI model later: kalacakra install-model llama3.2:1b")
+        print("   (Large models take time; left manual so setup stays fast.)")
+    return 0
+
+
+def _svc_active(unit: str) -> bool:
+    try:
+        res = subprocess.run(["systemctl", "--user", "is-active", unit],
+                             capture_output=True, text=True)
+        return res.stdout.strip() == "active"
+    except OSError:
+        return False
+
+
+def step_summary(lang: str) -> int:
+    print()
+    header = "[Langkah 4/4] Selesai!" if lang == "id" else "[Step 4/4] Done!"
+    print(header)
+    if lang == "id":
+        print("   Kalacakra OS siap dipakai. Jelajahi:")
+        print("     kalacakra showcase      # lihat identitas & tema")
+        print("     kalacakra look          # ganti tema kapan saja")
+        print("     kalacakra doctor        # cek kesehatan sistem")
+        print("     kalacakra hub           # pusat kendali terpadu")
+        print("     sudo apt install vlc    # coba: interceptor akan memandu Anda")
+    else:
+        print("   Kalacakra OS is ready. Explore:")
+        print("     kalacakra showcase      # view identity & themes")
+        print("     kalacakra look          # switch themes anytime")
+        print("     kalacakra doctor        # system health check")
+        print("     kalacakra hub           # unified control center")
+        print("     sudo apt install vlc    # try it: the interceptor guides you")
+    print()
+    return 0
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(
+        prog="k-welcome",
+        description="Kalacakra OS First-Run Welcome Wizard",
+    )
+    parser.add_argument("--lang", choices=["id", "en"], help="Bahasa awal wizard")
+    parser.add_argument("--yes", "-y", action="store_true",
+                        help="Non-interaktif: terima semua default (untuk provisioning/uji)")
+    parser.add_argument("--no-color", action="store_true", help="Matikan warna ANSI")
+    args = parser.parse_args()
+
+    if args.no_color:
+        os.environ["NO_COLOR"] = "1"
+
+    strings, current_lang = get_locale_strings(args.lang)
+    lang = args.lang or current_lang
+
+    banner(lang)
+    lang = step_language(lang, args.yes)
+    step_theme(lang, args.yes)
+    step_ai(lang, args.yes)
+    step_summary(lang)
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

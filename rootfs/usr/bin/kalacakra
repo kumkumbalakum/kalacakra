@@ -177,6 +177,9 @@ def main():
     p_look.add_argument("--dry-run", "-n", action="store_true", help="Tampilkan langkah tanpa mengubah apa pun")
     p_look.add_argument("--install", action="store_true", help="Untuk 'import': pasang preset ke direktori user")
 
+    p_welcome = subparsers.add_parser("welcome", help="Kalacakra Welcome - Wizard penyambutan boot pertama (bahasa, tema, AI)")
+    p_welcome.add_argument("subaction", nargs="*", help="Welcome arguments (--yes untuk non-interaktif)")
+
     p_show = subparsers.add_parser("showcase", help="Kalacakra Showcase - Tampilan identitas siap screenshot untuk r/unixporn")
     p_show.add_argument("subaction", nargs="*", help="Showcase arguments (--no-fetch)")
 
@@ -271,6 +274,12 @@ def main():
             cmd.append("--dry-run")
         if getattr(args, "install", False) or "--install" in tokens:
             cmd.append("--install")
+        sys.exit(subprocess.run(cmd).returncode)
+    elif args.command == "welcome":
+        tokens = list(args.subaction) + list(unknown)
+        cmd = [find_bin("k-welcome")] + [t for t in tokens if t in ("--yes", "-y")]
+        if args.lang:
+            cmd += ["--lang", args.lang]
         sys.exit(subprocess.run(cmd).returncode)
     elif args.command == "showcase":
         # Flag bisa muncul di subaction atau unknown (argparse root tak makan

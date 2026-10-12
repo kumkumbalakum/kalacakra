@@ -97,5 +97,12 @@
   "look_rollback_done": "Look rolled back to the previous configuration.",
   "look_no_active": "No active Look preset (default appearance).",
   "look_share_caption": "Ready-to-paste caption for r/unixporn & social media:",
-  "showcase_tagline": "The Immutable Linux Distro that is Beautiful, Safe, & Indonesian at Heart"
+  "showcase_tagline": "The Immutable Linux Distro that is Beautiful, Safe, & Indonesian at Heart",
+  "welcome_header": "Welcome to KALACAKRA OS - The Wheel of Time",
+  "welcome_step_lang": "Step 1/4 - Language",
+  "welcome_step_theme": "Step 2/4 - Visual Identity (Kalacakra Look)",
+  "welcome_step_ai": "Step 3/4 - Local AI & Voice",
+  "welcome_step_done": "Step 4/4 - Done! Kalacakra OS is ready.",
+  "hub_module_look": "Visual Identity (Kalacakra Look)",
+  "hub_module_welcome": "Welcome Guide (Kalacakra Welcome)"
 }

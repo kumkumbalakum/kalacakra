@@ -96,6 +96,9 @@ def print_dashboard(strings, current_lang):
     print("     └─ Snapshot Btrfs via Snapper (cek: kalacakra rewind list)")
     print(" [6] 🌐 Lokalisasi & Bahasa Sistem (English / Bahasa Indonesia)")
     print(f"     └─ Bahasa Aktif: {'Bahasa Indonesia (id)' if current_lang == 'id' else 'English (en)'}")
+    print(" [7] 🎨 Identitas Visual (Kalacakra Look - ganti tema desktop)")
+    print("     └─ 5 preset: Mandala Cyberpunk, Nusantara Bronze, Obsidian, Aurora, Kraton Gold")
+    print(" [8] 👋 Panduan Penyambutan (Kalacakra Welcome - wizard bahasa/tema/AI)")
     print(" [0] 🚪 Keluar / Exit")
     print("=" * 68)
 
@@ -149,6 +152,16 @@ def interactive_menu():
             if lang_code in ["id", "en"]:
                 subprocess.run(["kalacakra", "lang", lang_code], check=False)
                 strings, current_lang = get_locale_strings(lang_code)
+            input("Tekan Enter untuk kembali...")
+        elif choice == "7":
+            print("\n--- [Modul Identitas Visual / Kalacakra Look] ---")
+            subprocess.run(["kalacakra", "look", "list"], check=False)
+            print("\nTerapkan tema: kalacakra look apply <id> [--screenshot]")
+            print("Rollback     : kalacakra look rollback")
+            input("Tekan Enter untuk kembali...")
+        elif choice == "8":
+            print("\n--- [Panduan Penyambutan / Kalacakra Welcome] ---")
+            subprocess.run(["kalacakra", "welcome"], check=False)
             input("Tekan Enter untuk kembali...")
 
 def main():

@@ -437,14 +437,59 @@ def cmd_list(presets: list[dict]) -> int:
     if not presets:
         print(f"  (tidak ada preset di {presets_dir()})")
         return 0
-    for p in presets:
+    for i, p in enumerate(presets, 1):
         mark = " *" if p.get("id") == active_id else "  "
-        print(f"{mark} {p.get('id'):<16} {p.get('name', '')}")
+        print(f"{mark} [{i}] {p.get('id'):<16} {p.get('name', '')}")
         if p.get("description"):
             print(f"       {p['description']}")
     print()
     print("Terapkan:  kalacakra look apply <id>")
+    print("Interaktif: kalacakra look pick")
     return 0
+
+
+def cmd_pick(presets: list[dict]) -> int:
+    """Pemilih tema interaktif sederhana (TUI berbasis nomor)."""
+    if not presets:
+        print("[k-look] Tidak ada preset. Impor dulu: kalacakra look import <berkas.json> --install")
+        return 1
+    active = get_active()
+    active_id = active.get("id") if active else None
+    print()
+    print("=" * 60)
+    print("  Kalacakra Look - Pemilih Tema")
+    print("=" * 60)
+    for i, p in enumerate(presets, 1):
+        mark = "  <- aktif" if p.get("id") == active_id else ""
+        print(f"  [{i}] {p.get('name', p.get('id')):<22}{mark}")
+        if p.get("description"):
+            print(f"       {p['description']}")
+    print("  [0] Batal / Keluar")
+    print("=" * 60)
+
+    try:
+        choice = input("Pilih tema [0-%d]: " % len(presets)).strip()
+    except (EOFError, KeyboardInterrupt):
+        print("\nDibatalkan.")
+        return 0
+    if choice in ("0", ""):
+        print("Dibatalkan.")
+        return 0
+    try:
+        idx = int(choice) - 1
+        if not (0 <= idx < len(presets)):
+            raise ValueError
+    except ValueError:
+        print("[k-look Error] Pilihan tidak valid.")
+        return 1
+    pid = presets[idx].get("id")
+    shot = False
+    try:
+        ans = input("Ambil screenshot + caption setelah menerapkan? [y/N]: ").strip().lower()
+        shot = ans in ("y", "ya", "yes")
+    except (EOFError, KeyboardInterrupt):
+        pass
+    return cmd_apply(pid, do_shot=shot)
 
 
 def cmd_show(preset_id: str) -> int:
@@ -696,6 +741,8 @@ def main():
 
     if action in ("list", "ls"):
         return cmd_list(presets)
+    if action == "pick":
+        return cmd_pick(presets)
     if action == "current":
         return cmd_current()
     if action == "rollback":
@@ -720,7 +767,7 @@ def main():
         return cmd_apply(rest[0], do_shot=parsed.screenshot, dry_run=parsed.dry_run)
 
     print(f"[k-look Error] Aksi tidak dikenal: '{action}'")
-    print("   Aksi: list | apply <id> | rollback | current | show <id> | share [id] | import <file/url>")
+    print("   Aksi: list | pick | apply <id> | rollback | current | show <id> | share [id] | import <file/url>")
     return 1
 
 

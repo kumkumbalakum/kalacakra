@@ -212,6 +212,10 @@ look action="list" +args="":
 showcase +args="":
     @/usr/bin/k-showcase {{args}}
 
+# Kalacakra Welcome - Wizard penyambutan boot pertama (bahasa, tema Look, AI)
+welcome +args="":
+    @/usr/bin/k-welcome {{args}}
+
 # --- Build lokal (meniru CI GitHub Actions; butuh podman/docker) ---
 # Cek prasyarat build (engine, disk, RAM)
 build-check:
