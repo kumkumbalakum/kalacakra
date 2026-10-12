@@ -110,5 +110,8 @@
   "semantic_header": "Kalacakra Semantic - Pencarian Makna Lokal",
   "semantic_indexed": "Indeks dibangun (leksikal: kata kunci + sinonim ID/EN, bukan vektor)",
   "agent_header": "Kalacakra Agent - Rencana Multi-Langkah",
-  "agent_preview": "Ini hanya pratinjau rencana. Tidak ada yang dieksekusi."
+  "agent_preview": "Ini hanya pratinjau rencana. Tidak ada yang dieksekusi.",
+  "gallery_header": "Galeri Tema Kalacakra",
+  "gallery_built": "Galeri statis dibuat (tanpa cloud, tanpa CDN).",
+  "gallery_serve_local": "Hanya pratinjau lokal (127.0.0.1), bukan hosting publik."
 }

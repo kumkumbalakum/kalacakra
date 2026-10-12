@@ -1073,6 +1073,82 @@ class TestAgentPlanner(unittest.TestCase):
         self.assertTrue(ok)
 
 
+class TestGallery(unittest.TestCase):
+    """k-gallery: scaffold kiriman, bangun situs statis, fallback tema bawaan."""
+
+    def _run(self, args, home, env_extra=None):
+        import subprocess
+        path = os.path.join(ROOTFS_DIR, "usr", "bin", "k-gallery")
+        env = os.environ.copy()
+        env["HOME"] = home
+        env["XDG_DATA_HOME"] = os.path.join(home, ".local", "share")
+        if env_extra:
+            env.update(env_extra)
+        return subprocess.run([sys.executable, path] + args,
+                              capture_output=True, text=True, env=env, timeout=60)
+
+    def test_build_fallback_uses_builtin_themes(self):
+        import tempfile
+        with tempfile.TemporaryDirectory() as home:
+            out = os.path.join(home, "site")
+            r = self._run(["build", "--dir", os.path.join(home, "none"), "--out", out], home)
+            self.assertEqual(r.returncode, 0, r.stderr)
+            self.assertNotIn("Traceback", r.stderr)
+            index = os.path.join(out, "index.html")
+            self.assertTrue(os.path.isfile(index))
+            self.assertTrue(os.path.isfile(os.path.join(out, "gallery.json")))
+            with open(index, encoding="utf-8") as f:
+                content = f.read()
+            # Lima tema bawaan -> lima kartu
+            self.assertEqual(content.count('class="card"'), 5)
+            # Wajib ada aset tergandakan (wallpaper)
+            self.assertIn("assets/", content)
+
+    def test_new_then_build_from_submission(self):
+        import tempfile, json
+        with tempfile.TemporaryDirectory() as home:
+            subs = os.path.join(home, "subs")
+            out = os.path.join(home, "site")
+            r = self._run(["new", "--dir", subs, "--theme", "kraton-gold", "--author", "@sari"], home)
+            self.assertEqual(r.returncode, 0, r.stderr)
+            subdirs = [os.path.join(subs, n) for n in os.listdir(subs)]
+            self.assertEqual(len(subdirs), 1)
+            d = subdirs[0]
+            self.assertTrue(os.path.isfile(os.path.join(d, "meta.json")))
+            # Letakkan screenshot (pakai wallpaper sebagai gambar uji)
+            wp = os.path.join(ROOTFS_DIR, "usr", "share", "kalacakra", "look",
+                              "wallpapers", "kraton-gold.svg")
+            if os.path.isfile(wp):
+                import shutil
+                shutil.copyfile(wp, os.path.join(d, "screenshot.png"))
+            # list mendeteksi kiriman
+            r = self._run(["list", "--dir", subs], home)
+            self.assertIn("oleh @sari", r.stdout)
+            # build memakai kiriman (bukan fallback)
+            r = self._run(["build", "--dir", subs, "--out", out], home)
+            self.assertEqual(r.returncode, 0, r.stderr)
+            self.assertIn("kiriman komunitas", r.stdout)
+            with open(os.path.join(out, "gallery.json"), encoding="utf-8") as f:
+                data = json.load(f)
+            self.assertEqual(data["count"], 1)
+            self.assertEqual(data["items"][0]["kind"], "submission")
+
+    def test_new_unknown_theme_fails_cleanly(self):
+        import tempfile
+        with tempfile.TemporaryDirectory() as home:
+            r = self._run(["new", "--dir", os.path.join(home, "s"), "--theme", "tidak-ada"], home)
+            self.assertEqual(r.returncode, 1)
+            self.assertNotIn("Traceback", r.stderr)
+            self.assertIn("tidak dikenal", r.stdout)
+
+    def test_serve_without_build_fails_cleanly(self):
+        import tempfile
+        with tempfile.TemporaryDirectory() as home:
+            r = self._run(["serve", "--out", os.path.join(home, "nope"), "--port", "8999"], home)
+            self.assertEqual(r.returncode, 1)
+            self.assertIn("Belum ada situs", r.stdout)
+
+
 class TestHubIntegration(unittest.TestCase):
     def test_hub_status_mentions_look_and_welcome(self):
         import subprocess
@@ -1086,6 +1162,7 @@ class TestHubIntegration(unittest.TestCase):
         self.assertIn("[8]", res.stdout)
         self.assertIn("[9]", res.stdout)
         self.assertIn("[10]", res.stdout)
+        self.assertIn("[11]", res.stdout)
 
 
 class TestShowcase(unittest.TestCase):
@@ -1113,7 +1190,10 @@ class TestLocaleCoverage(unittest.TestCase):
                     "showcase_tagline", "welcome_header", "welcome_step_lang",
                     "welcome_step_theme", "welcome_step_ai", "welcome_step_done",
                     "hub_module_look", "hub_module_welcome",
-                    "ask_header", "ask_hint"]
+                    "ask_header", "ask_hint",
+                    "semantic_header", "semantic_indexed",
+                    "agent_header", "agent_preview",
+                    "gallery_header", "gallery_built", "gallery_serve_local"]
         for lang in ("en", "id"):
             with open(os.path.join(os.path.dirname(__file__), "..", "rootfs", "usr",
                                    "share", "kalacakra", "locales", f"{lang}.json"),

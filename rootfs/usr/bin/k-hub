@@ -103,6 +103,8 @@ def print_dashboard(strings, current_lang):
     print("     └─ Indeks lokal (TF-IDF+sinonim, bukan vektor). index/search/similar")
     print(" [10] 🤖 Agen Tugas Multi-Langkah (Kalacakra Agent - pratinjau rencana lalu eksekusi)")
     print("     └─ plan/run; jujur bila AI nonaktif & menolak perintah berbahaya")
+    print(" [11] 🖼️  Galeri Tema (Kalacakra Gallery - situs statis dari tema/kiriman komunitas)")
+    print("     └─ build/serve; tanpa cloud, tanpa CDN")
     print(" [0] 🚪 Keluar / Exit")
     print("=" * 68)
 
@@ -180,6 +182,13 @@ def interactive_menu():
             instr = input("Instruksi (kosongkan untuk batal): ").strip()
             if instr:
                 subprocess.run(["kalacakra", "agent", "plan", instr], check=False)
+            input("Tekan Enter untuk kembali...")
+        elif choice == "11":
+            print("\n--- [Galeri Tema / Kalacakra Gallery] ---")
+            subprocess.run(["kalacakra", "gallery", "list"], check=False)
+            print("\nBangun situs : kalacakra gallery build")
+            print("Pratinjau    : kalacakra gallery serve --port 8080")
+            print("Kiriman baru : kalacakra gallery new --theme mandala-cyberpunk --author \"Nama\"")
             input("Tekan Enter untuk kembali...")
 
 def main():

@@ -1,0 +1,440 @@
+#!/usr/bin/env python3
+"""
+Kalacakra OS - k-gallery
+Generator galeri showcase daring (static site) untuk tema Kalacakra Look.
+
+Menghasilkan situs statis MANDIRI (tanpa CDN, tanpa dependensi runtime) dari:
+  - kiriman komunitas (folder berisi `meta.json` + satu screenshot), atau
+  - tema bawaan Look (fallback, memakai wallpaper SVG sebagai thumbnail).
+
+Perintah:
+    kalacakra gallery list  [--dir SUBMISSIONS]
+    kalacakra gallery new   [--dir SUBMISSIONS] [--theme <id>] [--author NAMA]
+    kalacakra gallery build [--dir SUBMISSIONS] [--out DIR] [--title T] [--lang id|en]
+    kalacakra gallery serve [--out DIR] [--port 8080]
+
+CATATAN JUJUR:
+- `serve` hanya pratinjau LOKAL (http.server bawaan Python, 127.0.0.1). Ini
+  bukan layanan hosting publik; untuk "daring", unggah hasil `build/` ke
+  hosting statis mana pun (GitHub Pages, Netlify, dll).
+- Galeri tidak mengunggah apa pun ke internet. Semua berkas dihasilkan lokal.
+"""
+
+import os
+import re
+import sys
+import json
+import html
+import shutil
+import argparse
+import datetime
+import subprocess
+
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+from _kalacakra_bootstrap import get_locale_strings
+
+DATA_HOME = os.environ.get("XDG_DATA_HOME", os.path.expanduser("~/.local/share"))
+DEFAULT_SUBMISSIONS = os.path.join(DATA_HOME, "kalacakra", "gallery", "submissions")
+DEFAULT_OUT = os.path.join(DATA_HOME, "kalacakra", "gallery", "site")
+
+# Ekstensi gambar yang diterima sebagai screenshot kiriman.
+IMAGE_EXTS = (".png", ".jpg", ".jpeg", ".webp")
+
+
+# ---------------------------------------------------------------------------
+# Penemuan preset Look (dibaca ulang agar galeri mandiri)
+# ---------------------------------------------------------------------------
+def presets_dirs() -> list:
+    dirs = []
+    env = os.environ.get("KALACAKRA_LOOK_PRESETS_DIR")
+    if env and os.path.isdir(env):
+        dirs.append(env)
+    dirs.append("/usr/share/kalacakra/look/presets")
+    dirs.append(os.path.abspath(os.path.join(SCRIPT_DIR, "..", "share", "kalacakra", "look", "presets")))
+    dirs.append(os.path.join(DATA_HOME, "kalacakra", "look", "presets"))
+    return [d for d in dirs if os.path.isdir(d)]
+
+
+def wallpapers_dir() -> str:
+    for cand in (
+        os.path.abspath(os.path.join(SCRIPT_DIR, "..", "share", "kalacakra", "look", "wallpapers")),
+        "/usr/share/kalacakra/look/wallpapers",
+    ):
+        if os.path.isdir(cand):
+            return cand
+    return os.path.abspath(os.path.join(SCRIPT_DIR, "..", "share", "kalacakra", "look", "wallpapers"))
+
+
+def load_presets() -> list:
+    """Gabungkan preset bawaan + komunitas (user menang bila id sama)."""
+    result, seen = [], set()
+    # urutan: user dulu, lalu sistem
+    ordered = [os.path.join(DATA_HOME, "kalacakra", "look", "presets")] + presets_dirs()
+    for d in ordered:
+        if not os.path.isdir(d):
+            continue
+        for fname in sorted(os.listdir(d)):
+            if not fname.endswith(".json"):
+                continue
+            try:
+                with open(os.path.join(d, fname), "r", encoding="utf-8") as f:
+                    data = json.load(f)
+            except (OSError, json.JSONDecodeError):
+                continue
+            if not isinstance(data, dict):
+                continue
+            data.setdefault("id", fname[:-5])
+            if data["id"] in seen:
+                continue
+            seen.add(data["id"])
+            result.append(data)
+    return result
+
+
+def resolve_wallpaper(name: str) -> str:
+    if not name:
+        return ""
+    if os.path.isabs(name) and os.path.isfile(name):
+        return name
+    cand = os.path.join(wallpapers_dir(), name)
+    return cand if os.path.isfile(cand) else ""
+
+
+# ---------------------------------------------------------------------------
+# Kiriman komunitas
+# ---------------------------------------------------------------------------
+def _slug(text: str) -> str:
+    text = re.sub(r"[^a-zA-Z0-9]+", "-", text.strip().lower()).strip("-")
+    return text or "anon"
+
+
+def find_screenshot(folder: str) -> str:
+    for name in sorted(os.listdir(folder)):
+        if name.lower().endswith(IMAGE_EXTS):
+            return os.path.join(folder, name)
+    return ""
+
+
+def read_submission(folder: str):
+    """Baca satu folder kiriman -> dict, atau None bila tak memenuhi syarat."""
+    meta_path = os.path.join(folder, "meta.json")
+    meta = {}
+    if os.path.isfile(meta_path):
+        try:
+            with open(meta_path, "r", encoding="utf-8") as f:
+                meta = json.load(f)
+        except (OSError, json.JSONDecodeError):
+            meta = {}
+    if not isinstance(meta, dict):
+        meta = {}
+    shot = find_screenshot(folder)
+    if not shot:
+        return None
+    return {
+        "folder": folder,
+        "screenshot": shot,
+        "theme": str(meta.get("theme", "")).strip(),
+        "author": str(meta.get("author", "anonim")).strip() or "anonim",
+        "caption": str(meta.get("caption", "")).strip(),
+        "tags": [str(t) for t in meta.get("tags", []) if isinstance(t, (str, int))],
+        "name": str(meta.get("name", "")).strip(),
+    }
+
+
+def scan_submissions(d: str) -> list:
+    if not os.path.isdir(d):
+        return []
+    out = []
+    for name in sorted(os.listdir(d)):
+        folder = os.path.join(d, name)
+        if not os.path.isdir(folder):
+            continue
+        sub = read_submission(folder)
+        if sub:
+            out.append(sub)
+    return out
+
+
+# ---------------------------------------------------------------------------
+# Aksi
+# ---------------------------------------------------------------------------
+def cmd_list(args) -> int:
+    subs = scan_submissions(args.dir)
+    print(f"=== Kalacakra Gallery - Kiriman di {args.dir} ({len(subs)}) ===")
+    if not subs:
+        print("  (belum ada kiriman)")
+        print("  Buat: kalacakra gallery new --dir %s --theme mandala-cyberpunk" % args.dir)
+        return 0
+    presets = {p["id"]: p.get("name", p["id"]) for p in load_presets()}
+    for s in subs:
+        theme = s["theme"] or "(tanpa tema)"
+        tname = presets.get(s["theme"], theme)
+        print(f"  - {os.path.basename(s['folder']):<28} {tname:<20} oleh {s['author']}")
+    return 0
+
+
+def cmd_new(args) -> int:
+    presets = load_presets()
+    theme = args.theme
+    if theme and theme not in {p["id"] for p in presets}:
+        print(f"[k-gallery Error] Tema '{theme}' tidak dikenal.")
+        print("   Tema tersedia: " + ", ".join(sorted(p["id"] for p in presets)))
+        return 1
+    if not theme:
+        theme = presets[0]["id"] if presets else ""
+
+    stamp = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
+    sub_id = f"{_slug(theme)}-{_slug(args.author) if args.author else stamp}"
+    folder = os.path.join(args.dir, sub_id)
+    if os.path.exists(folder):
+        print(f"[k-gallery Error] Folder kiriman sudah ada: {folder}")
+        return 1
+    os.makedirs(folder, exist_ok=True)
+    meta = {
+        "theme": theme,
+        "author": args.author or "",
+        "caption": "",
+        "tags": [],
+    }
+    with open(os.path.join(folder, "meta.json"), "w", encoding="utf-8") as f:
+        json.dump(meta, f, ensure_ascii=False, indent=2)
+        f.write("\n")
+    with open(os.path.join(folder, "README.txt"), "w", encoding="utf-8") as f:
+        f.write(
+            "Cara mengirim tema ke galeri Kalacakra:\n"
+            f"1. Terapkan tema:  kalacakra look apply {theme}\n"
+            "2. Ambil screenshot: kalacakra look apply %s --screenshot  (butuh 'grim')\n"
+            "   ... atau tempel screenshot PNG/JPG apa pun dengan nama 'screenshot.png'.\n"
+            "3. Sunting meta.json: isi author, caption, tags.\n"
+            "4. Bangun galeri: kalacakra gallery build\n" % theme
+        )
+    print(f"[k-gallery] Kiriman baru dibuat: {folder}")
+    print("   Tempel screenshot sebagai screenshot.png di folder itu, sunting meta.json,")
+    print("   lalu jalankan: kalacakra gallery build")
+    return 0
+
+
+def _copy_asset(src: str, out_dir: str, prefix: str) -> str:
+    """Salin berkas ke assets/ dalam out_dir, kembalikan path relatif."""
+    assets = os.path.join(out_dir, "assets")
+    os.makedirs(assets, exist_ok=True)
+    ext = os.path.splitext(src)[1].lower()
+    dst_name = f"{prefix}{ext}"
+    dst = os.path.join(assets, dst_name)
+    try:
+        shutil.copy2(src, dst)
+    except OSError as e:
+        print(f"[k-gallery WARN] gagal menyalin {src}: {e}")
+        return ""
+    return f"assets/{dst_name}"
+
+
+def _build_items(args) -> list:
+    """Hasilkan daftar item galeri (dari kiriman, atau fallback tema bawaan)."""
+    presets = {p["id"]: p for p in load_presets()}
+    items = []
+    subs = scan_submissions(args.dir)
+    if subs:
+        for i, s in enumerate(subs, 1):
+            p = presets.get(s["theme"], {})
+            name = s["name"] or p.get("name") or s["theme"] or f"Tema {i}"
+            thumb = _copy_asset(s["screenshot"], args.out, f"sub{i}")
+            items.append({
+                "name": name,
+                "author": s["author"],
+                "description": p.get("description", "") or s["caption"],
+                "caption": s["caption"],
+                "tags": s["tags"] or ([s["theme"]] if s["theme"] else []),
+                "thumb": thumb,
+                "kind": "submission",
+            })
+        return items
+
+    # Fallback: tampilkan tema bawaan sebagai galeri.
+    for i, p in enumerate(load_presets(), 1):
+        wp = resolve_wallpaper(p.get("wallpaper", ""))
+        thumb = _copy_asset(wp, args.out, f"theme{i}") if wp else ""
+        items.append({
+            "name": p.get("name", p.get("id", f"Tema {i}")),
+            "author": "Kalacakra OS",
+            "description": p.get("description", ""),
+            "caption": "",
+            "tags": ["tema bawaan"],
+            "thumb": thumb,
+            "kind": "builtin",
+        })
+    return items
+
+
+def _html_page(items: list, title: str, subtitle: str, lang: str) -> str:
+    generated = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
+    if lang == "id":
+        count_txt = f"{len(items)} tema"
+        by = "oleh"
+        foot = "Dibuat oleh Kalacakra Gallery - tanpa cloud, tanpa CDN."
+        empty = "Belum ada tema untuk ditampilkan."
+    else:
+        count_txt = f"{len(items)} themes"
+        by = "by"
+        foot = "Generated by Kalacakra Gallery - no cloud, no CDN."
+        empty = "No themes to display yet."
+
+    cards = []
+    for it in items:
+        img = (f'<img src="{html.escape(it["thumb"])}" alt="{html.escape(it["name"])}" '
+               f'loading="lazy">') if it.get("thumb") else '<div class="noimg">~</div>'
+        tags = "".join(f'<span class="tag">{html.escape(t)}</span>' for t in it.get("tags", []))
+        desc = html.escape(it.get("description", "") or it.get("caption", ""))
+        cards.append(f"""
+      <article class="card">
+        <div class="thumb">{img}</div>
+        <div class="body">
+          <h2>{html.escape(it["name"])}</h2>
+          <p class="desc">{desc}</p>
+          <div class="tags">{tags}</div>
+          <p class="author">{by} <strong>{html.escape(it["author"])}</strong></p>
+        </div>
+      </article>""")
+
+    body = "".join(cards) if cards else f'<p class="empty">{empty}</p>'
+    return f"""<!DOCTYPE html>
+<html lang="{lang}">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{html.escape(title)}</title>
+<meta name="description" content="{html.escape(subtitle)}">
+<style>
+  :root {{
+    --bg: #0b0d12; --panel: #151922; --ink: #eef1f6; --muted: #98a2b3;
+    --accent: #d9a441; --line: #232a36;
+  }}
+  * {{ box-sizing: border-box; }}
+  body {{ margin: 0; background: var(--bg); color: var(--ink);
+    font: 16px/1.55 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }}
+  header {{ padding: 56px 24px 28px; max-width: 1180px; margin: 0 auto; }}
+  header h1 {{ font-size: clamp(28px, 5vw, 46px); margin: 0 0 8px; letter-spacing: -.02em; }}
+  header .sub {{ color: var(--muted); font-size: 18px; margin: 0; }}
+  .meta {{ color: var(--accent); font-size: 13px; text-transform: uppercase;
+    letter-spacing: .14em; margin-bottom: 18px; }}
+  main {{ max-width: 1180px; margin: 0 auto; padding: 0 24px 72px;
+    display: grid; gap: 22px; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); }}
+  .card {{ background: var(--panel); border: 1px solid var(--line); border-radius: 14px;
+    overflow: hidden; transition: transform .18s ease, border-color .18s ease; }}
+  .card:hover {{ transform: translateY(-3px); border-color: var(--accent); }}
+  .thumb {{ aspect-ratio: 16 / 10; background: #0e1117; overflow: hidden; }}
+  .thumb img {{ width: 100%; height: 100%; object-fit: cover; display: block; }}
+  .noimg {{ display: grid; place-items: center; height: 100%; color: var(--line);
+    font-size: 48px; }}
+  .body {{ padding: 16px 18px 18px; }}
+  .body h2 {{ font-size: 19px; margin: 0 0 6px; }}
+  .desc {{ color: var(--muted); font-size: 14px; margin: 0 0 12px; }}
+  .tags {{ display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; }}
+  .tag {{ font-size: 11px; color: var(--accent); border: 1px solid var(--line);
+    border-radius: 999px; padding: 2px 9px; }}
+  .author {{ margin: 0; font-size: 12px; color: var(--muted); }}
+  .empty {{ color: var(--muted); }}
+  footer {{ max-width: 1180px; margin: 0 auto; padding: 24px; color: var(--muted);
+    font-size: 13px; border-top: 1px solid var(--line); }}
+  code {{ background: #0e1117; padding: 2px 6px; border-radius: 6px; }}
+</style>
+</head>
+<body>
+  <header>
+    <div class="meta">Kalacakra OS &middot; Look Gallery &middot; {count_txt}</div>
+    <h1>{html.escape(title)}</h1>
+    <p class="sub">{html.escape(subtitle)}</p>
+  </header>
+  <main>{body}
+  </main>
+  <footer>{foot}<br>One command: <code>kalacakra look pick</code> &middot; {generated}</footer>
+</body>
+</html>
+"""
+
+
+def cmd_build(args) -> int:
+    os.makedirs(args.out, exist_ok=True)
+    items = _build_items(args)
+    title = args.title or ("Galeri Tema Kalacakra" if args.lang == "id" else "Kalacakra Theme Gallery")
+    subtitle = args.subtitle or (
+        "Desktop Wayland KDE Plasma 6 - satu perintah untuk berganti tampilan."
+        if args.lang == "id" else
+        "Wayland KDE Plasma 6 desktops - switch your look with one command."
+    )
+    index_html = _html_page(items, title, subtitle, args.lang)
+    with open(os.path.join(args.out, "index.html"), "w", encoding="utf-8") as f:
+        f.write(index_html)
+    with open(os.path.join(args.out, "gallery.json"), "w", encoding="utf-8") as f:
+        json.dump({"title": title, "subtitle": subtitle, "count": len(items),
+                   "generated": datetime.datetime.now().isoformat(timespec="seconds"),
+                   "items": items}, f, ensure_ascii=False, indent=2)
+
+    source = "kiriman komunitas" if items and items[0]["kind"] == "submission" else "tema bawaan (fallback)"
+    print(f"[k-gallery] Situs dibuat: {os.path.join(args.out, 'index.html')}")
+    print(f"            {len(items)} item dari {source}.")
+    print("            Pratinjau lokal: kalacakra gallery serve --out %s" % args.out)
+    print("            Unggah folder output ke hosting statis apa pun untuk 'daring'.")
+    return 0
+
+
+def cmd_serve(args) -> int:
+    index = os.path.join(args.out, "index.html")
+    if not os.path.isfile(index):
+        print(f"[k-gallery Error] Belum ada situs di {args.out}.")
+        print("   Bangun dulu: kalacakra gallery build --out %s" % args.out)
+        return 1
+    print(f"[k-gallery] Pratinjau LOKAL di http://127.0.0.1:{args.port} (Ctrl+C untuk berhenti)")
+    print("            Ini bukan hosting publik - hanya untuk melihat hasil di browser.")
+    try:
+        return subprocess.run(
+            [sys.executable, "-m", "http.server", str(args.port),
+             "--bind", "127.0.0.1", "--directory", args.out]
+        ).returncode
+    except KeyboardInterrupt:
+        print("\n[k-gallery] Dihentikan.")
+        return 0
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(
+        prog="k-gallery",
+        description="Kalacakra Gallery - generator galeri showcase statis untuk tema Look",
+    )
+    sub = parser.add_subparsers(dest="action")
+
+    for name, help_txt in (("list", "Daftar kiriman"),
+                           ("new", "Buat folder kiriman baru"),
+                           ("build", "Bangun situs statis"),
+                           ("serve", "Pratinjau lokal situs")):
+        p = sub.add_parser(name, help=help_txt)
+        p.add_argument("--dir", default=DEFAULT_SUBMISSIONS, help="Direktori kiriman")
+        p.add_argument("--out", default=DEFAULT_OUT, help="Direktori keluaran situs")
+        p.add_argument("--title", default="", help="Judul galeri")
+        p.add_argument("--subtitle", default="", help="Subjudul galeri")
+        p.add_argument("--lang", choices=["id", "en"], default="", help="Bahasa galeri")
+        if name == "new":
+            p.add_argument("--theme", default="", help="ID tema Look")
+            p.add_argument("--author", default="", help="Nama penulis")
+        if name == "serve":
+            p.add_argument("--port", type=int, default=8080, help="Port (default 8080)")
+
+    args = parser.parse_args()
+    _strings, current_lang = get_locale_strings()
+    if not args.lang:
+        args.lang = current_lang
+
+    if args.action == "list":
+        return cmd_list(args)
+    if args.action == "new":
+        return cmd_new(args)
+    if args.action == "build":
+        return cmd_build(args)
+    if args.action == "serve":
+        return cmd_serve(args)
+    parser.print_help()
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

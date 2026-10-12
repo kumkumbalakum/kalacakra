@@ -107,7 +107,7 @@ Itulah momen viral-nya.
 
 1. ✅ **Preset komunitas** — `kalacakra look import <berkas/URL> [--install]` (format JSON tervalidasi; preset user menimpa preset bawaan).
 2. ✅ **Wizard first-run** (`kalacakra welcome`) — alur bahasa → tema Look → status AI/voice → ringkasan (dwibahasa, bisa non-interaktif `--yes`).
-3. ⬜ **Galeri showcase daring** — halaman statis yang menampilkan screenshot komunitas (belum ada).
+3. ✅ **Galeri showcase daring** — `kalacakra gallery build` menghasilkan situs statis mandiri (tanpa CDN) dari kiriman komunitas atau tema bawaan; `kalacakra gallery serve` untuk pratinjau lokal. Unggah folder keluaran ke hosting statis apa pun.
 4. ⬜ **Konten** — tutorial dwibahasa, video "1 perintah ubah tampilan" (belum ada).
 
-> **Status jujur:** Item 1 & 2 **sudah dikerjakan** dan diuji (`tests/test_cli.py`, kini 65 test). Item 3 & 4 masih rencana. Dokumen ini peta, bukan klaim.
+> **Status jujur:** Item 1, 2 & 3 **sudah dikerjakan** dan diuji (`tests/test_cli.py`, kini 69 test). Item 4 (konten pemasaran) masih rencana — itu pekerjaan manusia, bukan kode. Dokumen ini peta, bukan klaim.

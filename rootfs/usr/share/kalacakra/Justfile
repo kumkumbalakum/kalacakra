@@ -228,6 +228,10 @@ semantic +args="":
 agent +args="":
     @/usr/bin/k-agent {{args}}
 
+# Kalacakra Gallery - galeri showcase statis untuk tema Look
+gallery +args="":
+    @/usr/bin/k-gallery {{args}}
+
 # --- Build lokal (meniru CI GitHub Actions; butuh podman/docker) ---
 # Cek prasyarat build (engine, disk, RAM)
 build-check:

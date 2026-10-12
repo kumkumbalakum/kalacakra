@@ -110,5 +110,8 @@
   "semantic_header": "Kalacakra Semantic - Local Meaning Search",
   "semantic_indexed": "Index built (lexical: keywords + ID/EN synonyms, not vector embeddings)",
   "agent_header": "Kalacakra Agent - Multi-Step Plan",
-  "agent_preview": "This is only an action plan preview. Nothing has executed."
+  "agent_preview": "This is only an action plan preview. Nothing has executed.",
+  "gallery_header": "Kalacakra Theme Gallery",
+  "gallery_built": "Static gallery built (no cloud, no CDN).",
+  "gallery_serve_local": "Local preview only (127.0.0.1), not public hosting."
 }
