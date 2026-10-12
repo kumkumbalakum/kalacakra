@@ -79,6 +79,10 @@ def main():
         print("Ketik 'k-keyring enroll-finger' untuk mendaftarkan sidik jari login.")
         print("=" * 65)
     elif args.command == "enroll-finger":
+        if not shutil.which("fprintd-enroll"):
+            print("[k-keyring Error] 'fprintd-enroll' tidak terpasang (paket fprintd).")
+            print("   Pasang: sudo rpm-ostree install fprintd fprintd-pam   (lalu reboot)")
+            sys.exit(1)
         print("[k-keyring] Memulai pendaftaran sidik jari (Touch ID)...")
         print("Tempelkan jari Anda pada sensor sidik jari laptop beberapa kali.")
         subprocess.run(["fprintd-enroll"], check=False)

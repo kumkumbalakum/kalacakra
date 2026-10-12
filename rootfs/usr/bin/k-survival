@@ -36,6 +36,12 @@ def _has_cmd(cmd: str) -> bool:
     import shutil
     return shutil.which(cmd) is not None
 
+def _notify(args: list) -> None:
+    """Kirim notifikasi desktop jika notify-send tersedia - jangan crash di
+    mode darurat hanya karena notify-send absen."""
+    if _has_cmd("notify-send"):
+        subprocess.run(["notify-send"] + args, check=False)
+
 def set_grayscale_filter(enable: bool) -> bool:
     """Toggle efek grayscale KWin. Mengembalikan True jika efek berhasil dimuat."""
     if not _has_cmd("qdbus"):
@@ -187,7 +193,7 @@ def main():
         print(f"[k-survival] Aktif : {', '.join(applied)}")
         if skipped:
             print(f"[k-survival] Lewat : {', '.join(skipped)}")
-        subprocess.run(["notify-send", "-u", "critical", "Kalacakra Survival Mode", "Layar monokrom aktif, CPU dibatasi untuk memperpanjang sisa baterai."], check=False)
+        _notify(["-u", "critical", "Kalacakra Survival Mode", "Layar monokrom aktif, CPU dibatasi untuk memperpanjang sisa baterai."])
     else:
         print(strings.get("survival_disabled", "[Kalacakra Survival] Mode Darurat Nonaktif: Tampilan dan performa normal dipulihkan."))
         set_grayscale_filter(False)
@@ -197,7 +203,7 @@ def main():
         if is_active:
             os.remove(STATE_FILE)
         print("[k-survival] Frekuensi CPU dikembalikan ke nilai asli hardware (bukan hardcode).")
-        subprocess.run(["notify-send", "Kalacakra Normal Mode", "Performa dan warna layar penuh dipulihkan."], check=False)
+        _notify(["Kalacakra Normal Mode", "Performa dan warna layar penuh dipulihkan."])
 
 if __name__ == "__main__":
     main()

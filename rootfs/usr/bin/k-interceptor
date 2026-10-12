@@ -7,6 +7,7 @@ and guides the user to install software cleanly via Flatpak, Spaces (Distrobox),
 
 import os
 import sys
+import shutil
 import subprocess
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -78,12 +79,21 @@ def main():
         print(f"\n[Kalacakra] Forwarding to Kalacakra Arch Space (k-aur) for: {pkg_str}...")
         subprocess.run([k_aur_bin, "install"] + packages)
     elif choice == "3":
+        if not shutil.which("distrobox"):
+            print("\n[k-interceptor Error] 'distrobox' tidak terpasang - Space Debian tidak bisa dibuat.")
+            print("   Pasang: sudo rpm-ostree install distrobox   (lalu reboot)")
+            sys.exit(1)
         print("\n[Kalacakra] Ensuring Debian space exists...")
         subprocess.run(["distrobox", "create", "--name", "kalacakra-debian", "--image", "debian:stable", "--yes"], check=False)
         print(f"[Kalacakra] Installing inside Debian space: {pkg_str}...")
         subprocess.run(["distrobox", "enter", "kalacakra-debian", "--", "sudo", "apt", "update"])
         subprocess.run(["distrobox", "enter", "kalacakra-debian", "--", "sudo", "apt", "install", "-y"] + packages)
     elif choice == "4":
+        if not shutil.which("brew"):
+            print("\n[k-interceptor Error] 'brew' (Homebrew) tidak terpasang.")
+            print("   Pasang Homebrew Linux: https://brew.sh")
+            print("   (atau pilih opsi lain: Flatpak / Spaces / rpm-ostree layering).")
+            sys.exit(1)
         print(f"\n[Kalacakra] Installing via Homebrew: {pkg_str}...")
         subprocess.run(["brew", "install"] + packages)
     elif choice == "5":

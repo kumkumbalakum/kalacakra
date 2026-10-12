@@ -6,6 +6,7 @@ Provides a unified entry point for maintenance, recipe execution, and configurat
 
 import os
 import sys
+import shutil
 import subprocess
 import argparse
 
@@ -43,6 +44,21 @@ def find_bin(name: str) -> str:
         if os.path.isfile(c):
             return c
     return name
+
+
+def run_just(justfile: str, *recipes):
+    """Jalankan resep `just`. Jujur jika prasyarat absen - jangan crash
+    dengan FileNotFoundError yang membingungkan."""
+    if not shutil.which("just"):
+        print("[kalacakra Error] 'just' (recipe runner) tidak terpasang.")
+        print("   Pasang: sudo rpm-ostree install just   (lalu reboot)")
+        print("   Atau jalankan langsung tool yang dituju, mis. /usr/bin/k-doctor.")
+        sys.exit(1)
+    if not os.path.isfile(justfile):
+        print(f"[kalacakra Error] Justfile tidak ditemukan di '{justfile}'.")
+        print("   Reinstall paket kalacakra, atau pastikan /usr/share/kalacakra/Justfile ada.")
+        sys.exit(1)
+    return subprocess.run(["just", "--justfile", justfile] + list(recipes))
 
 def main():
     parser = argparse.ArgumentParser(
@@ -174,7 +190,10 @@ def main():
             print("Use 'kalacakra --help' to see available commands.")
         
         if os.path.isfile(justfile):
-            subprocess.run(["just", "--justfile", justfile, "--list"])
+            if shutil.which("just"):
+                subprocess.run(["just", "--justfile", justfile, "--list"])
+            else:
+                print("  (Instal 'just' untuk melihat resep: sudo rpm-ostree install just)")
         sys.exit(0)
 
     # Route commands to executables
@@ -237,21 +256,21 @@ def main():
     elif args.command == "game":
         sys.exit(subprocess.run([find_bin("k-game")] + args.subaction).returncode)
     elif args.command == "update":
-        sys.exit(subprocess.run(["just", "--justfile", justfile, "update"]).returncode)
+        sys.exit(run_just(justfile, "update").returncode)
     elif args.command == "clean":
-        sys.exit(subprocess.run(["just", "--justfile", justfile, "clean"]).returncode)
+        sys.exit(run_just(justfile, "clean").returncode)
     elif args.command == "install-model":
-        sys.exit(subprocess.run(["just", "--justfile", justfile, "install-model", f"model={args.model}"]).returncode)
+        sys.exit(run_just(justfile, "install-model", f"model={args.model}").returncode)
     elif args.command == "install-whisper-model":
-        sys.exit(subprocess.run(["just", "--justfile", justfile, "install-whisper-model", f"size={args.size}"]).returncode)
+        sys.exit(run_just(justfile, "install-whisper-model", f"size={args.size}").returncode)
     elif args.command == "scx":
-        sys.exit(subprocess.run(["just", "--justfile", justfile, "scx", f"scheduler={args.scheduler}"]).returncode)
+        sys.exit(run_just(justfile, "scx", f"scheduler={args.scheduler}").returncode)
     elif args.command == "rebase":
-        sys.exit(subprocess.run(["just", "--justfile", justfile, "rebase", f"target={args.target}"]).returncode)
+        sys.exit(run_just(justfile, "rebase", f"target={args.target}").returncode)
     elif args.command == "battery-cap":
-        sys.exit(subprocess.run(["just", "--justfile", justfile, "battery-cap", f"limit={args.limit}"]).returncode)
+        sys.exit(run_just(justfile, "battery-cap", f"limit={args.limit}").returncode)
     elif args.command == "lang":
-        sys.exit(subprocess.run(["just", "--justfile", justfile, "lang", f"code={args.code}"]).returncode)
+        sys.exit(run_just(justfile, "lang", f"code={args.code}").returncode)
 
 if __name__ == "__main__":
     main()

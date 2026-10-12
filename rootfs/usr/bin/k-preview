@@ -74,8 +74,17 @@ def preview_file(file_path: str):
         return
     if shutil.which("bat"):
         subprocess.run(["bat", "--style=header,grid", file_path])
-    else:
+    elif shutil.which("less"):
         subprocess.run(["less", "-R", file_path])
+    else:
+        # Fallback terakhir: cetak sendiri dengan nomor baris, jangan crash
+        # karena bat/less mungkin tidak terpasang di image minimal.
+        try:
+            with open(file_path, "r", encoding="utf-8", errors="replace") as f:
+                for i, line in enumerate(f, 1):
+                    print(f"{i:>5}  {line}", end="")
+        except OSError as e:
+            print(f"[k-preview] Tidak bisa membaca '{file_path}': {e}")
 
 
 def main():
