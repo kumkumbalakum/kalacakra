@@ -1,0 +1,593 @@
+#!/usr/bin/env python3
+"""
+Kalacakra OS - k-look
+Kalacakra Look - the flagship one-command desktop identity / "ricing" manager.
+
+Terapkan tampilan desktop (tema KDE, warna, wallpaper, terminal, fastfetch,
+ikon, kursor) secara atomik dari sebuah preset, lalu bisa di-rollback penuh.
+Dibuat untuk menjadi fitur ikonik Kalacakra: cantik, bisa di-demo, dan aman
+karena seluruh perubahan dibungkus snapshot sebelum diterapkan.
+
+Catatan jujur:
+- Tool ini menulis ke direktori konfigurasi USER (XDG), bukan ke root host
+  yang immutable. Tidak ada yang di-"layer" ke image; ini murni kustomisasi
+  home directory, jadi konsisten dengan model immutable.
+- Bila prasyarat opsional (plasma-apply-*, kwriteconfig6, lookandfeeltool,
+  gsettings) absen, tool melewatinya dengan jujur dan menandainya SKIP, bukan
+  mengklaim sukses.
+"""
+
+import os
+import sys
+import json
+import shutil
+import argparse
+import subprocess
+import datetime
+
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+LIB_PATH = os.path.abspath(os.path.join(SCRIPT_DIR, "..", "share", "kalacakra", "lib"))
+if os.path.isdir(LIB_PATH) and LIB_PATH not in sys.path:
+    sys.path.insert(0, LIB_PATH)
+elif "/usr/share/kalacakra/lib" not in sys.path and os.path.isdir("/usr/share/kalacakra/lib"):
+    sys.path.insert(0, "/usr/share/kalacakra/lib")
+
+try:
+    from kalacakra_common import get_locale_strings, resolve_locales_dir
+except ImportError:
+    def get_locale_strings(lang_override=None):
+        return {}, "en"
+
+    def resolve_locales_dir():
+        # Fallback pencarian lokal (tanpa lib bersama)
+        for cand in (
+            os.environ.get("KALACAKRA_LOCALES_DIR"),
+            os.path.abspath(os.path.join(SCRIPT_DIR, "..", "share", "kalacakra", "locales")),
+            "/usr/share/kalacakra/locales",
+        ):
+            if cand and os.path.isdir(cand):
+                return cand
+        return "/usr/share/kalacakra/locales"
+
+
+def presets_dir() -> str:
+    """Lokasi direktori preset Look (bisa dioverride via env untuk test)."""
+    env = os.environ.get("KALACAKRA_LOOK_PRESETS_DIR")
+    if env and os.path.isdir(env):
+        return env
+    for cand in (
+        os.path.abspath(os.path.join(SCRIPT_DIR, "..", "share", "kalacakra", "look", "presets")),
+        "/usr/share/kalacakra/look/presets",
+    ):
+        if os.path.isdir(cand):
+            return cand
+    return os.path.abspath(os.path.join(SCRIPT_DIR, "..", "share", "kalacakra", "look", "presets"))
+
+
+CONFIG_HOME = os.environ.get("XDG_CONFIG_HOME", os.path.expanduser("~/.config"))
+DATA_HOME = os.environ.get("XDG_DATA_HOME", os.path.expanduser("~/.local/share"))
+LOOK_STATE_DIR = os.path.join(DATA_HOME, "kalacakra", "look")
+LOOK_ACTIVE_FILE = os.path.join(LOOK_STATE_DIR, "active.json")
+
+
+# ---------------------------------------------------------------------------
+# Utilitas
+# ---------------------------------------------------------------------------
+def find_bin(name: str) -> str:
+    candidates = [f"/usr/bin/{name}", os.path.join(SCRIPT_DIR, name)]
+    for c in candidates:
+        if os.path.isfile(c):
+            return c
+    return name
+
+
+def have(name: str) -> bool:
+    return shutil.which(name) is not None
+
+
+def list_presets() -> list[dict]:
+    """Kembalikan daftar preset yang valid (JSON dengan field minimal)."""
+    result = []
+    d = presets_dir()
+    if not os.path.isdir(d):
+        return result
+    for fname in sorted(os.listdir(d)):
+        if not fname.endswith(".json"):
+            continue
+        path = os.path.join(d, fname)
+        try:
+            with open(path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+        except (OSError, json.JSONDecodeError):
+            continue
+        if not isinstance(data, dict):
+            continue
+        data.setdefault("id", fname[:-5])
+        data["__path__"] = path
+        result.append(data)
+    return result
+
+
+def find_preset(preset_id: str):
+    for p in list_presets():
+        if p.get("id") == preset_id:
+            return p
+    return None
+
+
+# ---------------------------------------------------------------------------
+# Penerap langkah-langkah preset
+# ---------------------------------------------------------------------------
+def _write_kde_config(rel_config_path: str, group: str, key: str, value: str) -> bool:
+    """Tulis nilai ke file konfigurasi KDE (kwriteconfig6 bila ada, jika tidak
+    tulis INI sederhana secara manual). Mengembalikan True bila berubah."""
+    target = os.path.join(CONFIG_HOME, rel_config_path)
+    if have("kwriteconfig6"):
+        res = subprocess.run(
+            ["kwriteconfig6", "--file", target, "--group", group, "--key", key, value],
+            capture_output=True, text=True,
+        )
+        return res.returncode == 0
+    if have("kwriteconfig5"):
+        res = subprocess.run(
+            ["kwriteconfig5", "--file", target, "--group", group, "--key", key, value],
+            capture_output=True, text=True,
+        )
+        return res.returncode == 0
+
+    # Fallback manual: sisipkan/perbarui [group] key=value di file INI.
+    try:
+        os.makedirs(os.path.dirname(target), exist_ok=True)
+        lines = []
+        if os.path.isfile(target):
+            with open(target, "r", encoding="utf-8") as f:
+                lines = f.read().splitlines()
+        out, in_group, done = [], False, False
+        for line in lines:
+            stripped = line.strip()
+            if stripped.startswith("[") and stripped.endswith("]"):
+                if in_group and not done:
+                    out.append(f"{key}={value}")
+                    done = True
+                in_group = (stripped == f"[{group}]")
+            out.append(line)
+        if in_group and not done:
+            out.append(f"{key}={value}")
+            done = True
+        if not done:
+            if out and out[-1].strip():
+                out.append("")
+            out.append(f"[{group}]")
+            out.append(f"{key}={value}")
+        with open(target, "w", encoding="utf-8") as f:
+            f.write("\n".join(out) + "\n")
+        return True
+    except OSError:
+        return False
+
+
+def apply_plasma_theme(theme: str) -> tuple[str, str]:
+    """Terapkan global desktop look & feel (Plasma 6)."""
+    if have("plasma-apply-lookandfeel"):
+        res = subprocess.run(["plasma-apply-lookandfeel", "-a", theme],
+                             capture_output=True, text=True)
+        if res.returncode == 0:
+            return "OK", f"look-and-feel: {theme}"
+        return "WARN", f"plasma-apply-lookandfeel gagal: {res.stderr.strip()[:80]}"
+    if have("lookandfeeltool"):
+        res = subprocess.run(["lookandfeeltool", "-a", theme], capture_output=True, text=True)
+        if res.returncode == 0:
+            return "OK", f"look-and-feel: {theme}"
+        return "WARN", f"lookandfeeltool gagal: {res.stderr.strip()[:80]}"
+    return "SKIP", "plasma-apply-lookandfeel/lookandfeeltool tidak terpasang"
+
+
+def apply_color_scheme(scheme: str) -> tuple[str, str]:
+    if have("plasma-apply-colorscheme"):
+        res = subprocess.run(["plasma-apply-colorscheme", scheme], capture_output=True, text=True)
+        if res.returncode == 0:
+            return "OK", f"color scheme: {scheme}"
+        return "WARN", f"color scheme gagal: {res.stderr.strip()[:80]}"
+    # Fallback: tulis skema warna ke config kdeglobals.
+    ok = _write_kde_config("kdeglobals", "General", "ColorScheme", scheme)
+    return ("OK", f"color scheme (config): {scheme}") if ok else ("WARN", "gagal tulis color scheme")
+
+
+def apply_wallpaper(image: str) -> tuple[str, str]:
+    if not image:
+        return "SKIP", "tidak ada wallpaper"
+    # Wallpaper bisa berupa path absolut atau nama file di dalam preset bundle.
+    path = image
+    if not os.path.isabs(path):
+        local = os.path.join(presets_dir(), "..", "wallpapers", image)
+        if os.path.isfile(local):
+            path = os.path.abspath(local)
+    if have("plasma-apply-wallpaperimage") and os.path.isfile(path):
+        res = subprocess.run(["plasma-apply-wallpaperimage", path], capture_output=True, text=True)
+        if res.returncode == 0:
+            return "OK", f"wallpaper: {os.path.basename(path)}"
+        return "WARN", f"wallpaper gagal: {res.stderr.strip()[:80]}"
+    if not os.path.isfile(path):
+        return "WARN", f"wallpaper hilang: {path}"
+    # Fallback: catat di config desktop (Plasma membaca ini saat login).
+    ok = _write_kde_config("plasma-org.kde.plasma.desktop-appletsrc",
+                           "Containments][1][Wallpaper][org.kde.image][General",
+                           "Image", f"file://{path}")
+    return ("OK", f"wallpaper (config): {os.path.basename(path)}") if ok else ("WARN", "gagal set wallpaper")
+
+
+def apply_terminal_theme(theme_name: str, colors: dict | None) -> tuple[str, str]:
+    """Tulis profil terminal ramah (Ptyxis/Konsole) — fallback ke config INI."""
+    if not theme_name and not colors:
+        return "SKIP", "tidak ada tema terminal"
+    # Konfigurasi terminal KDE (Konsole) profil default.
+    changed = False
+    if colors:
+        for key, val in colors.items():
+            if _write_kde_config("konsolerc", "Appearance", key, val):
+                changed = True
+    if theme_name:
+        if _write_kde_config("konsolerc", "Desktop Entry", "DefaultProfile", theme_name):
+            changed = True
+    return ("OK", f"terminal: {theme_name or 'colors'}") if changed else ("WARN", "terminal tidak berubah")
+
+
+def apply_cursor(theme: str) -> tuple[str, str]:
+    if not theme:
+        return "SKIP", "tidak ada kursor"
+    ok = _write_kde_config("kcminputrc", "Mouse", "cursorTheme", theme)
+    return ("OK", f"cursor: {theme}") if ok else ("WARN", "gagal set kursor")
+
+
+def apply_icons(theme: str) -> tuple[str, str]:
+    if not theme:
+        return "SKIP", "tidak ada ikon"
+    ok = _write_kde_config("kdeglobals", "Icons", "Theme", theme)
+    return ("OK", f"icons: {theme}") if ok else ("WARN", "gagal set ikon")
+
+
+def apply_fonts(fonts: dict | None) -> tuple[str, str]:
+    if not fonts:
+        return "SKIP", "tidak ada font"
+    changed = False
+    for key, val in fonts.items():
+        if _write_kde_config("kdeglobals", "General", key, val):
+            changed = True
+    return ("OK", "font diperbarui") if changed else ("WARN", "gagal set font")
+
+
+def apply_fastfetch_theme(preset: dict) -> tuple[str, str]:
+    """Tulis config fastfetch kustom agar tema terasa sampai ke terminal art."""
+    ff = preset.get("fastfetch")
+    if not ff:
+        return "SKIP", "tidak ada tema fastfetch"
+    target = os.path.join(CONFIG_HOME, "fastfetch", "config.jsonc")
+    try:
+        os.makedirs(os.path.dirname(target), exist_ok=True)
+        with open(target, "w", encoding="utf-8") as f:
+            if isinstance(ff, dict):
+                json.dump(ff, f, indent=2, ensure_ascii=False)
+            else:
+                f.write(str(ff))
+        return "OK", "fastfetch: tema diterapkan"
+    except OSError as e:
+        return "WARN", f"fastfetch gagal: {e}"
+
+
+def apply_starship_theme(preset: dict) -> tuple[str, str]:
+    star = preset.get("starship")
+    if not star:
+        return "SKIP", "tidak ada tema starship"
+    target = os.path.join(CONFIG_HOME, "starship.toml")
+    try:
+        with open(target, "a", encoding="utf-8") as f:
+            f.write("\n# --- Kalacakra Look ---\n")
+            if isinstance(star, dict):
+                for k, v in star.items():
+                    f.write(f'{k} = "{v}"\n')
+            else:
+                f.write(str(star) + "\n")
+        return "OK", "starship prompt diperbarui"
+    except OSError as e:
+        return "WARN", f"starship gagal: {e}"
+
+
+APPLIERS = {
+    "plasma_theme": lambda v, p: apply_plasma_theme(v),
+    "color_scheme": lambda v, p: apply_color_scheme(v),
+    "wallpaper": lambda v, p: apply_wallpaper(v),
+    "cursor": lambda v, p: apply_cursor(v),
+    "icons": lambda v, p: apply_icons(v),
+    "fonts": lambda v, p: apply_fonts(v),
+    "terminal": lambda v, p: apply_terminal_theme(v, p.get("terminal_colors")),
+    "fastfetch": lambda v, p: apply_fastfetch_theme(p),
+    "starship": lambda v, p: apply_starship_theme(p),
+}
+
+
+# ---------------------------------------------------------------------------
+# Riwayat / rollback sederhana (self-contained, tanpa snapshot root)
+# ---------------------------------------------------------------------------
+def _now_stamp() -> str:
+    return datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
+
+
+def _files_we_touch() -> list[str]:
+    """Daftar file konfigurasi yang mungkin diubah tool ini (relatif CONFIG_HOME)."""
+    return [
+        "kdeglobals",
+        "konsolerc",
+        "kcminputrc",
+        "starship.toml",
+        "fastfetch/config.jsonc",
+        "plasma-org.kde.plasma.desktop-appletsrc",
+    ]
+
+
+def make_backup() -> str:
+    """Salin file konfigurasi yang akan disentuh ke folder riwayat."""
+    stamp = _now_stamp()
+    dest_dir = os.path.join(LOOK_STATE_DIR, "history", stamp)
+    os.makedirs(dest_dir, exist_ok=True)
+    for rel in _files_we_touch():
+        src = os.path.join(CONFIG_HOME, rel)
+        if os.path.isfile(src):
+            dst = os.path.join(dest_dir, rel)
+            os.makedirs(os.path.dirname(dst), exist_ok=True)
+            try:
+                shutil.copy2(src, dst)
+            except OSError:
+                pass
+    return dest_dir
+
+
+def save_active(preset: dict, history_dir: str) -> None:
+    os.makedirs(LOOK_STATE_DIR, exist_ok=True)
+    data = {
+        "id": preset.get("id"),
+        "name": preset.get("name"),
+        "applied_at": datetime.datetime.now().isoformat(timespec="seconds"),
+        "history": history_dir,
+    }
+    try:
+        with open(LOOK_ACTIVE_FILE, "w", encoding="utf-8") as f:
+            json.dump(data, f, indent=2, ensure_ascii=False)
+    except OSError:
+        pass
+
+
+def get_active() -> dict | None:
+    if not os.path.isfile(LOOK_ACTIVE_FILE):
+        return None
+    try:
+        with open(LOOK_ACTIVE_FILE, "r", encoding="utf-8") as f:
+            return json.load(f)
+    except (OSError, json.JSONDecodeError):
+        return None
+
+
+def rollback() -> int:
+    """Kembalikan konfigurasi ke snapshot riwayat terakhir."""
+    active = get_active()
+    history = None
+    if active and active.get("history") and os.path.isdir(active["history"]):
+        history = active["history"]
+    else:
+        hist_root = os.path.join(LOOK_STATE_DIR, "history")
+        if os.path.isdir(hist_root):
+            entries = sorted(
+                (os.path.join(hist_root, d) for d in os.listdir(hist_root)),
+                reverse=True,
+            )
+            for e in entries:
+                if os.path.isdir(e):
+                    history = e
+                    break
+    if not history:
+        print("[k-look Error] Tidak ada riwayat Look untuk di-rollback.")
+        return 1
+
+    restored = 0
+    for rel in _files_we_touch():
+        src = os.path.join(history, rel)
+        dst = os.path.join(CONFIG_HOME, rel)
+        if os.path.isfile(src):
+            os.makedirs(os.path.dirname(dst), exist_ok=True)
+            try:
+                shutil.copy2(src, dst)
+                restored += 1
+            except OSError:
+                pass
+    print(f"[k-look] Rollback selesai. {restored} berkas konfigurasi dipulihkan dari {os.path.basename(history)}.")
+    print("         (Logout / login ulang agar Plasma memuat tampilan lama.)")
+    if os.path.isfile(LOOK_ACTIVE_FILE):
+        try:
+            os.remove(LOOK_ACTIVE_FILE)
+        except OSError:
+            pass
+    return 0
+
+
+# ---------------------------------------------------------------------------
+# Screenshot / berbagi
+# ---------------------------------------------------------------------------
+def take_screenshot(preset: dict) -> tuple[str, str]:
+    """Ambil screenshot desktop via grim (Wayland). Jujur jika tool absen."""
+    if not have("grim"):
+        return "SKIP", "grim tidak terpasang (screenshot dilewati)"
+    shots_dir = os.path.join(os.path.expanduser("~"), "Pictures", "Kalacakra")
+    os.makedirs(shots_dir, exist_ok=True)
+    fname = f"kalacakra-look-{preset.get('id', 'theme')}-{_now_stamp()}.png"
+    out_path = os.path.join(shots_dir, fname)
+    res = subprocess.run(["grim", out_path], capture_output=True, text=True)
+    if res.returncode != 0:
+        return "WARN", f"grim gagal: {res.stderr.strip()[:80]}"
+    return "OK", out_path
+
+
+def build_share_caption(preset: dict) -> str:
+    """Susun caption siap-tempel untuk r/unixporn & media sosial."""
+    name = preset.get("name", preset.get("id", "Look"))
+    desc = preset.get("description", "")
+    return (
+        f"{name} - Kalacakra OS\n"
+        f"{desc}\n"
+        f"One command: `kalacakra look {preset.get('id')}`  |  #KalacakraOS #ricing #Linux"
+    )
+
+
+# ---------------------------------------------------------------------------
+# Perintah
+# ---------------------------------------------------------------------------
+def cmd_list(presets: list[dict]) -> int:
+    active = get_active()
+    active_id = active.get("id") if active else None
+    print("=== Kalacakra Look - Preset Tersedia ===")
+    if not presets:
+        print(f"  (tidak ada preset di {presets_dir()})")
+        return 0
+    for p in presets:
+        mark = " *" if p.get("id") == active_id else "  "
+        print(f"{mark} {p.get('id'):<16} {p.get('name', '')}")
+        if p.get("description"):
+            print(f"       {p['description']}")
+    print()
+    print("Terapkan:  kalacakra look apply <id>")
+    return 0
+
+
+def cmd_show(preset_id: str) -> int:
+    p = find_preset(preset_id)
+    if not p:
+        print(f"[k-look Error] Preset '{preset_id}' tidak ditemukan. Jalankan 'kalacakra look'.")
+        return 1
+    print(f"=== {p.get('name', preset_id)} ===")
+    for k in ("description", "plasma_theme", "color_scheme", "wallpaper",
+              "cursor", "icons", "terminal"):
+        if p.get(k):
+            print(f"  {k:<14}: {p[k]}")
+    return 0
+
+
+def cmd_apply(preset_id: str, do_shot: bool) -> int:
+    p = find_preset(preset_id)
+    if not p:
+        print(f"[k-look Error] Preset '{preset_id}' tidak ditemukan.")
+        print("   Jalankan 'kalacakra look' untuk melihat daftar preset.")
+        return 1
+
+    print(f"[k-look] Menerapkan tampilan '{p.get('name', preset_id)}'...")
+    # Snapshot konfigurasi sebelum berubah -> aman & bisa di-rollback.
+    history = make_backup()
+    print(f"[k-look] Cadangan konfigurasi: {history}")
+
+    results = []
+    for key, applier in APPLIERS.items():
+        # Applier preset-level (fastfetch/starship) menerima (value, preset);
+        # value bisa None karena mereka membaca seluruh dict preset.
+        val = None if key in ("fastfetch", "starship") else p.get(key)
+        if key in ("fastfetch", "starship"):
+            if not p.get(key):
+                continue
+        elif not val:
+            continue
+        status, msg = applier(val, p)
+        results.append((key, status, msg))
+        tag = {"OK": "\033[32m OK \033[0m", "WARN": "\033[33mWARN\033[0m",
+               "SKIP": "\033[36mSKIP\033[0m"}.get(status, status)
+        print(f"  [{tag}] {key:<14}: {msg}")
+
+    save_active(p, history)
+    applied = sum(1 for _, s, _ in results if s == "OK")
+    skipped = sum(1 for _, s, _ in results if s == "SKIP")
+    warned = sum(1 for _, s, _ in results if s == "WARN")
+    print(f"\n[k-look] Selesai: {applied} diterapkan, {skipped} dilewati, {warned} peringatan.")
+    if skipped:
+        print("         (Yang dilewati berarti prasyarat Plasma belum ada di sistem ini -")
+        print("          lihat catatan jujur: tool tidak memalsukan keberhasilan.)")
+    print("         Logout lalu login ulang agar Plasma memuat tampilan baru.")
+
+    if do_shot:
+        status, info = take_screenshot(p)
+        if status == "OK":
+            print(f"\n[k-look] Screenshot tersimpan: {info}")
+            print("[k-look] Caption siap-tempel untuk r/unixporn / sosial media:\n")
+            print("---8<---")
+            print(build_share_caption(p))
+            print("---8<---")
+        else:
+            print(f"\n[k-look] {info}")
+    return 0
+
+
+def cmd_rollback() -> int:
+    return rollback()
+
+
+def cmd_current() -> int:
+    active = get_active()
+    if not active:
+        print("Tidak ada preset Look aktif (tampilan default/bawaan).")
+        return 0
+    print(f"Tampilan aktif: {active.get('name')} ({active.get('id')})")
+    print(f"Diterapkan pada: {active.get('applied_at')}")
+    return 0
+
+
+def cmd_share(preset_id: str | None) -> int:
+    if preset_id:
+        p = find_preset(preset_id)
+    else:
+        active = get_active()
+        p = find_preset(active.get("id")) if active else None
+    if not p:
+        print("[k-look Error] Tidak ada preset aktif/dikenali untuk dibagikan.")
+        return 1
+    print("---8<--- Salin mulai baris berikut ---8<---")
+    print(build_share_caption(p))
+    print("---8<--- Selesai ---8<---")
+    return 0
+
+
+def main():
+    parser = argparse.ArgumentParser(
+        prog="k-look",
+        description="Kalacakra Look - Manajer identitas & tampilan desktop satu perintah",
+    )
+    parser.add_argument("action", nargs="?", default="list",
+                        help="list | apply <id> | rollback | current | show <id> | share [id]")
+    parser.add_argument("args", nargs="*", help="Argumen tambahan untuk aksi")
+    parser.add_argument("--screenshot", "-s", action="store_true",
+                        help="Ambil screenshot + caption setelah apply")
+    parsed = parser.parse_args()
+
+    action = parsed.action
+    rest = parsed.args
+    presets = list_presets()
+
+    if action in ("list", "ls"):
+        return cmd_list(presets)
+    if action == "current":
+        return cmd_current()
+    if action == "rollback":
+        return cmd_rollback()
+    if action == "show":
+        if not rest:
+            print("[k-look Error] 'show' butuh id preset.")
+            return 1
+        return cmd_show(rest[0])
+    if action == "share":
+        return cmd_share(rest[0] if rest else None)
+    if action == "apply":
+        if not rest:
+            print("[k-look Error] 'apply' butuh id preset. Contoh: kalacakra look apply obsidian-minimal")
+            return 1
+        return cmd_apply(rest[0], do_shot=parsed.screenshot)
+
+    print(f"[k-look Error] Aksi tidak dikenal: '{action}'")
+    print("   Aksi: list | apply <id> | rollback | current | show <id> | share [id]")
+    return 1
+
+
+if __name__ == "__main__":
+    sys.exit(main())

@@ -90,5 +90,12 @@
   "wx_compliant": "Binary and memory protections comply with W^X (Write XOR Execute) standards!",
   "voice_header": "=== Kalacakra Voice (Offline Dictation via whisper.cpp - No Cloud) ===",
   "voice_copied": "[k-voice] Text copied to clipboard (paste with Ctrl+V).",
-  "game_umu_missing": "[k-game] 'umu-run' (umu-launcher) is not installed yet."
+  "game_umu_missing": "[k-game] 'umu-run' (umu-launcher) is not installed yet.",
+  "look_header": "=== Kalacakra Look - Available Presets ===",
+  "look_applying": "Applying look '{name}'...",
+  "look_done": "Look applied successfully.",
+  "look_rollback_done": "Look rolled back to the previous configuration.",
+  "look_no_active": "No active Look preset (default appearance).",
+  "look_share_caption": "Ready-to-paste caption for r/unixporn & social media:",
+  "showcase_tagline": "The Immutable Linux Distro that is Beautiful, Safe, & Indonesian at Heart"
 }

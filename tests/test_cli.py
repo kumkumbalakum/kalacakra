@@ -612,6 +612,146 @@ class TestRewindRestoreLogic(unittest.TestCase):
             self.assertEqual(read_file(tgt), "BARU")
 
 
+class TestLookManager(unittest.TestCase):
+    """k-look: preset loading, apply ke HOME terisolasi, rollback tanpa data loss."""
+
+    def _run_look(self, args, home):
+        import subprocess, tempfile
+        path = os.path.join(ROOTFS_DIR, "usr", "bin", "k-look")
+        env = os.environ.copy()
+        env["HOME"] = home
+        env["XDG_CONFIG_HOME"] = os.path.join(home, ".config")
+        env["XDG_DATA_HOME"] = os.path.join(home, ".local", "share")
+        return subprocess.run([sys.executable, path] + args,
+                              capture_output=True, text=True, env=env, timeout=60)
+
+    def test_presets_exist_and_are_valid_json(self):
+        look = load_cli_module("k-look")
+        presets = look.list_presets()
+        self.assertGreaterEqual(len(presets), 5, "harus ada minimal 5 preset Look")
+        ids = {p["id"] for p in presets}
+        for expected in ("mandala-cyberpunk", "nusantara-bronze", "obsidian-minimal",
+                         "aurora-borealis", "kraton-gold"):
+            self.assertIn(expected, ids)
+        for p in presets:
+            self.assertIn("name", p)
+            self.assertIn("description", p)
+
+    def test_look_wallpapers_exist(self):
+        import glob
+        wp_dir = os.path.join(ROOTFS_DIR, "usr", "share", "kalacakra", "look", "wallpapers")
+        svgs = glob.glob(os.path.join(wp_dir, "*.svg"))
+        self.assertGreaterEqual(len(svgs), 5, "setiap preset harus punya wallpaper SVG")
+        # Validasi XML agar tidak ada SVG rusak
+        import xml.dom.minidom
+        for s in svgs:
+            xml.dom.minidom.parse(s)
+
+    def test_look_apply_creates_config_and_records_active(self):
+        import tempfile
+        with tempfile.TemporaryDirectory() as home:
+            res = self._run_look(["apply", "kraton-gold"], home)
+            self.assertEqual(res.returncode, 0, res.stderr)
+            # Config KDE tertulis (lewat kwriteconfig6 atau fallback INI manual)
+            kdeglobals = os.path.join(home, ".config", "kdeglobals")
+            self.assertTrue(os.path.isfile(kdeglobals), "kdeglobals harus dibuat")
+            active = os.path.join(home, ".local", "share", "kalacakra", "look", "active.json")
+            self.assertTrue(os.path.isfile(active), "active.json harus dicatat")
+            import json
+            with open(active) as f:
+                data = json.load(f)
+            self.assertEqual(data["id"], "kraton-gold")
+
+    def test_look_rollback_restores_previous_config(self):
+        import tempfile
+        with tempfile.TemporaryDirectory() as home:
+            cfg_dir = os.path.join(home, ".config")
+            os.makedirs(cfg_dir, exist_ok=True)
+            kdeglobals = os.path.join(cfg_dir, "kdeglobals")
+            # Kondisi awal: tema lama
+            with open(kdeglobals, "w") as f:
+                f.write("[General]\nColorScheme=OldTheme\n")
+            # Terapkan preset (mencadangkan yang lama)
+            self._run_look(["apply", "obsidian-minimal"], home)
+            # Rollback harus memulihkan ColorScheme=OldTheme
+            res = self._run_look(["rollback"], home)
+            self.assertEqual(res.returncode, 0, res.stderr)
+            with open(kdeglobals) as f:
+                self.assertIn("OldTheme", f.read())
+
+    def test_look_unknown_preset_fails_cleanly(self):
+        import tempfile
+        with tempfile.TemporaryDirectory() as home:
+            res = self._run_look(["apply", "tidak-ada-preset-ini"], home)
+            self.assertEqual(res.returncode, 1)
+            self.assertNotIn("Traceback", res.stderr)
+            self.assertIn("tidak ditemukan", res.stdout)
+
+
+class TestInterceptorSmartRecommend(unittest.TestCase):
+    """k-interceptor: rekomendasi backend cerdas & jujur (tanpa memalsukan)."""
+
+    def test_recommend_known_flatpak_alias(self):
+        ki = load_cli_module("k-interceptor")
+        choice, reason = ki.recommend_backend(["vlc"])
+        # vlc dikenal -> diarahkan ke Flatpak (opsi 1) bila flatpak tersedia
+        if ki.backend_available("flatpak"):
+            self.assertEqual(choice, "1")
+            self.assertIn("vlc", reason.lower())
+        else:
+            self.assertEqual(choice, "")  # jujur: tak merekomendasikan yang absen
+
+    def test_recommend_brew_cli_tool_when_available(self):
+        ki = load_cli_module("k-interceptor")
+        choice, _ = ki.recommend_backend(["ripgrep"])
+        if ki.backend_available("brew"):
+            self.assertEqual(choice, "4")
+
+    def test_backend_available_is_truthful(self):
+        ki = load_cli_module("k-interceptor")
+        # backend yang tak dikenal -> False, bukan exception
+        self.assertFalse(ki.backend_available("tidak-ada-backend"))
+
+    def test_flatpak_alias_mapping_is_consistent(self):
+        ki = load_cli_module("k-interceptor")
+        # Semua nilai alias harus mengikuti format ID Flathub (mengandung titik)
+        for name, app_id in ki.FLATPAK_ALIASES.items():
+            self.assertIn(".", app_id, f"alias '{name}' -> '{app_id}' bukan ID Flathub")
+            self.assertEqual(name, name.lower())
+
+
+class TestShowcase(unittest.TestCase):
+    def test_showcase_runs_and_lists_themes(self):
+        import subprocess
+        path = os.path.join(ROOTFS_DIR, "usr", "bin", "k-showcase")
+        env = os.environ.copy()
+        env["NO_COLOR"] = "1"
+        env["LANG"] = "en_US.UTF-8"
+        res = subprocess.run([sys.executable, path, "--no-fetch"],
+                             capture_output=True, text=True, env=env, timeout=60)
+        self.assertEqual(res.returncode, 0, res.stderr)
+        self.assertIn("KALACAKRA OS", res.stdout)
+        self.assertIn("IDENTITY", res.stdout)  # pilar identitas
+        self.assertIn("Look", res.stdout)
+
+
+class TestLocaleCoverage(unittest.TestCase):
+    """Setiap kunci locale baru (look/showcase) harus ada di EN & ID."""
+
+    def test_new_locale_keys_present_in_both_languages(self):
+        import json
+        new_keys = ["look_header", "look_applying", "look_done",
+                    "look_rollback_done", "look_no_active", "look_share_caption",
+                    "showcase_tagline"]
+        for lang in ("en", "id"):
+            with open(os.path.join(os.path.dirname(__file__), "..", "rootfs", "usr",
+                                   "share", "kalacakra", "locales", f"{lang}.json"),
+                      encoding="utf-8") as f:
+                data = json.load(f)
+            for k in new_keys:
+                self.assertIn(k, data, f"kunci '{k}' hilang di {lang}.json")
+
+
 class TestSmokeNoTools(unittest.TestCase):
     """Smoke test: tool harus tetap jujur & tidak crash saat dependensi eksternal
     benar-benar absen (PATH kosong) - skenario paling keras."""

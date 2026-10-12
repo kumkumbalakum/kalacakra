@@ -452,9 +452,16 @@ Kalacakra OS dirancang bukan sekadar untuk bertahan, melainkan untuk memimpin tr
 
 Agar memiliki daya tarik viral di komunitas (Reddit `r/unixporn`, YouTube, X/Twitter):
 
+> **Status implementasi (jujur):** Fitur inti identitas visual **sudah dikerjakan** sebagai
+> `k-look` (manajer tema satu perintah dengan 5 preset + wallpaper SVG, riwayat & rollback,
+> serta generator caption r/unixporn). Lihat README §"Pilar Identitas: Kalacakra Look" dan
+> `STRATEGY.md`. Yang **belum** ada: KCM/GUI pemilihan tema, galeri showcase daring, dan
+> "Welcome Wizard" di bawah ini.
+
 * **Identitas Visual Kalacakra:**
   * Perpaduan estetika geometri kosmologis (Roda Waktu Nusantara) dengan sentuhan futuristik modern (*Dark Slate, Obsidian, dan Bronze/Copper Accent*).
   * Tema visual KDE Plasma 6 yang elegan, clean, modern blur, dan responsif terhadap dark/light mode.
+  * **5 preset Look siap pakai** (`kalacakra look`): Mandala Cyberpunk, Nusantara Bronze, Obsidian Minimal, Aurora Borealis, Kraton Gold.
 * **Terminal Experience Kelas Dunia:**
   * **Shell Prompt:** Konfigurasi bawaan **Starship Prompt** menampilkan status branch Git, runtime aktif (Python/Node/Rust), dan indikator status Kalacakra Space.
   * **Fastfetch Kustom:** Tampilan ASCII art Kalacakra Mandala bergaya cyberpunk saat terminal dibuka, disertai rincian efisiensi kompresi Btrfs, status AI engine, active CPU scheduler (`scx`), dan deployment OCI aktif.

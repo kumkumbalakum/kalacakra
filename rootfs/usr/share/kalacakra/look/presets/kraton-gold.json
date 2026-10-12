@@ -1,0 +1,24 @@
+{
+  "id": "kraton-gold",
+  "name": "Kraton Gold",
+  "description": "Hitam keraton dengan aksen emas: mewah, berkelas, dan sangat Indonesia.",
+  "plasma_theme": "BreezeDark",
+  "color_scheme": "BreezeDark",
+  "wallpaper": "kraton-gold.svg",
+  "cursor": "breeze_cursors",
+  "icons": "Papirus-Dark",
+  "fonts": {
+    "font": "Noto Sans,11,-1,5,50,0,0,0,0,0",
+    "fixed": "JetBrains Mono,10,-1,5,50,0,0,0,0,0"
+  },
+  "terminal": "Kalacakra Kraton",
+  "terminal_colors": {
+    "ColorScheme": "Kalacakra Kraton",
+    "TerminalMargin": "14"
+  },
+  "fastfetch": {
+    "logo": {"type": "kitty", "source": "kalacakra-mandala"},
+    "modules": ["title", "separator", "os", "host", "kernel", "uptime", "shell", "de", "wm", "cpu", "gpu", "memory", "colors"]
+  },
+  "starship": {"format": "$os$directory$git_branch$character"}
+}

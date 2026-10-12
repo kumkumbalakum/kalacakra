@@ -1,0 +1,182 @@
+#!/usr/bin/env python3
+"""
+Kalacakra OS - k-showcase
+Penampil identitas Kalacakra: satu layar cantik yang siap di-screenshot untuk
+r/unixporn & media sosial. Menyoroti tiga pilar: Look (identitas), Immutable UX
+(yang tidak menyakitkan), dan cerita Indonesia.
+
+Murni presentasi - tidak mengubah sistem. Jujur: bila fastfetch ada, pakai itu;
+bila tidak, tampilkan kartu ASCII bawaan.
+"""
+
+import os
+import sys
+import shutil
+import subprocess
+import argparse
+
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+
+# ANSI
+R = "\033[0m"
+B = "\033[1m"
+DIM = "\033[2m"
+GOLD = "\033[38;5;220m"
+CYAN = "\033[38;5;51m"
+MAG = "\033[38;5;201m"
+GREEN = "\033[38;5;84m"
+AMBER = "\033[38;5;214m"
+
+MANDALA = r"""
+           .--------------.
+        .-'                  '-.
+      .'       .--------.       '.
+     /       .-+          +-.      \
+    |       /   \        /   \      |
+    |      | (o) |      | (o) |     |
+    |       \   /        \   /      |
+     \       '-+          +-'      /
+      '.        '--------'        .'
+        '-.                  .-'
+           '--------------'
+        \        |        /
+         \       |       /
+          \______|______/
+"""
+
+
+def have(name: str) -> bool:
+    return shutil.which(name) is not None
+
+
+def color_enabled() -> bool:
+    if os.environ.get("NO_COLOR"):
+        return False
+    return sys.stdout.isatty() or os.environ.get("KALACAKRA_FORCE_COLOR") == "1"
+
+
+def c(code: str) -> str:
+    return code if color_enabled() else ""
+
+
+def print_header(lang: str) -> None:
+    if lang == "id":
+        title = "KALACAKRA OS - Roda Waktu"
+        sub = "Distro Linux Immutable yang Cantik, Aman, & Berjiwa Indonesia"
+    else:
+        title = "KALACAKRA OS - The Wheel of Time"
+        sub = "The Immutable Linux Distro that is Beautiful, Safe, & Indonesian at Heart"
+    width = 68
+    print(c(GOLD) + "=" * width + c(R))
+    print(c(GOLD) + B + title.center(width) + c(R))
+    print(c(GOLD) + sub.center(width) + c(R))
+    print(c(GOLD) + "=" * width + c(R))
+
+
+def print_pillars(lang: str) -> None:
+    if lang == "id":
+        pillars = [
+            (GOLD,  "1. IDENTITAS (Look)", "kalacakra look apply mandala-cyberpunk"),
+            (CYAN,  "2. IMUTABEL TANPA SAKIT", "sudo apt install vlc  ->  dipandu otomatis"),
+            (MAG,   "3. CERITA INDONESIA", "Dwi-bahasa penuh EN/ID sejak boot pertama"),
+        ]
+    else:
+        pillars = [
+            (GOLD,  "1. IDENTITY (Look)", "kalacakra look apply mandala-cyberpunk"),
+            (CYAN,  "2. PAINLESS IMMUTABLE", "sudo apt install vlc  ->  guided automatically"),
+            (MAG,   "3. INDONESIAN STORY", "Full EN/ID bilingual since first boot"),
+        ]
+    print()
+    for color, head, example in pillars:
+        print(f"  {c(color)}{c(B)}* {head}{c(R)}")
+        print(f"      {c(DIM)}{example}{c(R)}")
+    print()
+
+
+def print_presets(lang: str) -> None:
+    presets_dir = os.environ.get(
+        "KALACAKRA_LOOK_PRESETS_DIR",
+        os.path.join(SCRIPT_DIR, "..", "share", "kalacakra", "look", "presets"),
+    )
+    presets_dir = os.path.abspath(presets_dir)
+    names = []
+    if os.path.isdir(presets_dir):
+        import json
+        for f in sorted(os.listdir(presets_dir)):
+            if f.endswith(".json"):
+                try:
+                    with open(os.path.join(presets_dir, f), encoding="utf-8") as fh:
+                        d = json.load(fh)
+                    names.append((d.get("id", f[:-5]), d.get("name", "")))
+                except Exception:
+                    continue
+    if not names:
+        return
+    label = "Tema Look tersedia / Available Look themes:" if lang == "id" else "Available Look themes:"
+    print(f"  {c(GOLD)}{label}{c(R)}")
+    for pid, name in names:
+        print(f"      {c(GOLD)}o{c(R)} {name}  {c(DIM)}(kalacakra look apply {pid}){c(R)}")
+    print()
+
+
+def run_fastfetch() -> bool:
+    ff = shutil.which("fastfetch") or shutil.which("neofetch")
+    if not ff:
+        return False
+    cfg = os.path.abspath(os.path.join(SCRIPT_DIR, "..", "share", "kalacakra", "fastfetch", "config.jsonc"))
+    cmd = [ff]
+    if os.path.basename(ff) == "fastfetch" and os.path.isfile(cfg):
+        cmd += ["--config", cfg]
+    try:
+        subprocess.run(cmd)
+        return True
+    except OSError:
+        return False
+
+
+def print_banner_only(lang: str) -> None:
+    """Fallback tanpa fastfetch: tampilkan kartu ASCII mandala."""
+    print(c(GOLD) + MANDALA + c(R))
+    if lang == "id":
+        print(f"  {c(CYAN)}Kalacakra OS{c(R)} - Roda Waktu - Siklus Abadi")
+        print(f"  {c(DIM)}Immutable - Aman - Dwi-bahasa - Cantik{c(R)}")
+    else:
+        print(f"  {c(CYAN)}Kalacakra OS{c(R)} - The Wheel of Time")
+        print(f"  {c(DIM)}Immutable - Safe - Bilingual - Beautiful{c(R)}")
+    print()
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(
+        prog="k-showcase",
+        description="Kalacakra OS identity showcase (siap screenshot)",
+    )
+    parser.add_argument("--lang", choices=["id", "en"], default=None)
+    parser.add_argument("--no-fetch", action="store_true",
+                        help="Jangan jalankan fastfetch (hanya kartu identitas)")
+    args = parser.parse_args()
+
+    lang = args.lang or ("id" if "id" in os.environ.get("LANG", "en").lower() else "en")
+
+    print()
+    print_header(lang)
+    if args.no_fetch or not run_fastfetch():
+        if not args.no_fetch:
+            # fastfetch absen - jujur, tampilkan kartu ASCII
+            print_banner_only(lang)
+        else:
+            print_banner_only(lang)
+    print_pillars(lang)
+    print_presets(lang)
+    if lang == "id":
+        print(f"  {c(GREEN)}Mulai jelajahi:{c(R)}  kalacakra look list  |  kalacakra doctor")
+        print(f"  {c(DIM)}Bagikan screenshot ini ke r/unixporn dengan #KalacakraOS{c(R)}")
+    else:
+        print(f"  {c(GREEN)}Start exploring:{c(R)}  kalacakra look list  |  kalacakra doctor")
+        print(f"  {c(DIM)}Share this screenshot on r/unixporn with #KalacakraOS{c(R)}")
+    print()
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

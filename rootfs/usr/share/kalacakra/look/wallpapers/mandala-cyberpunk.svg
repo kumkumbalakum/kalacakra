@@ -1,0 +1,39 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="3840" height="2160" viewBox="0 0 3840 2160">
+  <defs>
+    <radialGradient id="bg" cx="50%" cy="45%" r="75%">
+      <stop offset="0%" stop-color="#2a1035"/>
+      <stop offset="55%" stop-color="#160726"/>
+      <stop offset="100%" stop-color="#05010c"/>
+    </radialGradient>
+    <linearGradient id="neon" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#ff2fd6"/>
+      <stop offset="100%" stop-color="#22e5ff"/>
+    </linearGradient>
+    <linearGradient id="neon2" x1="100%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#22e5ff"/>
+      <stop offset="100%" stop-color="#b14bff"/>
+    </linearGradient>
+  </defs>
+  <rect width="3840" height="2160" fill="url(#bg)"/>
+  <g transform="translate(1920 1080)" fill="none" stroke="url(#neon)" opacity="0.85">
+    <circle r="240" stroke-width="3"/>
+    <circle r="360" stroke-width="2" opacity="0.8"/>
+    <circle r="480" stroke-width="2" opacity="0.6"/>
+    <circle r="620" stroke-width="1.5" opacity="0.45"/>
+    <circle r="780" stroke-width="1" opacity="0.3"/>
+    <g stroke="url(#neon2)" stroke-width="2" opacity="0.8">
+      <path d="M0,-240 A240,240 0 0,1 208,120"/>
+      <path d="M0,-360 A360,360 0 0,0 -312,180"/>
+      <path d="M0,-480 A480,480 0 0,1 416,-240"/>
+      <path d="M0,-620 A620,620 0 0,0 -539,306"/>
+      <path d="M0,-780 A780,780 0 0,1 676,-390"/>
+    </g>
+    <g stroke="url(#neon)" stroke-width="1.4" opacity="0.55">
+      <path d="M0,0 L240,0 M0,0 L-240,0 M0,0 L0,240 M0,0 L0,-240"/>
+      <path d="M0,0 L170,170 M0,0 L-170,-170 M0,0 L170,-170 M0,0 L-170,170"/>
+      <path d="M0,0 L360,0 M0,0 L-360,0 M0,0 L0,360 M0,0 L0,-360"/>
+    </g>
+    <circle r="60" fill="#ff2fd6" opacity="0.18"/>
+    <circle r="18" fill="#ffffff" opacity="0.9"/>
+  </g>
+</svg>

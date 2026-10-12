@@ -1,0 +1,24 @@
+{
+  "id": "mandala-cyberpunk",
+  "name": "Mandala Cyberpunk",
+  "description": "Gradien neon magenta-cyan di atas gelap pekat, terinspirasi mandala Nusantara.",
+  "plasma_theme": "BreezeDark",
+  "color_scheme": "BreezeDark",
+  "wallpaper": "mandala-cyberpunk.svg",
+  "cursor": "breeze_cursors",
+  "icons": "Papirus-Dark",
+  "fonts": {
+    "font": "Inter,11,-1,5,50,0,0,0,0,0",
+    "fixed": "JetBrains Mono,10,-1,5,50,0,0,0,0,0"
+  },
+  "terminal": "Kalacakra Cyber",
+  "terminal_colors": {
+    "ColorScheme": "Kalacakra Cyber",
+    "TerminalMargin": "12"
+  },
+  "fastfetch": {
+    "logo": {"type": "kitty", "source": "kalacakra-mandala"},
+    "modules": ["title", "separator", "os", "host", "kernel", "uptime", "shell", "resolution", "de", "wm", "cpu", "gpu", "memory", "colors"]
+  },
+  "starship": {"format": "$os$directory$git_branch$character"}
+}

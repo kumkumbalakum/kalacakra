@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Name=Kalacakra Look
+Name[id]=Kalacakra Look
+Comment=Change your entire desktop identity in one command
+Comment[id]=Ubah seluruh identitas desktop dalam satu perintah
+Icon=preferences-desktop-theme
+Exec=/usr/bin/k-look list
+Terminal=true
+Categories=Settings;DesktopSettings;
+Keywords=theme;rice;wallpaper;tema;look;
+X-KDE-StartupNotify=false

@@ -5,13 +5,16 @@
 [![Desktop: KDE Plasma 6](https://img.shields.io/badge/Desktop-KDE%20Plasma%206%20Wayland-blue.svg)](https://kde.org)
 [![Language: English & Indonesian](https://img.shields.io/badge/Language-English%20%7C%20Indonesia-green.svg)](#-native-dual-language-enid)
 
-> **Kalacakra OS** adalah distribusi Linux desktop modern berbasis *immutable / atomic container* (`bootc` / `ostree`) dengan perpaduan arsitektur **Triad**: Filosofi Stabilitas Batu Karang setara Debian, Pondasi Modern Fedora & Universal Blue, serta fleksibilitas tanpa batas Arch Linux AUR. Dilengkapi dukungan **Native Dual Language (English + Bahasa Indonesia)** dan kecerdasan buatan lokal terproteksi privasi.
+> **Kalacakra OS** adalah distribusi Linux desktop modern berbasis *immutable / atomic container* (`bootc` / `ostree`) dengan filosofi **Triad**: **stabilitas batu karang** (dicapai lewat model immutable + rollback atomik, bukan dengan memakai Debian), **fondasi modern Fedora & Universal Blue** (satu-satunya basis host literal), dan **fleksibilitas ekosistem Arch AUR** (disediakan sebagai *Space container* Distrobox, bukan sebagai host). Dilengkapi dukungan **Native Dual Language (English + Bahasa Indonesia)** dan kecerdasan buatan lokal terproteksi privasi.
+>
+> ℹ️ **Catatan kejujuran arsitektur:** Host Kalacakra adalah **Fedora Atomic (bootc/kinoite)** murni. Debian dan Arch **tidak** dijalankan di host — keduanya tersedia sebagai *Space container* opsional via Distrobox saat Anda ingin memakai `apt`/`pacman`/AUR. "Triad" adalah *filosofi*, bukan penggabungan teknis tiga distro di level host.
 
 ---
 
 ## 📖 DAFTAR ISI
 1. [Fitur Utama](#-fitur-utama-highlights)
-2. [6 Fitur Dahsyat (Killer Superpowers)](#-6-fitur-dahsyat-killer-superpowers)
+2. [Pilar Identitas: Kalacakra Look](#-pilar-identitas-kalacakra-look)
+3. [6 Fitur Dahsyat (Killer Superpowers)](#-6-fitur-dahsyat-killer-superpowers)
 3. [5 Fitur Ergonomi macOS (macOS-Inspired Ergonomics)](#-5-fitur-ergonomi-macos-macos-inspired-ergonomics)
 4. [5 Fitur Keandalan openSUSE (openSUSE-Inspired Engineering)](#-5-fitur-keandalan-opensuse-opensuse-inspired-engineering)
 5. [5 Fitur Ketangguhan UNIX FreeBSD (FreeBSD-Inspired Engineering)](#-5-fitur-ketangguhan-unix-freebsd-freebsd-inspired-engineering)
@@ -33,9 +36,11 @@
 
 ## ✨ Fitur Utama (Highlights)
 
+* 🎨 **Kalacakra Look (`kalacakra look`) — Fitur Ikonik:** Ubah seluruh identitas desktop (tema KDE, skema warna, wallpaper, kursor, ikon, font, terminal, fastfetch) dengan **satu perintah**: `kalacakra look apply mandala-cyberpunk`. 5 preset siap pakai (Mandala Cyberpunk, Nusantara Bronze, Obsidian Minimal, Aurora Borealis, Kraton Gold), tersimpan sebagai konfigurasi *user* (aman untuk host immutable), **bisa di-rollback penuh**, dan dilengkapi `--screenshot` yang langsung menghasilkan caption siap-tempel untuk r/unixporn.
 * 🛡️ **Bulletproof Immutable Root:** Root filesystem (`/usr`) berstatus *read-only*. Pembaruan sistem dilakukan secara atomik di latar belakang; sistem tidak akan pernah rusak (*zero-breakage*).
 * 🔄 **Dual-Tier Rollback Engine:** Rollback root otomatis jika boot gagal 3x berturut-turut, dipadu snapshot Snapper khusus data pengguna (`@home` & `@var`).
 * 🇮🇩 / 🇺🇸 **Native Dual Language (EN/ID):** Sistem dwibahasa penuh sejak boot pertama di seluruh elemen: GUI KDE Plasma 6, CLI tooling, voice Whisper, dan AI Terminal Companion.
+* 🪄 **Immutable yang Tidak Menyakitkan:** `k-interceptor` kini **merekomendasikan metode terbaik secara cerdas** untuk paket yang Anda minta — mis. `sudo apt install vlc` langsung menyarankan *"opsi 1, vlc tersedia sebagai Flatpak resmi"* dan Anda cukup menekan **Enter**. Nama paket umum otomatis dipetakan ke ID Flathub. Painkiller untuk distro immutable — tanpa perlu tahu apa itu Flatpak/ostree.
 * 🚀 **Universal Command Interceptor (`k-interceptor`):** Mencegat perintah `sudo apt install` atau `pacman -S` pada host imutabel dan memandu instalasi ke Flatpak, Arch Space, Debian Space, atau Homebrew tanpa kebingungan.
 * ⚡ **Kernel Sched-ext (SCX Framework):** Penggantian *CPU scheduler* secara dinamis via eBPF (`scx_lavd` untuk gaming ultra-low latency, `scx_rusty` untuk kompilasi kode).
 * 🤖 **Local Private AI (`k-ai`) & Voice (`k-voice` / `Super + V`):** Didukung runtime Ollama dan `whisper.cpp` offline lokal, dengan *Secret Sanitizer* otomatis untuk mencegah kebocoran data sensitif.
@@ -44,16 +49,42 @@
 
 ---
 
+## 🎨 Pilar Identitas: Kalacakra Look
+
+Kalacakra bukan sekadar kumpulan tool — ia punya **identitas visual** yang bisa Anda nyalakan dalam satu perintah dan bagikan sebagai screenshot. Inilah fitur ikonik yang membedakan Kalacakra dari distro lain.
+
+```bash
+kalacakra look                       # lihat semua preset
+kalacakra look apply mandala-cyberpunk   # terapkan tema
+kalacakra look apply kraton-gold --screenshot   # + screenshot & caption r/unixporn
+kalacakra look current               # tema apa yang aktif?
+kalacakra look rollback              # kembali ke tampilan sebelumnya (aman)
+kalacakra showcase                   # layar identitas siap-screenshot
+```
+
+| Preset | Nuansa |
+|---|---|
+| `mandala-cyberpunk` | Gradien neon magenta-cyan, gelap pekat, terinspirasi mandala Nusantara |
+| `nusantara-bronze` | Tembaga-perunggu hangat yang tenang & elegan |
+| `obsidian-minimal` | Hitam obsidian bersih, fokus tanpa gangguan |
+| `aurora-borealis` | Hijau-teal aurora lembut dengan aksen ungu dingin |
+| `kraton-gold` | Hitam keraton dengan aksen emas, mewah & sangat Indonesia |
+
+> **Desain jujur:** Look menulis ke direktori konfigurasi **user** (XDG), sehingga *tidak* melanggar prinsip host immutable. Bila prasyarat Plasma (`plasma-apply-lookandfeel`, dll.) belum ada, langkah itu ditandai **SKIP** dengan pesan jelas — tool **tidak memalsukan keberhasilan**.
+
+---
+
 ## 🧭 Status Implementasi (Jujur & Transparan)
 
 README dan `plan.md` menggambarkan visi lengkap Kalacakra OS. Agar tidak menyesatkan, berikut pembagian jelas antara **yang sudah ada di repositori ini** dan **yang masih roadmap**:
 
 **✅ Sudah diimplementasikan (ada kodenya di repo ini):**
-* Seluruh 33 tool CLI di `rootfs/usr/bin/` (`kalacakra`, `k-interceptor`, `k-ai`, `k-aur`, `k-doctor`, `k-rewind`, `k-beam`, `k-portal`, `k-ocr`, `k-survival`, `k-precache`, `k-preview`, `k-spotlight`, `k-flow`, `k-snippet`, `k-keyring`, `k-hub`, `k-qa`, `k-snapboot`, `k-profile`, `k-pkg`, `k-jail`, `k-be`, `k-scrub`, `k-trace`, `k-sysrc`, `k-unveil`, `k-signify`, `k-pf`, `k-doas`, `k-wx`, `k-voice`, `k-game`).
+* Seluruh 35 tool CLI di `rootfs/usr/bin/` (`kalacakra`, `k-interceptor`, `k-ai`, `k-aur`, `k-doctor`, `k-rewind`, `k-beam`, `k-portal`, `k-ocr`, `k-survival`, `k-precache`, `k-preview`, `k-spotlight`, `k-flow`, `k-snippet`, `k-keyring`, `k-hub`, `k-qa`, `k-snapboot`, `k-profile`, `k-pkg`, `k-jail`, `k-be`, `k-scrub`, `k-trace`, `k-sysrc`, `k-unveil`, `k-signify`, `k-pf`, `k-doas`, `k-wx`, `k-voice`, `k-game`, `k-look`, `k-showcase`).
+* **Kalacakra Look** (`k-look`) — 5 preset tema lengkap dengan wallpaper SVG, penulisan konfigurasi KDE, riwayat & rollback, plus generator caption r/unixporn.
 * i18n EN/ID dwibahasa (kamus `locales/en.json` & `id.json`).
 * Konfigurasi sistem: hardening sysctl, DNS-over-TLS, ZRAM zstd, service AI Ollama.
 * Integrasi desktop: KDE shortcuts (`.desktop`) & KIO service menu Dolphin.
-* Build pipeline OCI + ISO (`Containerfile`, `Containerfile.nvidia`, GitHub Actions) & test suite.
+* Build pipeline OCI + ISO (`Containerfile`, `Containerfile.nvidia`, GitHub Actions) & test suite (44 test).
 * Secret sanitizer, safety-gate perintah destruktif, deteksi perangkat lunak yang absen (fail-soft).
 
 **🧪 Sudah berjalan, tetapi bergantung pada komponen eksternal yang tidak dipaketkan di sini:**
@@ -64,7 +95,7 @@ README dan `plan.md` menggambarkan visi lengkap Kalacakra OS. Agar tidak menyesa
 * `k-game` butuh `umu-launcher` (repo Terra, tidak ada di Fedora resmi).
 
 **🗺️ Masih roadmap (BELUM ada kodenya di repo ini):**
-* Hybrid tiling Polonium (`Super + Y`) & konfigurasi KDE Plasma tema/rice.
+* Hybrid tiling Polonium (`Super + Y`).
 * HDR / Wide Color Gamut pipeline bawaan.
 * Konfigurasi installer Calamares (Btrfs `@/@home/@var`, LUKS2 + TPM2 auto-unlock) — ISO dihasilkan `bootc-image-builder`, bukan Calamares.
 * Otomatisasi MOK Secure Boot enrollment & PQC (ML-KEM/ML-DSA) di seluruh stack.
@@ -73,6 +104,8 @@ README dan `plan.md` menggambarkan visi lengkap Kalacakra OS. Agar tidak menyesa
 * Kalacakra Welcome / First-Run Wizard.
 
 > Prinsip proyek ini: **jangan mengklaim fitur yang belum ada**. Setiap tool yang bergantung komponen absen akan memberi pesan instalasi yang jelas, bukan error misterius atau sukses palsu.
+
+> **Catatan kejujuran BSD/UNIX-inspired:** Tool bertanda "OpenBSD-inspired" / "FreeBSD-inspired" adalah **reimplementasi konsep di atas primitif Linux**, bukan kode atau mekanisme OpenBSD/FreeBSD asli. Contoh: `k-unveil` memakai *bubblewrap* (bukan syscall `unveil(2)`), `k-jail` memakai user-namespace (bukan kernel jail), `k-pf` menulis aturan `nftables` (bukan pf), dan `k-wx` adalah **auditor** ELF — Linux tidak memiliki penegakan W^X bawaan seperti OpenBSD (`kern.wxabort`). Konsepnya diadopsi; jaminannya berbeda.
 
 ---
 
@@ -391,6 +424,10 @@ kalacakra signify verify -p key.pub -m pkg # Verifikasi Ed25519 ultra-cepat (sig
 kalacakra pf panic              # Mode panik killswitch darurat pemutus jaringan (pf)
 kalacakra doas check            # Validasi aturan elevasi hak akses aman (doas)
 kalacakra wx audit /usr/bin/app # Audit kepatuhan memori biner W^X & mitigasi exploit
+kalacakra look list             # Lihat semua preset identitas desktop (fitur ikonik)
+kalacakra look apply kraton-gold --screenshot  # Terapkan tema + screenshot & caption
+kalacakra look rollback         # Kembalikan tampilan sebelumnya (aman, tanpa data loss)
+kalacakra showcase              # Layar identitas siap-screenshot untuk r/unixporn
 ```
 
 ---
@@ -529,6 +566,7 @@ podman run --rm --privileged \
 kalacakra/
 ├── plan.md                 # Master Architecture Specification & 10-Year Roadmap
 ├── README.md               # Dokumentasi resmi dan panduan pengguna lengkap
+├── STRATEGY.md             # Peta jalan viral (identitas, painkiller, cerita Indonesia)
 ├── Containerfile           # Image base OCI (Mesa / AMD Radeon / Intel)
 ├── Containerfile.nvidia    # Image base OCI dengan driver proprietary Nvidia
 ├── Justfile                # Resep deklaratif otomatisasi sistem
@@ -547,10 +585,11 @@ kalacakra/
 │       │                   # k-hub, k-qa, k-snapboot, k-profile, k-pkg,
 │       │                   # k-jail, k-be, k-scrub, k-trace, k-sysrc,
 │       │                   # k-unveil, k-signify, k-pf, k-doas, k-wx,
-│       │                   # k-voice, k-game
+│       │                   # k-voice, k-game, k-look, k-showcase
 │       └── share/
 │           ├── applications/ # Desktop entries & scheme handler (.kpkg / kalacakra://)
 │           ├── kalacakra/  # Fastfetch config, i18n locales (id/en), Justfile, shared lib
+│           │   └── look/   # Preset tema Look (JSON) + wallpaper SVG (fitur ikonik)
 │           └── kio/        # Dolphin context menu (Beam P2P, Game Launcher, Quick Look)
 ├── .github/workflows/      # Pipeline build OCI & bootc-image-builder ISO
 └── tests/                  # Unit test suite untuk validasi CLI & keamanan
@@ -562,3 +601,4 @@ kalacakra/
 
 * Kalacakra OS dilisensikan di bawah [GNU General Public License v3.0 (GPL-3.0)](https://www.gnu.org/licenses/gpl-3.0).
 * Rencana arsitektur teknis lengkap dan roadmap visi jangka panjang dapat dibaca di [plan.md](plan.md).
+* Peta jalan identitas & viral (jujur, berbasis pilar) dapat dibaca di [STRATEGY.md](STRATEGY.md).

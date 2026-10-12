@@ -1,0 +1,24 @@
+{
+  "id": "nusantara-bronze",
+  "name": "Nusantara Bronze",
+  "description": "Nuansa tembaga-perunggu hangat khas kerajinan Nusantara yang tenang dan elegan.",
+  "plasma_theme": "Breeze",
+  "color_scheme": "Breeze",
+  "wallpaper": "nusantara-bronze.svg",
+  "cursor": "breeze_cursors",
+  "icons": "Papirus",
+  "fonts": {
+    "font": "Noto Sans,11,-1,5,50,0,0,0,0,0",
+    "fixed": "Fira Code,10,-1,5,50,0,0,0,0,0"
+  },
+  "terminal": "Kalacakra Bronze",
+  "terminal_colors": {
+    "ColorScheme": "Kalacakra Bronze",
+    "TerminalMargin": "10"
+  },
+  "fastfetch": {
+    "logo": {"type": "kitty", "source": "kalacakra-mandala"},
+    "modules": ["title", "separator", "os", "host", "kernel", "uptime", "shell", "de", "wm", "cpu", "memory", "colors"]
+  },
+  "starship": {"format": "$os$directory$git_branch$character"}
+}

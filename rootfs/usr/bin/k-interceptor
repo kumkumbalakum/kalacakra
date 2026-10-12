@@ -35,6 +35,80 @@ def find_k_aur():
             return c
     return "k-aur"
 
+
+# ---------------------------------------------------------------------------
+# Deteksi backend cerdas (pillar "immutable yang tidak menyakitkan")
+# ---------------------------------------------------------------------------
+# Pemetaan nama paket umum -> ID Flatpak Flathub, agar user awam langsung
+# diarahkan ke metode yang paling mulus (satu tombol).
+FLATPAK_ALIASES = {
+    "vlc": "org.videolan.VLC",
+    "firefox": "org.mozilla.firefox",
+    "chromium": "org.chromium.Chromium",
+    "google-chrome": "com.google.Chrome",
+    "chrome": "com.google.Chrome",
+    "gimp": "org.gimp.GIMP",
+    "inkscape": "org.inkscape.Inkscape",
+    "blender": "org.blender.Blender",
+    "kdenlive": "org.kde.kdenlive",
+    "obs": "com.obsproject.Studio",
+    "obs-studio": "com.obsproject.Studio",
+    "code": "com.visualstudio.code",
+    "vscode": "com.visualstudio.code",
+    "spotify": "com.spotify.Client",
+    "discord": "com.discordapp.Discord",
+    "telegram": "org.telegram.desktop",
+    "libreoffice": "org.libreoffice.LibreOffice",
+    "okular": "org.kde.okular",
+    "steam": "com.valvesoftware.Steam",
+    "lutris": "net.lutris.Lutris",
+    "bitwarden": "com.bitwarden.desktop",
+    "thunderbird": "org.mozilla.Thunderbird",
+    "keepassxc": "org.keepassxc.KeePassXC",
+    "audacity": "org.audacityteam.Audacity",
+    "handbrake": "fr.handbrake.ghb",
+}
+
+# Nama paket CLI murni yang lebih pas via Homebrew (bukan GUI).
+BREW_PREFERRED = {
+    "ripgrep", "rg", "fd", "fzf", "bat", "eza", "zoxide", "delta",
+    "gh", "glab", "httpie", "jq", "yq", "hugo", "node", "go", "rustup",
+    "neovim", "tmux", "starship", "lazygit", "duf", "dust", "bottom",
+}
+
+
+def backend_available(backend: str) -> bool:
+    """Cek jujur apakah sebuah backend benar-benar tersedia di sistem."""
+    if backend == "flatpak":
+        return shutil.which("flatpak") is not None
+    if backend == "arch":
+        return shutil.which("distrobox") is not None
+    if backend == "debian":
+        return shutil.which("distrobox") is not None
+    if backend == "brew":
+        return shutil.which("brew") is not None
+    if backend == "layer":
+        return shutil.which("rpm-ostree") is not None
+    return False
+
+
+def recommend_backend(packages: list[str]) -> tuple[str, str]:
+    """Pilih backend terbaik berdasarkan nama paket. Mengembalikan
+    (pilihan_menu, alasan_singkat). Bjujur: hanya rekomendasikan yang tersedia."""
+    pkgs = [p.lower() for p in packages]
+    known_flatpak = [p for p in pkgs if p in FLATPAK_ALIASES]
+    known_brew = [p for p in pkgs if p in BREW_PREFERRED]
+
+    if known_flatpak and backend_available("flatpak"):
+        return "1", f"'{known_flatpak[0]}' tersedia sebagai aplikasi Flatpak resmi"
+    if known_brew and backend_available("brew"):
+        return "4", f"'{known_brew[0]}' cocok sebagai alat CLI via Homebrew"
+    # Default aman: Flatpak bila ada untuk GUI, jika tidak biarkan user memilih.
+    if backend_available("flatpak"):
+        return "1", "Flatpak (aman untuk desktop, tidak mengubah host)"
+    return "", ""
+
+
 def main():
     if len(sys.argv) < 2:
         print("Usage: k-interceptor <command> [args...]")
@@ -54,6 +128,19 @@ def main():
         args=" ".join(cmd_args)
     )
     print(msg_available)
+
+    # Rekomendasi pintar + satu tombol Enter untuk menerima default.
+    rec_choice, rec_reason = recommend_backend(packages)
+    if rec_choice:
+        if current_lang == "id":
+            rec_line = f"[Kalacakra] Rekomendasi: opsi {rec_choice} - {rec_reason}."
+            hint = "        Tekan Enter untuk memakai rekomendasi, atau pilih 1-5."
+        else:
+            rec_line = f"[Kalacakra] Recommendation: option {rec_choice} - {rec_reason}."
+            hint = "        Press Enter to accept the recommendation, or choose 1-5."
+        print(rec_line)
+        print(hint)
+
     print()
     print(strings.get("interceptor_prompt", "Choose your preferred installation method:"))
     print(f"  [1] {strings.get('interceptor_opt_flatpak', 'Flatpak (Recommended for GUI apps)')}")
@@ -70,9 +157,20 @@ def main():
         print("\nAborted.")
         sys.exit(0)
 
+    # Enter kosong = terima rekomendasi pintar (bila ada).
+    if choice == "" and rec_choice:
+        choice = rec_choice
+
+    # Untuk opsi Flatpak, terjemahkan nama umum ke ID Flathub bila dikenali.
+    flatpak_targets = [FLATPAK_ALIASES.get(p.lower(), p) for p in packages]
+
     if choice == "1":
+        if not backend_available("flatpak"):
+            print("\n[k-interceptor Error] 'flatpak' tidak terpasang.")
+            print("   Pasang: sudo rpm-ostree install flatpak   (lalu reboot)")
+            sys.exit(1)
         print(f"\n[Kalacakra] Searching and installing via Flatpak for: {pkg_str}...")
-        for pkg in packages:
+        for pkg in flatpak_targets:
             subprocess.run(["flatpak", "install", "--user", "flathub", pkg])
     elif choice == "2":
         k_aur_bin = find_k_aur()

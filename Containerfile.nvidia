@@ -103,6 +103,8 @@ RUN chmod 0755 \
     /usr/bin/k-wx \
     /usr/bin/k-voice \
     /usr/bin/k-game \
+    /usr/bin/k-look \
+    /usr/bin/k-showcase \
     /etc/profile.d/kalacakra-ssh-agent.sh \
     /usr/share/kalacakra/scripts/battery-cap.sh 2>/dev/null || true
 

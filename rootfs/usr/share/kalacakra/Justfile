@@ -204,6 +204,14 @@ doas action="status":
 wx action="check-kernel":
     @/usr/bin/k-wx {{action}}
 
+# Kalacakra Look - Manajer identitas & tampilan desktop satu perintah (fitur ikonik)
+look action="list" +args="":
+    @/usr/bin/k-look {{action}} {{args}}
+
+# Kalacakra Showcase - Tampilan identitas siap screenshot untuk r/unixporn
+showcase +args="":
+    @/usr/bin/k-showcase {{args}}
+
 # --- Build lokal (meniru CI GitHub Actions; butuh podman/docker) ---
 # Cek prasyarat build (engine, disk, RAM)
 build-check:

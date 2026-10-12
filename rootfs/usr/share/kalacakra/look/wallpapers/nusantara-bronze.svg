@@ -1,0 +1,40 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="3840" height="2160" viewBox="0 0 3840 2160">
+  <defs>
+    <radialGradient id="bg" cx="42%" cy="55%" r="80%">
+      <stop offset="0%" stop-color="#3a2412"/>
+      <stop offset="55%" stop-color="#241509"/>
+      <stop offset="100%" stop-color="#0e0803"/>
+    </radialGradient>
+    <linearGradient id="bronze" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#ffcf8a"/>
+      <stop offset="45%" stop-color="#c98a3c"/>
+      <stop offset="100%" stop-color="#7a4a17"/>
+    </linearGradient>
+    <linearGradient id="bronze2" x1="0%" y1="100%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#e0a45a"/>
+      <stop offset="100%" stop-color="#8a5518"/>
+    </linearGradient>
+  </defs>
+  <rect width="3840" height="2160" fill="url(#bg)"/>
+  <g transform="translate(1920 1080)" fill="none" stroke="url(#bronze)" opacity="0.9">
+    <circle r="260" stroke-width="4"/>
+    <circle r="400" stroke-width="2.5" opacity="0.85"/>
+    <circle r="560" stroke-width="2" opacity="0.6"/>
+    <circle r="740" stroke-width="1.5" opacity="0.4"/>
+    <g stroke="url(#bronze2)" stroke-width="3" opacity="0.8">
+      <path d="M0,-260 A260,260 0 0,1 225,130"/>
+      <path d="M0,-400 A400,400 0 0,0 -346,200"/>
+      <path d="M0,-560 A560,560 0 0,1 485,-280"/>
+      <path d="M0,-740 A740,740 0 0,0 -641,370"/>
+    </g>
+    <g stroke="url(#bronze)" stroke-width="2" opacity="0.5">
+      <path d="M0,-420 L74,-382 M74,-382 L0,-344"/>
+      <path d="M346,-200 L320,-118 M320,-118 L398,-140"/>
+      <path d="M-485,280 L-420,340 M-420,340 L-500,360"/>
+      <path d="M641,-370 L560,-330 M560,-330 L640,-300"/>
+      <path d="M-225,-130 L-300,-70 M-300,-70 L-230,-20"/>
+    </g>
+    <circle r="70" fill="#ffcf8a" opacity="0.14"/>
+    <circle r="22" fill="#ffe9c2" opacity="0.85"/>
+  </g>
+</svg>

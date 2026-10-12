@@ -90,5 +90,12 @@
   "wx_compliant": "Biner dan proteksi memori sistem patuh pada standar W^X (Write XOR Execute)!",
   "voice_header": "=== Kalacakra Voice (Diktir Suara Offline via whisper.cpp - Tanpa Cloud) ===",
   "voice_copied": "[k-voice] Teks disalin ke clipboard (tempel dengan Ctrl+V).",
-  "game_umu_missing": "[k-game] 'umu-run' (umu-launcher) belum terpasang."
+  "game_umu_missing": "[k-game] 'umu-run' (umu-launcher) belum terpasang.",
+  "look_header": "=== Kalacakra Look - Preset Tersedia ===",
+  "look_applying": "Menerapkan tampilan '{name}'...",
+  "look_done": "Tampilan berhasil diterapkan.",
+  "look_rollback_done": "Tampilan dipulihkan ke konfigurasi sebelumnya.",
+  "look_no_active": "Tidak ada preset Look aktif (tampilan bawaan).",
+  "look_share_caption": "Caption siap-tempel untuk r/unixporn & media sosial:",
+  "showcase_tagline": "Distro Linux Immutable yang Cantik, Aman, & Berjiwa Indonesia"
 }
