@@ -117,7 +117,26 @@ def main():
     strings, current_lang = get_locale_strings()
     print(strings.get("voice_header", "=== Kalacakra Voice (Diktir Suara Offline - Tanpa Cloud) ==="))
 
+    # Pre-flight: pastikan perekam, whisper-cli, DAN model tersedia SEBELUM merekam,
+    # agar tidak membuang waktu/mikrofon saat dependensi belum siap.
+    recorder = "arecord" if shutil.which("arecord") else (
+        "pw-record" if shutil.which("pw-record") else None)
+    if not recorder:
+        print("[k-voice Error] 'arecord' (alsa-utils) atau 'pw-record' tidak terpasang - tidak bisa merekam.")
+        print("   Pasang: sudo rpm-ostree install alsa-utils  (lalu reboot)")
+        sys.exit(1)
+    if not (shutil.which("whisper-cli") or shutil.which("main")):
+        print("[k-voice Error] 'whisper-cli' (whisper.cpp) tidak terpasang.")
+        print("   Pasang: sudo rpm-ostree install whisper.cpp  (atau build whisper.cpp lokal)")
+        sys.exit(1)
+
     model = find_model(args.model)
+    if not model or not os.path.isfile(model):
+        print("[k-voice Error] Model whisper.cpp tidak ditemukan.")
+        print("   Unduh model dengan: just install-whisper-model small")
+        print("   (atau letakkan ggml-*.bin di ~/.cache/whisper/).")
+        sys.exit(1)
+
     lang = args.lang or (current_lang if current_lang in ("id", "en") else None)
 
     if not record_audio(args.duration):

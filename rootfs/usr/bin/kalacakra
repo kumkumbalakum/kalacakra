@@ -158,6 +158,9 @@ def main():
     p_vo = subparsers.add_parser("voice", help="Kalacakra Voice - Offline voice dictation via whisper.cpp")
     p_vo.add_argument("subaction", nargs="*", help="Voice arguments (--duration/--model/--lang)")
 
+    p_game = subparsers.add_parser("game", help="Kalacakra Game - Launch Windows .exe via Proton UMU (umu-run)")
+    p_game.add_argument("subaction", nargs="*", help="Game arguments (exe path / --game-id / --proton / --store)")
+
     args, unknown = parser.parse_known_args()
     strings, current_lang = get_locale_strings(args.lang)
 
@@ -231,6 +234,8 @@ def main():
         sys.exit(subprocess.run([find_bin("k-wx")] + args.subaction).returncode)
     elif args.command == "voice":
         sys.exit(subprocess.run([find_bin("k-voice")] + args.subaction).returncode)
+    elif args.command == "game":
+        sys.exit(subprocess.run([find_bin("k-game")] + args.subaction).returncode)
     elif args.command == "update":
         sys.exit(subprocess.run(["just", "--justfile", justfile, "update"]).returncode)
     elif args.command == "clean":

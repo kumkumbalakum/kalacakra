@@ -10,4 +10,4 @@ Name[id]=Peluncur Game Kalacakra
 Name=Run with Kalacakra Game Launcher (Proton UMU)
 Name[id]=Jalankan dengan Kalacakra Game Launcher (Proton UMU)
 Icon=steam
-Exec=umu-run %f
+Exec=/usr/bin/k-game %f

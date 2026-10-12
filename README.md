@@ -423,7 +423,12 @@ k-aur remove visual-studio-code-bin
 * **`Super + Shift + T`**: `k-ocr` — seleksi area layar, OCR lokal (`tesseract`), hasil ke clipboard.
 * **`Super + Space`**: `k-spotlight` — kalkulasi matematika, konversi kurs/satuan, dan pertanyaan umum yang dirutekan ke `k-ai`.
 * Pintasan di atas dideklarasikan lewat berkas `.desktop` dengan `X-KDE-Shortcuts` di `/usr/share/applications/`. Jika desktop Anda tidak menanganinya otomatis, daftarkan manual di **System Settings → Shortcuts → Custom Shortcuts**.
-* **Game Windows Non-Steam:** Klik kanan file `.exe` installer game di Dolphin → pilih **"Jalankan dengan Kalacakra Game Launcher (Proton UMU)"**.
+* **Game Windows Non-Steam:** Klik kanan file `.exe` di Dolphin → **"Jalankan dengan Kalacakra Game Launcher (Proton UMU)"**, atau via CLI:
+  ```bash
+  kalacakra game installer.exe              # Jalankan .exe via Proton UMU
+  kalacakra game game.exe --game-id umu-starcitizen --proton GE-Proton
+  ```
+  *Catatan jujur:* wrapper ini membutuhkan `umu-run` (paket `umu-launcher`, tersedia di **repo Terra** — tidak ada di Fedora resmi/RPMFusion). Jika belum terpasang, `k-game` memberi instruksi instalasi, bukan error misterius.
 
 ---
 

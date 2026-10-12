@@ -89,5 +89,6 @@
   "wx_header": "=== Kalacakra W^X (OpenBSD W^X Memory Exploit Mitigation Auditor) ===",
   "wx_compliant": "Binary and memory protections comply with W^X (Write XOR Execute) standards!",
   "voice_header": "=== Kalacakra Voice (Offline Dictation via whisper.cpp - No Cloud) ===",
-  "voice_copied": "[k-voice] Text copied to clipboard (paste with Ctrl+V)."
+  "voice_copied": "[k-voice] Text copied to clipboard (paste with Ctrl+V).",
+  "game_umu_missing": "[k-game] 'umu-run' (umu-launcher) is not installed yet."
 }

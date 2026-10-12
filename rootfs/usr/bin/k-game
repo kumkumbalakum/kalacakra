@@ -1,0 +1,95 @@
+#!/usr/bin/env python3
+"""
+Kalacakra OS - k-game (Proton UMU Game Launcher Wrapper)
+Launches Windows .exe installers/games via umu-run (Proton) when available.
+Degrades honestly: if umu-run is missing, prints exact install steps instead
+of failing silently or pretending to work.
+"""
+
+import os
+import sys
+import shutil
+import argparse
+import subprocess
+
+if hasattr(sys.stdout, "reconfigure"):
+    try:
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    except Exception:
+        pass
+
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+LIB_PATH = os.path.abspath(os.path.join(SCRIPT_DIR, "..", "share", "kalacakra", "lib"))
+if os.path.isdir(LIB_PATH) and LIB_PATH not in sys.path:
+    sys.path.insert(0, LIB_PATH)
+elif "/usr/share/kalacakra/lib" not in sys.path and os.path.isdir("/usr/share/kalacakra/lib"):
+    sys.path.insert(0, "/usr/share/kalacakra/lib")
+
+try:
+    from kalacakra_common import get_locale_strings
+except ImportError:
+    def get_locale_strings(lang_override=None):
+        return {}, "en"
+
+
+def _print_missing_umu():
+    strings, _ = get_locale_strings()
+    print(strings.get("game_umu_missing", "[k-game] 'umu-run' (umu-launcher) belum terpasang."))
+    print("-" * 64)
+    print("Cara memasang umu-launcher di Fedora Atomic (rpm-ostree):")
+    print("  1. Repo Terra (eksternal) diperlukan, karena umu-launcher tidak ada")
+    print("     di repo Fedora resmi maupun RPMFusion.")
+    print("  2. Setelah repo Terra aktif, jalankan:")
+    print("       sudo rpm-ostree install umu-launcher")
+    print("     lalu reboot agar deployment baru aktif.")
+    print("-" * 64)
+    print("Atau, tanpa rpm-ostree, pasang via Distrobox (Arch Space):")
+    print("  distrobox-enter kalacakra-dev -- sudo pacman -S --noconfirm umu-launcher")
+    print("-" * 64)
+    print("Setelah terpasang, ulangi perintah ini untuk menjalankan game .exe Anda.")
+    print("Referensi: https://github.com/Open-Wine-Components/umu-launcher")
+    sys.exit(1)
+
+
+def launch(exe_path: str, game_id: str = "umu-default", proton: str = None,
+           store: str = None, extra_args: list = None):
+    umu = shutil.which("umu-run")
+    if not umu:
+        _print_missing_umu()
+
+    if not os.path.isfile(exe_path):
+        print(f"[k-game Error] Berkas '{exe_path}' tidak ditemukan.")
+        sys.exit(1)
+
+    env = os.environ.copy()
+    env.setdefault("GAMEID", game_id)
+    env.setdefault("STORE", store or "none")
+    if proton:
+        env["PROTONPATH"] = proton
+
+    cmd = [umu, exe_path] + (extra_args or [])
+    print(f"[k-game] Menjalankan via umu-run (GAMEID={env['GAMEID']}):")
+    print(f"         {exe_path}")
+    res = subprocess.run(cmd, env=env)
+    sys.exit(res.returncode)
+
+
+def main():
+    parser = argparse.ArgumentParser(
+        prog="k-game",
+        description="Kalacakra Game - Launch Windows .exe via Proton UMU (umu-run wrapper)"
+    )
+    parser.add_argument("exe", help="Path ke berkas .exe Windows")
+    parser.add_argument("--game-id", default="umu-default",
+                        help="umu GAMEID (default: umu-default)")
+    parser.add_argument("--proton", default=None,
+                        help="PROTONPATH (mis. GE-Proton, atau path ke folder Proton)")
+    parser.add_argument("--store", default=None,
+                        help="Platform toko (egs/gog/battlenet/amazon/humble/itchio/ubisoft)")
+    args = parser.parse_args()
+
+    launch(args.exe, args.game_id, args.proton, args.store)
+
+
+if __name__ == "__main__":
+    main()

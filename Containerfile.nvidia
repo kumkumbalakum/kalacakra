@@ -54,7 +54,8 @@ RUN rpm-ostree install \
     deskflow \
     okular \
     gwenview \
-    unzip && \
+    unzip \
+    alsa-utils && \
     rpm-ostree cleanup -m
 
 # 2. Pemasangan biner resmi Ollama
@@ -101,6 +102,7 @@ RUN chmod 0755 \
     /usr/bin/k-doas \
     /usr/bin/k-wx \
     /usr/bin/k-voice \
+    /usr/bin/k-game \
     /etc/profile.d/kalacakra-ssh-agent.sh \
     /usr/share/kalacakra/scripts/battery-cap.sh 2>/dev/null || true
 

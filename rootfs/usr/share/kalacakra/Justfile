@@ -108,6 +108,14 @@ beam action="receive":
 ocr:
     @/usr/bin/k-ocr
 
+# Kalacakra Voice - Dikte suara offline via whisper.cpp (butuh model: just install-whisper-model)
+voice +args="":
+    @/usr/bin/k-voice {{args}}
+
+# Kalacakra Game - Jalankan game/.exe Windows via Proton UMU (butuh umu-run/umu-launcher)
+game +args:
+    @/usr/bin/k-game {{args}}
+
 # Kalacakra Survival - Mode darurat baterai laptop (layar monokrom, 40Hz, CPU cap)
 survival action="toggle":
     @/usr/bin/k-survival {{action}}

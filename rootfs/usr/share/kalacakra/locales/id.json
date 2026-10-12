@@ -89,5 +89,6 @@
   "wx_header": "=== Kalacakra W^X (Auditor Mitigasi Memori Ala OpenBSD W^X) ===",
   "wx_compliant": "Biner dan proteksi memori sistem patuh pada standar W^X (Write XOR Execute)!",
   "voice_header": "=== Kalacakra Voice (Diktir Suara Offline via whisper.cpp - Tanpa Cloud) ===",
-  "voice_copied": "[k-voice] Teks disalin ke clipboard (tempel dengan Ctrl+V)."
+  "voice_copied": "[k-voice] Teks disalin ke clipboard (tempel dengan Ctrl+V).",
+  "game_umu_missing": "[k-game] 'umu-run' (umu-launcher) belum terpasang."
 }

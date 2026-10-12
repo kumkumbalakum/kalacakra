@@ -242,6 +242,87 @@ class TestRepoConsistency(unittest.TestCase):
                     problems.append(f"{name}: {line.strip()}")
         self.assertFalse(problems, "Undefined name ditemukan:\n" + "\n".join(problems))
 
+    def test_desktop_exec_targets_exist(self):
+        """Setiap binary yang dipanggil berkas .desktop harus ada di rootfs/usr/bin
+        ATAU ada di allowlist dependensi eksternal yang dinyatakan eksplisit.
+
+        Menangkap phantom dependency seperti Exec=umu-run (biner polos, tidak
+        dipasang di image) - nama biner polos TANPA path absolut tidak boleh
+        dipakai, karena tidak bisa diverifikasi."""
+        import glob
+        # Allowlist: biner eksternal yang SUDAH dipastikan ada di base image
+        # (kinoite-main) atau diinstal di Containerfile. Nama lain harus lewat
+        # wrapper /usr/bin/k-* milik kita agar bisa diverifikasi.
+        ALLOWED_EXTERNAL = {
+            "bash", "sh",          # shell bawaan
+            "env",
+        }
+
+        own_scripts = set(os.listdir(os.path.join(ROOTFS_DIR, "usr", "bin")))
+        desktop_files = (
+            glob.glob(os.path.join(ROOTFS_DIR, "usr", "share", "applications", "*.desktop")) +
+            glob.glob(os.path.join(ROOTFS_DIR, "usr", "share", "kio", "servicemenus", "*.desktop"))
+        )
+        self.assertTrue(desktop_files, "Tidak ada berkas .desktop ditemukan - pola tes mungkin rusak")
+
+        problems = []
+        for df in desktop_files:
+            with open(df, "r", encoding="utf-8") as f:
+                for line in f:
+                    if not line.startswith("Exec="):
+                        continue
+                    target = line.strip().split("=", 1)[1].split()[0]
+                    base = target.rsplit("/", 1)[-1]
+                    if base in ALLOWED_EXTERNAL:
+                        continue
+                    if target.startswith("/usr/bin/"):
+                        if base not in own_scripts:
+                            problems.append(f"{os.path.basename(df)} -> {target} (path absolut, script tak ada)")
+                    else:
+                        problems.append(
+                            f"{os.path.basename(df)} -> '{target}' (biner polos tak terverifikasi; "
+                            f"pakai wrapper /usr/bin/k-* atau tambahkan ke allowlist)"
+                        )
+        self.assertFalse(
+            problems,
+            "Exec berisiko phantom dependency:\n" + "\n".join(problems)
+        )
+
+    def test_dispatcher_references_exist(self):
+        """Semua find_bin(\"k-x\") di dispatcher harus menunjuk file yang ada."""
+        import re
+        dispatcher = os.path.join(ROOTFS_DIR, "usr", "bin", "kalacakra")
+        with open(dispatcher, "r", encoding="utf-8") as f:
+            refs = set(re.findall(r'find_bin\("([a-z0-9._-]+)"\)', f.read()))
+        self.assertTrue(refs, "Tidak ada find_bin() ditemukan - pola tes mungkin rusak")
+
+        own_scripts = set(os.listdir(os.path.join(ROOTFS_DIR, "usr", "bin")))
+        missing = sorted(refs - own_scripts)
+        self.assertFalse(
+            missing,
+            f"find_bin() merujuk tool yang tidak ada di rootfs/usr/bin: {missing}"
+        )
+
+    def test_containerfiles_chmod_all_cli_scripts(self):
+        """Setiap script di rootfs/usr/bin harus ada di daftar chmod Containerfile
+        (kedua varian identik), agar tool baru tidak kehilangan bit eksekusi."""
+        import re
+        scripts = {n for n in os.listdir(os.path.join(ROOTFS_DIR, "usr", "bin"))
+                   if os.path.isfile(os.path.join(ROOTFS_DIR, "usr", "bin", n))}
+        REPO_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+
+        for cf in ("Containerfile", "Containerfile.nvidia"):
+            path = os.path.join(REPO_DIR, cf)
+            self.assertTrue(os.path.isfile(path), f"{cf} harus ada")
+            with open(path, "r", encoding="utf-8") as f:
+                content = f.read()
+            listed = set(re.findall(r"/usr/bin/([A-Za-z0-9._-]+)", content))
+            missing = sorted(scripts - listed)
+            self.assertFalse(
+                missing,
+                f"{cf}: script berikut tidak ada di daftar chmod: {missing}"
+            )
+
 
 if __name__ == "__main__":
     unittest.main()
