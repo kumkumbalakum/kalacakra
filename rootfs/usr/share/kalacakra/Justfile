@@ -204,5 +204,18 @@ doas action="status":
 wx action="check-kernel":
     @/usr/bin/k-wx {{action}}
 
+# --- Build lokal (meniru CI GitHub Actions; butuh podman/docker) ---
+# Cek prasyarat build (engine, disk, RAM)
+build-check:
+    @scripts/build-local.sh check
+
+# Build image OCI lokal dari Containerfile (default: base)
+build-image variant="base":
+    @scripts/build-local.sh image {{variant}}
+
+# Build ISO bootable via bootc-image-builder (butuh podman + sudo)
+build-iso:
+    @scripts/build-local.sh iso
+
 
 

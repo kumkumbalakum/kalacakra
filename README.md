@@ -441,7 +441,34 @@ Repositori ini telah dilengkapi workflow CI/CD otomatis di `.github/workflows/`:
 3. Jalankan workflow `build-iso.yml` untuk menghasilkan file ISO installer bootable.
 
 ### Opsi B: Build 100% Lokal di Komputer (Podman)
-Jika ingin mem-build secara lokal tanpa layanan cloud:
+Jika ingin mem-build secara lokal tanpa layanan cloud, ada **script pembantu** yang meniru workflow CI:
+
+```bash
+# Cek prasyarat dulu (engine container, disk, RAM)
+scripts/build-local.sh check
+
+# Build image OCI lokal (default: base). Varian: base | nvidia
+scripts/build-local.sh image base
+scripts/build-local.sh image nvidia
+
+# Build ISO bootable (butuh podman + sudo, karena bootc-image-builder butuh --privileged)
+scripts/build-local.sh iso
+```
+
+Atau lewat resep Justfile (jika `just` terpasang):
+
+```bash
+just build-check          # cek prasyarat
+just build-image base     # atau: just build-image nvidia
+just build-iso            # butuh podman + sudo
+```
+
+> **Catatan jujur:** CI resmi (Universal Blue) memakai **podman/buildah**. Script ini otomatis memakai podman bila ada, dan jatuh ke **docker** bila tidak. Karena `Containerfile` memuat `rpm-ostree install`, build lewat docker **bisa** berbeda/gagal — itu keterbatasan docker, **belum tentu bug Containerfile**. Untuk hasil setara CI, gunakan podman:
+> ```bash
+> sudo apt install -y podman
+> ```
+
+Jika lebih suka manual tanpa script:
 
 ```bash
 # 1. Build image container base
@@ -472,6 +499,8 @@ kalacakra/
 ├── Containerfile           # Image base OCI (Mesa / AMD Radeon / Intel)
 ├── Containerfile.nvidia    # Image base OCI dengan driver proprietary Nvidia
 ├── Justfile                # Resep deklaratif otomatisasi sistem
+├── scripts/
+│   └── build-local.sh      # Pembantu build image & ISO lokal (meniru CI)
 ├── rootfs/                 # Overlay filesystem sistem operasi
 │   ├── etc/
 │   │   ├── systemd/        # Unit zram, ollama user service, DNS-over-TLS
@@ -484,7 +513,8 @@ kalacakra/
 │       │                   # k-preview, k-spotlight, k-flow, k-snippet, k-keyring,
 │       │                   # k-hub, k-qa, k-snapboot, k-profile, k-pkg,
 │       │                   # k-jail, k-be, k-scrub, k-trace, k-sysrc,
-│       │                   # k-unveil, k-signify, k-pf, k-doas, k-wx
+│       │                   # k-unveil, k-signify, k-pf, k-doas, k-wx,
+│       │                   # k-voice, k-game
 │       └── share/
 │           ├── applications/ # Desktop entries & scheme handler (.kpkg / kalacakra://)
 │           ├── kalacakra/  # Fastfetch config, i18n locales (id/en), Justfile, shared lib
