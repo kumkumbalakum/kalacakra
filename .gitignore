@@ -7,3 +7,8 @@ output/
 *.iso
 *.raw
 __pycache__
+site_galeri/
+*.kpkg
+*-report.html
+*-dashboard.html
+
