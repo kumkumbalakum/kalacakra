@@ -33,38 +33,204 @@ def find_k_aur():
 # Pemetaan nama paket umum -> ID Flatpak Flathub, agar user awam langsung
 # diarahkan ke metode yang paling mulus (satu tombol).
 FLATPAK_ALIASES = {
-    "vlc": "org.videolan.VLC",
+    # Peramban Web (Browsers)
     "firefox": "org.mozilla.firefox",
     "chromium": "org.chromium.Chromium",
     "google-chrome": "com.google.Chrome",
     "chrome": "com.google.Chrome",
-    "gimp": "org.gimp.GIMP",
-    "inkscape": "org.inkscape.Inkscape",
-    "blender": "org.blender.Blender",
+    "brave": "com.brave.Browser",
+    "brave-browser": "com.brave.Browser",
+    "librewolf": "io.gitlab.librewolf-community",
+    "vivaldi": "com.vivaldi.Vivaldi",
+    "zen": "app.zen_browser.zen",
+    "zen-browser": "app.zen_browser.zen",
+    "floorp": "one.ablaze.floorp",
+    "torbrowser": "org.torproject.torbrowser-launcher",
+    "tor-browser": "org.torproject.torbrowser-launcher",
+    "epiphany": "org.gnome.Epiphany",
+    "edge": "com.microsoft.Edge",
+    "microsoft-edge": "com.microsoft.Edge",
+    # Komunikasi & Pesan (Messaging & Social)
+    "discord": "com.discordapp.Discord",
+    "vesktop": "dev.vencord.Vesktop",
+    "telegram": "org.telegram.desktop",
+    "telegram-desktop": "org.telegram.desktop",
+    "signal": "org.signal.Signal",
+    "signal-desktop": "org.signal.Signal",
+    "slack": "com.slack.Slack",
+    "zoom": "us.zoom.Zoom",
+    "thunderbird": "org.mozilla.Thunderbird",
+    "geary": "org.gnome.Geary",
+    "element": "im.riot.Riot",
+    "element-desktop": "im.riot.Riot",
+    "hexchat": "io.github.Hexchat",
+    "qbittorrent": "org.qbittorrent.qBittorrent",
+    "transmission": "com.transmissionbt.Transmission",
+    "fragments": "de.haeckerfelix.Fragments",
+    # Multimedia, Audio & Video
+    "vlc": "org.videolan.VLC",
+    "mpv": "io.mpv.Mpv",
+    "celluloid": "io.github.celluloid_player.Celluloid",
+    "haruna": "org.kde.haruna",
+    "spotify": "com.spotify.Client",
+    "elisa": "org.kde.elisa",
+    "rhythmbox": "org.gnome.Rhythmbox3",
+    "strawberry": "org.strawberrymusicplayer.strawberry",
+    "amberol": "io.bassi.Amberol",
+    "audacity": "org.audacityteam.Audacity",
+    "tenacity": "org.tenacityaudio.Tenacity",
+    "ardour": "org.ardour.Ardour",
+    "lmms": "io.lmms.LMMS",
     "kdenlive": "org.kde.kdenlive",
+    "shotcut": "org.shotcut.Shotcut",
+    "openshot": "org.openshot.OpenShot",
+    "pitivi": "org.pitivi.Pitivi",
     "obs": "com.obsproject.Studio",
     "obs-studio": "com.obsproject.Studio",
+    "handbrake": "fr.handbrake.ghb",
+    "mkvtoolnix": "org.bunkus.mkvtoolnix-gui",
+    "easyeffects": "com.github.wwmm.easyeffects",
+    "helvum": "org.pipewire.Helvum",
+    "qpwgraph": "org.rncbc.qpwgraph",
+    "cheese": "org.gnome.Cheese",
+    "kamoso": "org.kde.kamoso",
+    # Desain Grafis, 3D & Fotografi
+    "gimp": "org.gimp.GIMP",
+    "inkscape": "org.inkscape.Inkscape",
+    "krita": "org.kde.krita",
+    "blender": "org.blender.Blender",
+    "darktable": "org.darktable.Darktable",
+    "rawtherapee": "com.rawtherapee.RawTherapee",
+    "digikam": "org.kde.digikam",
+    "gwenview": "org.kde.gwenview",
+    "pinta": "com.github.PintaProject.Pinta",
+    "mypaint": "org.mypaint.MyPaint",
+    "scribus": "net.scribus.Scribus",
+    "freecad": "org.freecad.FreeCAD",
+    "kicad": "org.kicad.KiCad",
+    "upscayl": "org.upscayl.Upscayl",
+    "eyedropper": "com.github.finefindus.eyedropper",
+    # Perkantoran, Produktivitas & Catatan
+    "libreoffice": "org.libreoffice.LibreOffice",
+    "onlyoffice": "org.onlyoffice.desktopeditors",
+    "abiword": "com.abisource.AbiWord",
+    "gnucash": "org.gnucash.GnuCash",
+    "homebank": "fr.free.Homebank",
+    "okular": "org.kde.okular",
+    "evince": "org.gnome.Evince",
+    "foliate": "com.github.johnfactotum.Foliate",
+    "calibre": "com.calibre_ebook.calibre",
+    "xournalpp": "com.github.xournalpp.xournalpp",
+    "obsidian": "md.obsidian.Obsidian",
+    "logseq": "com.logseq.Logseq",
+    "joplin": "net.cozic.joplin_desktop",
+    "standard-notes": "org.standardnotes.standardnotes",
+    "anytype": "io.anytype.anytype",
+    "anki": "net.ankiweb.Anki",
+    "zotero": "org.zotero.Zotero",
+    "apostrophe": "org.gnome.gitlab.somas.Apostrophe",
+    "ghostwriter": "org.kde.ghostwriter",
+    "marktext": "com.github.marktext.marktext",
+    "simplenote": "com.automattic.Simplenote",
+    # Pengembangan & IDE (Developer Tools)
     "code": "com.visualstudio.code",
     "vscode": "com.visualstudio.code",
-    "spotify": "com.spotify.Client",
-    "discord": "com.discordapp.Discord",
-    "telegram": "org.telegram.desktop",
-    "libreoffice": "org.libreoffice.LibreOffice",
-    "okular": "org.kde.okular",
+    "vscodium": "com.vscodium.codium",
+    "codium": "com.vscodium.codium",
+    "zed": "dev.zed.Zed",
+    "android-studio": "com.google.AndroidStudio",
+    "intellij-idea-community": "com.jetbrains.IntelliJ-IDEA-Community",
+    "pycharm-community": "com.jetbrains.PyCharm-Community",
+    "dbeaver": "io.dbeaver.DBeaverCommunity",
+    "postman": "com.getpostman.Postman",
+    "insomnia": "rest.insomnia.Insomnia",
+    "bruno": "com.usebruno.Bruno",
+    "podman-desktop": "io.podman_desktop.PodmanDesktop",
+    "gitkraken": "com.axosoft.GitKraken",
+    "meld": "org.gnome.meld",
+    "zeal": "org.zealdocs.Zeal",
+    "godot": "org.godotengine.Godot",
+    # Gim & Emulator (Gaming)
     "steam": "com.valvesoftware.Steam",
     "lutris": "net.lutris.Lutris",
+    "heroic": "com.heroicgameslauncher.hgl",
+    "bottles": "com.usebottles.bottles",
+    "prismlauncher": "org.prismlauncher.PrismLauncher",
+    "minecraft": "com.mojang.Minecraft",
+    "protonup-qt": "net.davidotek.pupgui2",
+    "retroarch": "org.libretro.RetroArch",
+    "dolphin-emu": "org.DolphinEmu.dolphin-emu",
+    "pcsx2": "net.pcsx2.PCSX2",
+    "rpcs3": "net.rpcs3.RPCS3",
+    "ppsspp": "org.ppsspp.PPSSPP",
+    "ryujinx": "org.ryujinx.Ryujinx",
+    "duckstation": "org.duckstation.DuckStation",
+    "scummvm": "org.scummvm.ScummVM",
+    "minigalaxy": "io.github.sharkwouter.Minigalaxy",
+    "supertuxkart": "net.supertuxkart.SuperTuxKart",
+    "0ad": "com.play0ad.zeroad",
+    "wesnoth": "org.wesnoth.Wesnoth",
+    # Utilitas Sistem & Keamanan
     "bitwarden": "com.bitwarden.desktop",
-    "thunderbird": "org.mozilla.Thunderbird",
     "keepassxc": "org.keepassxc.KeePassXC",
-    "audacity": "org.audacityteam.Audacity",
-    "handbrake": "fr.handbrake.ghb",
+    "ente-auth": "io.ente.auth",
+    "flatseal": "com.github.tchx84.Flatseal",
+    "warehouse": "io.github.flattool.Warehouse",
+    "gearlever": "it.mijorus.gearlever",
+    "mission-center": "io.missioncenter.MissionCenter",
+    "resources": "net.nokyan.Resources",
+    "baobab": "org.gnome.baobab",
+    "filelight": "org.kde.filelight",
+    "ark": "org.kde.ark",
+    "peazip": "io.github.peazip.PeaZip",
+    "flameshot": "org.flameshot.Flameshot",
+    "normcap": "com.github.dynobo.normcap",
+    "localsend": "org.localsend.localsend_app",
+    "warp": "app.drey.Warp",
+    "syncthing": "me.kozec.syncthingtk",
+    "nextcloud": "com.nextcloud.desktopclient.nextcloud",
+    "nextcloud-desktop": "com.nextcloud.desktopclient.nextcloud",
+    "remmina": "org.remmina.Remmina",
+    "rustdesk": "com.rustdesk.RustDesk",
+    "anydesk": "com.anydesk.Anydesk",
+    "boxes": "org.gnome.Boxes",
+    "gnome-boxes": "org.gnome.Boxes",
+    "bleachbit": "org.bleachbit.BleachBit",
 }
 
 # Nama paket CLI murni yang lebih pas via Homebrew (bukan GUI).
 BREW_PREFERRED = {
-    "ripgrep", "rg", "fd", "fzf", "bat", "eza", "zoxide", "delta",
-    "gh", "glab", "httpie", "jq", "yq", "hugo", "node", "go", "rustup",
-    "neovim", "tmux", "starship", "lazygit", "duf", "dust", "bottom",
+    "ripgrep", "rg", "fd", "fd-find", "fzf", "bat", "eza", "exa", "zoxide",
+    "delta", "git-delta", "gh", "glab", "httpie", "xh", "jq", "yq", "hugo",
+    "node", "nodejs", "npm", "pnpm", "bun", "deno", "go", "golang", "rustup",
+    "cargo", "rustc", "uv", "pipx", "poetry", "pyenv", "neovim", "nvim",
+    "helix", "hx", "kakoune", "micro", "tmux", "zellij", "starship",
+    "lazygit", "lazydocker", "duf", "dust", "ncdu", "bottom", "btm", "btop",
+    "htop", "fastfetch", "neofetch", "tldr", "tealdeer", "procs", "sd",
+    "hyperfine", "tokei", "just", "watchexec", "direnv", "age", "sops",
+    "mkcert", "kubectl", "k9s", "helm", "terraform", "opentofu", "ansible",
+    "rclone", "restic", "yt-dlp", "ffmpeg", "imagemagick", "aria2", "mtr",
+    "nmap", "tig", "glow", "gum", "atuin", "carapace", "nushell", "fish",
+    "zsh", "curl", "wget",
+}
+
+# Pemetaan nama paket distro (Debian/Arch) ke nama formula Homebrew resmi.
+BREW_ALIASES = {
+    "rg": "ripgrep",
+    "fd-find": "fd",
+    "exa": "eza",
+    "git-delta": "delta",
+    "nodejs": "node",
+    "golang": "go",
+    "nvim": "neovim",
+    "hx": "helix",
+    "btm": "bottom",
+}
+
+# Paket driver/daemon level host yang memang harus di-layer via rpm-ostree.
+HOST_LAYER_PREFERRED = {
+    "libvirt", "qemu-kvm", "virt-install", "tailscale", "wireguard-tools",
+    "usbguard", "scx-scheds", "akmod-nvidia", "xorg-x11-drv-nvidia",
 }
 
 
@@ -83,27 +249,108 @@ def backend_available(backend: str) -> bool:
     return False
 
 
-def recommend_backend(packages: list[str]) -> tuple[str, str]:
+def recommend_backend(packages: list[str], intercepted_cmd: str = "") -> tuple[str, str]:
     """Pilih backend terbaik berdasarkan nama paket. Mengembalikan
-    (pilihan_menu, alasan_singkat). Bjujur: hanya rekomendasikan yang tersedia."""
+    (pilihan_menu, alasan_singkat). Jujur: hanya rekomendasikan yang tersedia."""
     pkgs = [p.lower() for p in packages]
     known_flatpak = [p for p in pkgs if p in FLATPAK_ALIASES]
     known_brew = [p for p in pkgs if p in BREW_PREFERRED]
+    known_layer = [p for p in pkgs if p in HOST_LAYER_PREFERRED]
+    is_aur = intercepted_cmd.lower() in ("yay", "paru") or any(
+        p.endswith(("-bin", "-git", "-aur")) for p in pkgs
+    )
 
     if known_flatpak and backend_available("flatpak"):
-        return "1", f"'{known_flatpak[0]}' tersedia sebagai aplikasi Flatpak resmi"
+        first = known_flatpak[0]
+        return "1", f"'{first}' tersedia sebagai aplikasi Flatpak resmi ({FLATPAK_ALIASES[first]})"
     if known_brew and backend_available("brew"):
         return "4", f"'{known_brew[0]}' cocok sebagai alat CLI via Homebrew"
+    if is_aur and backend_available("arch"):
+        return "2", "paket AUR cocok dipasang di Kalacakra Arch Space (k-aur)"
+    if known_layer and backend_available("layer"):
+        return "5", f"'{known_layer[0]}' adalah komponen sistem/driver yang perlu di-layer ke host"
     # Default aman: Flatpak bila ada untuk GUI, jika tidak biarkan user memilih.
     if backend_available("flatpak"):
         return "1", "Flatpak (aman untuk desktop, tidak mengubah host)"
     return "", ""
 
 
+def lookup_package(pkg: str) -> dict:
+    """Kembalikan informasi pemetaan untuk satu nama paket."""
+    key = pkg.strip().lower()
+    if key in FLATPAK_ALIASES:
+        return {
+            "query": pkg,
+            "backend": "flatpak",
+            "option": "1",
+            "target": FLATPAK_ALIASES[key],
+            "available": backend_available("flatpak"),
+        }
+    if key in BREW_PREFERRED:
+        return {
+            "query": pkg,
+            "backend": "brew",
+            "option": "4",
+            "target": BREW_ALIASES.get(key, key),
+            "available": backend_available("brew"),
+        }
+    if key in HOST_LAYER_PREFERRED:
+        return {
+            "query": pkg,
+            "backend": "layer",
+            "option": "5",
+            "target": key,
+            "available": backend_available("layer"),
+        }
+    if key.endswith(("-bin", "-git", "-aur")):
+        return {
+            "query": pkg,
+            "backend": "arch",
+            "option": "2",
+            "target": key,
+            "available": backend_available("arch"),
+        }
+    return {
+        "query": pkg,
+        "backend": "unknown",
+        "option": "1" if backend_available("flatpak") else "",
+        "target": pkg,
+        "available": backend_available("flatpak"),
+    }
+
+
+def _print_aliases() -> int:
+    print(f"=== Kalacakra Interceptor - Basis Data Alias ({len(FLATPAK_ALIASES)} Flatpak, {len(BREW_PREFERRED)} Homebrew) ===")
+    print("\n[Flatpak -> Flathub ID]")
+    for name in sorted(FLATPAK_ALIASES):
+        print(f"  {name:<26} -> {FLATPAK_ALIASES[name]}")
+    print(f"\n[Homebrew CLI ({len(BREW_PREFERRED)} paket)]")
+    print("  " + ", ".join(sorted(BREW_PREFERRED)))
+    return 0
+
+
+def _print_lookup(pkg: str) -> int:
+    info = lookup_package(pkg)
+    status = "tersedia" if info["available"] else "backend belum terpasang"
+    print(f"Paket    : {info['query']}")
+    print(f"Backend  : {info['backend']} (opsi {info['option'] or '-'}) [{status}]")
+    print(f"Target   : {info['target']}")
+    return 0
+
+
 def main():
     if len(sys.argv) < 2:
         print("Usage: k-interceptor <command> [args...]")
+        print("       k-interceptor --lookup <pkg> | --list-aliases")
         sys.exit(1)
+
+    if sys.argv[1] == "--list-aliases":
+        sys.exit(_print_aliases())
+    if sys.argv[1] == "--lookup":
+        if len(sys.argv) < 3:
+            print("Usage: k-interceptor --lookup <pkg>")
+            sys.exit(1)
+        sys.exit(_print_lookup(sys.argv[2]))
 
     intercepted_cmd = sys.argv[1]
     cmd_args = sys.argv[2:]
@@ -121,7 +368,7 @@ def main():
     print(msg_available)
 
     # Rekomendasi pintar + satu tombol Enter untuk menerima default.
-    rec_choice, rec_reason = recommend_backend(packages)
+    rec_choice, rec_reason = recommend_backend(packages, intercepted_cmd)
     if rec_choice:
         if current_lang == "id":
             rec_line = f"[Kalacakra] Rekomendasi: opsi {rec_choice} - {rec_reason}."
@@ -154,6 +401,8 @@ def main():
 
     # Untuk opsi Flatpak, terjemahkan nama umum ke ID Flathub bila dikenali.
     flatpak_targets = [FLATPAK_ALIASES.get(p.lower(), p) for p in packages]
+    # Untuk opsi Homebrew, terjemahkan alias paket distro ke nama formula brew.
+    brew_targets = [BREW_ALIASES.get(p.lower(), p) for p in packages]
 
     if choice == "1":
         if not backend_available("flatpak"):
@@ -184,7 +433,7 @@ def main():
             print("   (atau pilih opsi lain: Flatpak / Spaces / rpm-ostree layering).")
             sys.exit(1)
         print(f"\n[Kalacakra] Installing via Homebrew: {pkg_str}...")
-        subprocess.run(["brew", "install"] + packages)
+        subprocess.run(["brew", "install"] + brew_targets)
     elif choice == "5":
         print(f"\n[Kalacakra] Layering package to immutable host: {pkg_str}...")
         subprocess.run(["sudo", "rpm-ostree", "install"] + packages)

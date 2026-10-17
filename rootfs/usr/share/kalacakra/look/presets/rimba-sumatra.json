@@ -1,0 +1,24 @@
+{
+  "id": "rimba-sumatra",
+  "name": "Rimba Sumatra",
+  "description": "Hijau zamrud hutan hujan tropis dengan kabut keemasan lembut, menenangkan mata dan segar.",
+  "plasma_theme": "BreezeDark",
+  "color_scheme": "BreezeDark",
+  "wallpaper": "rimba-sumatra.svg",
+  "cursor": "breeze_cursors",
+  "icons": "Papirus-Dark",
+  "fonts": {
+    "font": "Inter,11,-1,5,50,0,0,0,0,0",
+    "fixed": "Fira Code,10,-1,5,50,0,0,0,0,0"
+  },
+  "terminal": "Kalacakra Rimba",
+  "terminal_colors": {
+    "ColorScheme": "Kalacakra Rimba",
+    "TerminalMargin": "12"
+  },
+  "fastfetch": {
+    "logo": {"type": "kitty", "source": "kalacakra-mandala"},
+    "modules": ["title", "separator", "os", "host", "kernel", "uptime", "shell", "de", "wm", "cpu", "gpu", "memory", "colors"]
+  },
+  "starship": {"format": "$os$directory$git_branch$character"}
+}

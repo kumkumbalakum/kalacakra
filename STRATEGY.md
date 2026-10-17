@@ -33,7 +33,7 @@ Distro viral bukan yang fiturnya paling banyak — tapi yang punya **satu hal un
 
 ### 🥇 Pilar 1 — FITUR IKONIK: Kalacakra Look
 
-**Status: ✅ SUDAH DIIMPLEMENTASIKAN** (`rootfs/usr/bin/k-look`, 5 preset + wallpaper SVG).
+**Status: ✅ SUDAH DIIMPLEMENTASIKAN** (`rootfs/usr/bin/k-look`, 10 preset + wallpaper SVG).
 
 - **Apa:** satu perintah mengubah seluruh identitas desktop (tema, warna, wallpaper, kursor,
   ikon, font, terminal, fastfetch) dan bisa di-rollback penuh.
@@ -44,8 +44,8 @@ Distro viral bukan yang fiturnya paling banyak — tapi yang punya **satu hal un
 - **Bilingual & atomik:** cocok dengan DNA immutable; tulisan ke config user (aman).
 
 **Langkah lanjutan (belum ada):**
-- Preset tambahan (mis. "Batik Parang", "Rimba Sumatra", "Jakarta Neon").
-- GUI kecil / KCM (System Settings module) untuk pemilihan preset visual.
+- ✅ Preset tambahan Nusantara (`batik-parang`, `rimba-sumatra`, `jakarta-neon`, `bali-senja`, `segara-raja`) — kini genap 10 preset bawaan.
+- ✅ Dialog pemilih visual ringan (`kalacakra look gui` / `kalacakra welcome --gui` via `kdialog`/`zenity` dengan fallback jujur ke TUI).
 - Galeri showcase daring + tombol "share" langsung terintegrasi.
 
 ### 🥈 Pilar 2 — PAINKILLER: Immutable yang Tidak Menyakitkan
@@ -61,15 +61,15 @@ Distro viral bukan yang fiturnya paling banyak — tapi yang punya **satu hal un
   tidak memaksa/memalsukan.
 
 **Langkah lanjutan (belum ada):**
-- Basis data alias Flatpak yang jauh lebih besar / lookup daring.
+- ✅ Basis data alias diperluas menjadi 130+ aplikasi Flathub & 80+ alat CLI Homebrew + `k-interceptor --lookup <pkg>` / `--list-aliases`.
 - Integrasi Discover/GNOME Software yang otomatis menyarankan sumber yang benar.
 
 ### 🇮🇩 Pilar 3 — CERITA KHAS INDONESIA
 
 **Status: ✅ SUDAH DIIMPLEMENTASIKAN** (`k-showcase`, i18n penuh, tema bernuansa Nusantara).
 
-- **Apa:** dwibahasa EN/ID penuh sejak boot pertama; preset bernuansa Indonesia
-  (Mandala Cyberpunk, Nusantara Bronze, Kraton Gold); `kalacakra showcase` menampilkan
+- **Apa:** dwibahasa EN/ID penuh sejak boot pertama; 10 preset bernuansa Indonesia
+  (Mandala Cyberpunk, Nusantara Bronze, Kraton Gold, Batik Parang, Rimba Sumatra, Jakarta Neon, Bali Senja, Segara Raja, dll.); `kalacakra showcase` menampilkan
   identitas siap-screenshot.
 - **Kenapa viral (di Indonesia):** *"distro Linux yang serius berbahasa Indonesia"* hampir
   tidak ada. Ini pasar yang bisa dimenangkan total.
@@ -93,9 +93,9 @@ Distro viral bukan yang fiturnya paling banyak — tapi yang punya **satu hal un
 | Metrik | Baseline | Target realistis |
 |---|---|---|
 | Screenshot Kalacakra Look di r/unixporn | 0 | ≥ 1 post viral |
-| Preset Look | 5 | 10+ komunitas |
+| Preset Look | 10 bawaan (+ impor komunitas) | 10+ komunitas |
 | Dokumentasi dwibahasa penuh | sebagian | lengkap |
-| First-run experience | CLI | wizard yang mulus |
+| First-run experience | wizard (`kalacakra welcome [--gui]`) | wizard yang mulus |
 
 **Yang paling penting:** satu orang membuat satu video/screenshot dengan caption
 *"Distro Linux dari Indonesia yang bikin desktop-ku cantik dalam satu perintah."*
@@ -103,11 +103,13 @@ Itulah momen viral-nya.
 
 ---
 
-## 5. Langkah konkret berikutnya (prioritas)
+## 5. ✅ **5 Fitur Futuristik Baru (Next-Gen Futuristic Superpowers)**:
+   - 🕒 **Circadian Roda Waktu Engine** (`k-look roda-waktu` / `auto [--hour H]`) + Generator Palet Native KDE `.colors` otomatis.
+   - 👁️ **Multimodal Screen-to-AI** (`k-ocr --ask` / `--explain` / `--summarize` / `--translate` dengan perlindungan kebocoran rahasia otomatis).
+   - 🌀 **Holistic Chakra Mode Morphing** (`k-profile morph <gaming|creator|stealth|zen|nusantara> [--dry-run]`).
+   - 📦 **One-File Setup Teleport** (`k-pkg export` / `inspect` / `install` untuk Look Theme + Flatpaks + Brew packages).
+   - 🎛️ **Kalacakra Glass Cockpit Dashboard** (`k-doctor --html` laporan audit & telemetri mandiri zero-CDN).
+6. ⬜ **Konten** — tutorial dwibahasa, video "1 perintah ubah tampilan" (belum ada).
 
-1. ✅ **Preset komunitas** — `kalacakra look import <berkas/URL> [--install]` (format JSON tervalidasi; preset user menimpa preset bawaan).
-2. ✅ **Wizard first-run** (`kalacakra welcome`) — alur bahasa → tema Look → status AI/voice → ringkasan (dwibahasa, bisa non-interaktif `--yes`).
-3. ✅ **Galeri showcase daring** — `kalacakra gallery build` menghasilkan situs statis mandiri (tanpa CDN) dari kiriman komunitas atau tema bawaan; `kalacakra gallery serve` untuk pratinjau lokal. Unggah folder keluaran ke hosting statis apa pun.
-4. ⬜ **Konten** — tutorial dwibahasa, video "1 perintah ubah tampilan" (belum ada).
+> **Status jujur:** Item 1, 2, 3 & 5 **sudah dikerjakan** dan diuji (`tests/test_cli.py`, kini 86 test terverifikasi 100% pass). Item 6 (konten pemasaran) masih rencana — itu pekerjaan manusia, bukan kode. Dokumen ini peta, bukan klaim.
 
-> **Status jujur:** Item 1, 2 & 3 **sudah dikerjakan** dan diuji (`tests/test_cli.py`, kini 69 test). Item 4 (konten pemasaran) masih rencana — itu pekerjaan manusia, bukan kode. Dokumen ini peta, bukan klaim.

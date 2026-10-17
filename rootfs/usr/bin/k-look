@@ -173,15 +173,78 @@ def apply_plasma_theme(theme: str) -> tuple[str, str]:
     return "SKIP", "plasma-apply-lookandfeel/lookandfeeltool tidak terpasang"
 
 
-def apply_color_scheme(scheme: str) -> tuple[str, str]:
+# Palet warna RGB asli untuk setiap preset Nusantara (WindowBG, WindowFG, ViewBG, AccentRGB)
+PRESET_PALETTES = {
+    "mandala-cyberpunk": {"win_bg": "22,7,38", "win_fg": "242,235,255", "view_bg": "12,3,24", "accent": "255,47,214"},
+    "nusantara-bronze":  {"win_bg": "246,238,226", "win_fg": "38,24,12", "view_bg": "255,250,242", "accent": "201,138,60"},
+    "obsidian-minimal":  {"win_bg": "14,16,20", "win_fg": "228,232,238", "view_bg": "8,9,12", "accent": "139,147,161"},
+    "aurora-borealis":   {"win_bg": "11,26,36", "win_fg": "230,252,248", "view_bg": "5,15,22", "accent": "77,255,208"},
+    "kraton-gold":       {"win_bg": "20,15,6", "win_fg": "255,242,204", "view_bg": "12,9,3", "accent": "224,180,74"},
+    "batik-parang":      {"win_bg": "248,240,225", "win_fg": "46,29,16", "view_bg": "255,251,244", "accent": "184,132,64"},
+    "rimba-sumatra":     {"win_bg": "11,31,22", "win_fg": "230,250,238", "view_bg": "6,19,13", "accent": "29,185,120"},
+    "jakarta-neon":      {"win_bg": "12,18,42", "win_fg": "234,242,255", "view_bg": "6,10,26", "accent": "56,189,248"},
+    "bali-senja":        {"win_bg": "32,12,36", "win_fg": "255,236,224", "view_bg": "18,7,24", "accent": "255,112,67"},
+    "segara-raja":       {"win_bg": "6,34,46", "win_fg": "224,252,250", "view_bg": "3,19,28", "accent": "6,182,212"},
+}
+
+
+def write_kde_colorscheme(preset: dict | None) -> str:
+    """Bangun berkas skema warna KDE asli (~/.local/share/color-schemes/Kalacakra-<id>.colors)
+    dan tulis AccentColor ke kdeglobals agar warna tema benar-benar khas."""
+    if not preset:
+        return ""
+    pid = preset.get("id", "custom")
+    name = preset.get("name", pid)
+    pal = PRESET_PALETTES.get(
+        pid,
+        {"win_bg": "20,22,28", "win_fg": "236,240,244", "view_bg": "12,14,18", "accent": "56,189,248"},
+    )
+    scheme_id = f"Kalacakra-{pid}"
+    schemes_dir = os.path.join(DATA_HOME, "color-schemes")
+    out_file = os.path.join(schemes_dir, f"{scheme_id}.colors")
+    content = (
+        f"[General]\n"
+        f"ColorScheme={scheme_id}\n"
+        f"Name=Kalacakra {name}\n\n"
+        f"[Colors:Window]\n"
+        f"BackgroundNormal={pal['win_bg']}\n"
+        f"ForegroundNormal={pal['win_fg']}\n\n"
+        f"[Colors:View]\n"
+        f"BackgroundNormal={pal['view_bg']}\n"
+        f"ForegroundNormal={pal['win_fg']}\n\n"
+        f"[Colors:Button]\n"
+        f"BackgroundNormal={pal['win_bg']}\n"
+        f"ForegroundNormal={pal['win_fg']}\n"
+        f"DecorationFocus={pal['accent']}\n\n"
+        f"[Colors:Selection]\n"
+        f"BackgroundNormal={pal['accent']}\n"
+        f"ForegroundNormal={pal['view_bg']}\n\n"
+        f"[Colors:Header]\n"
+        f"BackgroundNormal={pal['win_bg']}\n"
+        f"ForegroundNormal={pal['win_fg']}\n"
+    )
+    try:
+        os.makedirs(schemes_dir, exist_ok=True)
+        with open(out_file, "w", encoding="utf-8") as f:
+            f.write(content)
+        _write_kde_config("kdeglobals", "General", "AccentColor", pal["accent"])
+        return out_file
+    except OSError:
+        return ""
+
+
+def apply_color_scheme(scheme: str, preset: dict | None = None) -> tuple[str, str]:
+    custom_file = write_kde_colorscheme(preset)
     if have("plasma-apply-colorscheme"):
         res = subprocess.run(["plasma-apply-colorscheme", scheme], capture_output=True, text=True)
         if res.returncode == 0:
-            return "OK", f"color scheme: {scheme}"
+            extra = f" + {os.path.basename(custom_file)}" if custom_file else ""
+            return "OK", f"color scheme: {scheme}{extra}"
         return "WARN", f"color scheme gagal: {res.stderr.strip()[:80]}"
     # Fallback: tulis skema warna ke config kdeglobals.
     ok = _write_kde_config("kdeglobals", "General", "ColorScheme", scheme)
-    return ("OK", f"color scheme (config): {scheme}") if ok else ("WARN", "gagal tulis color scheme")
+    extra = f" + {os.path.basename(custom_file)}" if custom_file else ""
+    return ("OK", f"color scheme (config): {scheme}{extra}") if ok else ("WARN", "gagal tulis color scheme")
 
 
 def apply_wallpaper(image: str) -> tuple[str, str]:
@@ -285,7 +348,7 @@ def apply_starship_theme(preset: dict) -> tuple[str, str]:
 
 APPLIERS = {
     "plasma_theme": lambda v, p: apply_plasma_theme(v),
-    "color_scheme": lambda v, p: apply_color_scheme(v),
+    "color_scheme": lambda v, p: apply_color_scheme(v, p),
     "wallpaper": lambda v, p: apply_wallpaper(v),
     "cursor": lambda v, p: apply_cursor(v),
     "icons": lambda v, p: apply_icons(v),
@@ -444,8 +507,82 @@ def cmd_list(presets: list[dict]) -> int:
             print(f"       {p['description']}")
     print()
     print("Terapkan:  kalacakra look apply <id>")
-    print("Interaktif: kalacakra look pick")
+    print("Interaktif: kalacakra look pick  |  GUI: kalacakra look gui")
     return 0
+
+
+def detect_gui_backend() -> str | None:
+    """Deteksi backend dialog GUI (kdialog/zenity). Jujur: butuh sesi tampilan
+    (DISPLAY / WAYLAND_DISPLAY) kecuali dioverride KALACAKRA_FORCE_GUI=1."""
+    has_display = bool(
+        os.environ.get("DISPLAY")
+        or os.environ.get("WAYLAND_DISPLAY")
+        or os.environ.get("KALACAKRA_FORCE_GUI") == "1"
+    )
+    if not has_display:
+        return None
+    if have("kdialog"):
+        return "kdialog"
+    if have("zenity"):
+        return "zenity"
+    return None
+
+
+def cmd_gui(presets: list[dict], do_shot: bool = False) -> int:
+    """Pemilih tema grafis via kdialog (KDE) atau zenity (GTK).
+    Fallback jujur ke TUI bila kdialog/zenity atau sesi grafis tidak tersedia."""
+    if not presets:
+        print("[k-look] Tidak ada preset tersedia.")
+        return 1
+    backend = detect_gui_backend()
+    if not backend:
+        print("[k-look] Dialog GUI (kdialog/zenity) atau sesi tampilan tidak tersedia.")
+        if sys.stdin.isatty():
+            print("[k-look] Beralih ke pemilih terminal interaktif (TUI)...")
+            return cmd_pick(presets)
+        return 1
+
+    active = get_active()
+    active_id = active.get("id") if active else None
+
+    if backend == "kdialog":
+        cmd = [
+            "kdialog",
+            "--title", "Kalacakra Look - Pemilih Tema",
+            "--radiolist", "Pilih identitas visual desktop Kalacakra OS:",
+        ]
+        for i, p in enumerate(presets):
+            pid = p.get("id", "")
+            label = f"{p.get('name', pid)} - {p.get('description', '')}"
+            is_sel = (pid == active_id) if active_id else (i == 0)
+            cmd.extend([pid, label, "on" if is_sel else "off"])
+    else:
+        cmd = [
+            "zenity", "--list", "--radiolist",
+            "--title=Kalacakra Look - Pemilih Tema",
+            "--text=Pilih identitas visual desktop Kalacakra OS:",
+            "--column=", "--column=ID", "--column=Tema", "--column=Deskripsi",
+            "--width=720", "--height=460",
+        ]
+        for i, p in enumerate(presets):
+            pid = p.get("id", "")
+            is_sel = (pid == active_id) if active_id else (i == 0)
+            cmd.extend(["TRUE" if is_sel else "FALSE", pid, p.get("name", pid), p.get("description", "")])
+
+    res = subprocess.run(cmd, capture_output=True, text=True)
+    chosen = res.stdout.strip()
+    if res.returncode != 0 or not chosen:
+        print("Dibatalkan.")
+        return 0
+
+    rc = cmd_apply(chosen, do_shot=do_shot)
+    if rc == 0 and backend == "kdialog":
+        subprocess.run(
+            ["kdialog", "--title", "Kalacakra Look", "--passivepopup",
+             f"Tema '{chosen}' berhasil diterapkan.", "4"],
+            capture_output=True, text=True,
+        )
+    return rc
 
 
 def cmd_pick(presets: list[dict]) -> int:
@@ -719,13 +856,38 @@ def cmd_import(source: str, install: bool) -> int:
     return 0
 
 
+def resolve_roda_waktu_preset(hour: int | None = None) -> tuple[str, str, int]:
+    """Tentukan preset berdasarkan siklus jam harian Nusantara (Roda Waktu).
+    Mengembalikan (preset_id, nama_fase_waktu, jam_dipakai)."""
+    if hour is None:
+        hour = datetime.datetime.now().hour
+    hour = int(hour) % 24
+    if 6 <= hour < 11:
+        return "batik-parang", "Pagi / Fajar (Hangat & Produktif)", hour
+    if 11 <= hour < 15:
+        return "segara-raja", "Siang / Terik (Segar & Fokus)", hour
+    if 15 <= hour < 19:
+        return "bali-senja", "Senja / Sore (Lembayung Keemasan)", hour
+    if 19 <= hour < 22:
+        return "kraton-gold", "Malam / Petang (Elegan & Tenang)", hour
+    return "mandala-cyberpunk", "Larut Malam / Hening (Gelap Pekat Ramah Mata)", hour
+
+
+def cmd_roda_waktu(hour: int | None = None, dry_run: bool = False, do_shot: bool = False) -> int:
+    """Terapkan tema otomatis mengikuti siklus waktu harian (Roda Waktu)."""
+    pid, phase, used_hour = resolve_roda_waktu_preset(hour)
+    print(f"[k-look Roda Waktu] Jam {used_hour:02d}:00 -> Fase: {phase}")
+    print(f"[k-look Roda Waktu] Tema terpilih: {pid}")
+    return cmd_apply(pid, do_shot=do_shot, dry_run=dry_run)
+
+
 def main():
     parser = argparse.ArgumentParser(
         prog="k-look",
         description="Kalacakra Look - Manajer identitas & tampilan desktop satu perintah",
     )
     parser.add_argument("action", nargs="?", default="list",
-                        help="list | apply <id> | rollback | current | show <id> | share [id] | import <file/url>")
+                        help="list | pick | gui | roda-waktu | apply <id> | rollback | current | show <id> | share [id] | import <file/url>")
     parser.add_argument("args", nargs="*", help="Argumen tambahan untuk aksi")
     parser.add_argument("--screenshot", "-s", action="store_true",
                         help="Ambil screenshot + caption setelah apply")
@@ -733,14 +895,24 @@ def main():
                         help="Tampilkan langkah yang AKAN dijalankan tanpa mengubah apa pun")
     parser.add_argument("--install", action="store_true",
                         help="Untuk 'import': pasang preset ke direktori preset user")
+    parser.add_argument("--gui", "-g", action="store_true",
+                        help="Gunakan dialog grafis (kdialog/zenity) untuk memilih tema")
+    parser.add_argument("--hour", type=int, default=None,
+                        help="Untuk 'roda-waktu'/'auto': paksa jam tertentu (0-23)")
     parsed = parser.parse_args()
 
     action = parsed.action
     rest = parsed.args
     presets = list_presets()
 
+    if parsed.gui and action in ("list", "pick", "gui"):
+        return cmd_gui(presets, do_shot=parsed.screenshot)
     if action in ("list", "ls"):
         return cmd_list(presets)
+    if action in ("roda-waktu", "auto"):
+        return cmd_roda_waktu(hour=parsed.hour, dry_run=parsed.dry_run, do_shot=parsed.screenshot)
+    if action == "gui":
+        return cmd_gui(presets, do_shot=parsed.screenshot)
     if action == "pick":
         return cmd_pick(presets)
     if action == "current":
@@ -767,7 +939,7 @@ def main():
         return cmd_apply(rest[0], do_shot=parsed.screenshot, dry_run=parsed.dry_run)
 
     print(f"[k-look Error] Aksi tidak dikenal: '{action}'")
-    print("   Aksi: list | pick | apply <id> | rollback | current | show <id> | share [id] | import <file/url>")
+    print("   Aksi: list | pick | gui | roda-waktu | apply <id> | rollback | current | show <id> | share [id] | import <file/url>")
     return 1
 
 

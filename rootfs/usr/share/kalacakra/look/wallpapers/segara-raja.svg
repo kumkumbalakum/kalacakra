@@ -1,0 +1,43 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="3840" height="2160" viewBox="0 0 3840 2160">
+  <defs>
+    <radialGradient id="bg" cx="50%" cy="48%" r="80%">
+      <stop offset="0%" stop-color="#062c3a"/>
+      <stop offset="55%" stop-color="#031924"/>
+      <stop offset="100%" stop-color="#010a10"/>
+    </radialGradient>
+    <linearGradient id="reef" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#5eead4"/>
+      <stop offset="50%" stop-color="#06b6d4"/>
+      <stop offset="100%" stop-color="#0284c7"/>
+    </linearGradient>
+    <linearGradient id="foam" x1="100%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#ccfbf1"/>
+      <stop offset="100%" stop-color="#2dd4bf"/>
+    </linearGradient>
+  </defs>
+  <rect width="3840" height="2160" fill="url(#bg)"/>
+  <g opacity="0.35" fill="none" stroke="url(#reef)" stroke-linecap="round">
+    <path d="M-200,640 C700,440 1400,840 2200,560 C2900,320 3500,720 4100,480" stroke-width="70" opacity="0.25"/>
+    <path d="M-200,1520 C700,1320 1400,1720 2200,1440 C2900,1200 3500,1600 4100,1360" stroke-width="70" opacity="0.25"/>
+  </g>
+  <g transform="translate(1920 1080)" fill="none" stroke="url(#reef)" opacity="0.88">
+    <circle r="220" stroke-width="3"/>
+    <circle r="350" stroke-width="2.2" opacity="0.8"/>
+    <circle r="500" stroke-width="1.8" opacity="0.6"/>
+    <circle r="670" stroke-width="1.2" opacity="0.4"/>
+    <g stroke="url(#foam)" stroke-width="2.5" opacity="0.8">
+      <path d="M0,-350 A350,350 0 0,1 303,175"/>
+      <path d="M0,350 A350,350 0 0,1 -303,-175"/>
+      <path d="M-500,0 A500,500 0 0,1 0,-500"/>
+      <path d="M500,0 A500,500 0 0,1 0,500"/>
+    </g>
+    <g stroke="url(#foam)" stroke-width="1.5" opacity="0.55">
+      <circle cx="-260" cy="-150" r="48"/>
+      <circle cx="280" cy="140" r="64"/>
+      <circle cx="190" cy="-230" r="36"/>
+      <circle cx="-210" cy="240" r="40"/>
+    </g>
+    <circle r="52" fill="#5eead4" opacity="0.2"/>
+    <circle r="16" fill="#ccfbf1" opacity="0.95"/>
+  </g>
+</svg>

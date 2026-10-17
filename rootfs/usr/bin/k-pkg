@@ -54,7 +54,172 @@ def parse_target(target: str) -> dict:
         "description": f"Instalasi paket {target}"
     }
 
-def install_package(manifest: dict, non_interactive: bool = False):
+def export_blueprint(out_path: str, name: str = None, desc: str = None):
+    """Mengekspor blueprint sistem aktif (tema Look, Flatpak, Brew) ke berkas .kpkg."""
+    strings, _ = get_locale_strings()
+    
+    # 1. Deteksi tema aktif
+    look_theme = "mandala-cyberpunk"
+    data_home = os.environ.get("XDG_DATA_HOME", os.path.expanduser("~/.local/share"))
+    active_path = os.path.join(data_home, "kalacakra", "look", "active.json")
+    if os.path.isfile(active_path):
+        try:
+            with open(active_path, "r", encoding="utf-8") as f:
+                d = json.load(f)
+                look_theme = d.get("id", look_theme)
+        except Exception:
+            pass
+
+    # 2. Deteksi Flatpak terpasang
+    flatpaks = []
+    if shutil.which("flatpak"):
+        try:
+            res = subprocess.run(["flatpak", "list", "--app", "--columns=application"],
+                                 capture_output=True, text=True, check=False)
+            if res.returncode == 0:
+                flatpaks = [line.strip() for line in res.stdout.splitlines() if line.strip()]
+        except Exception:
+            pass
+
+    # 3. Deteksi Brew packages
+    brew_pkgs = []
+    if shutil.which("brew"):
+        try:
+            res = subprocess.run(["brew", "leaves"], capture_output=True, text=True, check=False)
+            if res.returncode == 0:
+                brew_pkgs = [line.strip() for line in res.stdout.splitlines() if line.strip()]
+        except Exception:
+            pass
+
+    blueprint = {
+        "format": "kalacakra-blueprint-v1",
+        "name": name or "Kalacakra System Setup",
+        "description": desc or f"Setup teleportasi diekspor dari tema {look_theme}",
+        "look_theme": look_theme,
+        "flatpaks": flatpaks,
+        "brew_packages": brew_pkgs
+    }
+
+    try:
+        out_dir = os.path.dirname(os.path.abspath(out_path))
+        if out_dir:
+            os.makedirs(out_dir, exist_ok=True)
+        with open(out_path, "w", encoding="utf-8") as f:
+            json.dump(blueprint, f, indent=2, ensure_ascii=False)
+        print(f"[k-pkg Blueprint] Berhasil mengekspor blueprint ke: {out_path}")
+        print(f" - Tema Look     : {look_theme}")
+        print(f" - Flatpak Apps  : {len(flatpaks)} paket")
+        print(f" - Brew Packages : {len(brew_pkgs)} paket")
+    except Exception as e:
+        print(f"[k-pkg Error] Gagal mengekspor blueprint: {e}")
+        sys.exit(1)
+
+def inspect_package(manifest: dict, target_label: str):
+    """Memeriksa isi manifest atau blueprint .kpkg tanpa melakukan instalasi."""
+    fmt = manifest.get("format", "single-package")
+    name = manifest.get("name", "Paket")
+    desc = manifest.get("description", "-")
+
+    print("=" * 65)
+    print(f"=== [Kalacakra Package Inspector] {target_label} ===")
+    print("=" * 65)
+    print(f" Format      : {fmt}")
+    print(f" Nama        : {name}")
+    print(f" Keterangan  : {desc}")
+    
+    if fmt == "kalacakra-blueprint-v1" or "flatpaks" in manifest or "look_theme" in manifest:
+        print(f" Tema Look   : {manifest.get('look_theme', '(tetap)')}")
+        fps = manifest.get("flatpaks", [])
+        print(f" Flatpaks ({len(fps)}) :")
+        for fp in fps:
+            print(f"   • {fp}")
+        bps = manifest.get("brew_packages", [])
+        print(f" Homebrew ({len(bps)}) :")
+        for bp in bps:
+            print(f"   • {bp}")
+    else:
+        print(f" Metode      : {manifest.get('method', 'flatpak').upper()}")
+        print(f" Target ID   : {manifest.get('package', name)}")
+    print("=" * 65)
+
+def install_blueprint(manifest: dict, non_interactive: bool = False, dry_run: bool = False):
+    """Memasang paket-paket dari blueprint .kpkg (Look, Flatpak, Brew)."""
+    strings, current_lang = get_locale_strings()
+    name = manifest.get("name", "Blueprint Kalacakra")
+    theme = manifest.get("look_theme")
+    flatpaks = manifest.get("flatpaks", [])
+    brew_pkgs = manifest.get("brew_packages", [])
+
+    print()
+    print("=" * 65)
+    print("=== [Kalacakra Blueprint Teleport] Penerapan Setup Lingkungan ===")
+    print("=" * 65)
+    print(f" Nama Blueprint: {name}")
+    print(f" Tema Tampilan : {theme or '(lewati)'}")
+    print(f" Flatpak Apps  : {len(flatpaks)} paket")
+    print(f" Brew Tools    : {len(brew_pkgs)} paket")
+    print("-" * 65)
+
+    if dry_run:
+        print("[DRY-RUN] Pratinjau penerapan blueprint (tidak ada perubahan sistem):")
+        if theme:
+            print(f" [DRY-RUN] Akan menerapkan tema: {theme}")
+        for fp in flatpaks:
+            print(f" [DRY-RUN] Akan memasang Flatpak: {fp}")
+        for bp in brew_pkgs:
+            print(f" [DRY-RUN] Akan memasang Brew: {bp}")
+        print("=" * 65)
+        return
+
+    if not non_interactive and sys.stdin.isatty():
+        prompt_txt = "Lanjutkan penerapan blueprint ini? [Y/n]: " if current_lang == "id" else "Proceed with blueprint setup? [Y/n]: "
+        try:
+            ans = input(prompt_txt).strip().lower()
+            if ans and ans not in ["y", "ya", "yes"]:
+                print("[k-pkg] Penerapan blueprint dibatalkan.")
+                sys.exit(0)
+        except (EOFError, KeyboardInterrupt):
+            print("\n[k-pkg] Penerapan blueprint dibatalkan.")
+            sys.exit(0)
+
+    # 1. Terapkan Look Theme
+    if theme:
+        print(f"[k-pkg Blueprint] Menerapkan tema tampilan '{theme}'...")
+        k_look = os.path.join(SCRIPT_DIR, "k-look") if os.path.isfile(os.path.join(SCRIPT_DIR, "k-look")) else "k-look"
+        try:
+            subprocess.run([k_look, "apply", theme], check=False)
+        except Exception as e:
+            print(f"[k-pkg Warn] Gagal menerapkan tema: {e}")
+
+    # 2. Pasang Flatpaks
+    if flatpaks:
+        if shutil.which("flatpak"):
+            for fp in flatpaks:
+                print(f"[k-pkg Blueprint] Memasang Flatpak '{fp}'...")
+                subprocess.run(["flatpak", "install", "-y", "flathub", fp], check=False)
+        else:
+            print(f"[k-pkg Warn] 'flatpak' tidak ditemukan - melewatkan {len(flatpaks)} paket Flatpak.")
+
+    # 3. Pasang Brew packages
+    if brew_pkgs:
+        if shutil.which("brew"):
+            for bp in brew_pkgs:
+                print(f"[k-pkg Blueprint] Memasang Homebrew package '{bp}'...")
+                subprocess.run(["brew", "install", bp], check=False)
+        else:
+            print(f"[k-pkg Warn] 'brew' tidak ditemukan - melewatkan {len(brew_pkgs)} paket Brew.")
+
+    print("=" * 65)
+    print(f"[k-pkg Blueprint] Penerapan setup '{name}' selesai!")
+    print("=" * 65)
+    print()
+
+def install_package(manifest: dict, non_interactive: bool = False, dry_run: bool = False):
+    # Jika manifest adalah blueprint, delegasikan ke install_blueprint
+    if manifest.get("format") == "kalacakra-blueprint-v1" or ("flatpaks" in manifest and "package" not in manifest):
+        install_blueprint(manifest, non_interactive=non_interactive, dry_run=dry_run)
+        return
+
     strings, current_lang = get_locale_strings()
     name = manifest.get("name", "Paket")
     method = manifest.get("method", "flatpak").lower()
@@ -69,6 +234,11 @@ def install_package(manifest: dict, non_interactive: bool = False):
     print(f" Target ID     : {pkg}")
     print(f" Keterangan    : {manifest.get('description', '-')}")
     print("-" * 65)
+
+    if dry_run:
+        print(f"[DRY-RUN] Pratinjau pemasangan '{name}' via {method} ({pkg}).")
+        print("=" * 65)
+        return
 
     if not non_interactive and sys.stdin.isatty():
         prompt_txt = "Lanjutkan instalasi paket ini? [Y/n]: " if current_lang == "id" else "Proceed with package installation? [Y/n]: "
@@ -115,16 +285,51 @@ def install_package(manifest: dict, non_interactive: bool = False):
     print()
 
 def main():
+    # Kompatibilitas mundur: jika argumen pertama bukan subcommand, otomatis delegasikan ke 'install'
+    argv = sys.argv[1:]
+    if argv and argv[0] not in ("export", "inspect", "install", "-h", "--help"):
+        argv = ["install"] + argv
+
     parser = argparse.ArgumentParser(
         prog="k-pkg",
-        description="Kalacakra 1-Click Package Installer (openSUSE OBS-style handler)"
+        description="Kalacakra 1-Click Package & Setup Blueprint Manager"
     )
-    parser.add_argument("target", help="File path .kpkg or 'kalacakra://' URL scheme")
-    parser.add_argument("-y", "--yes", action="store_true", help="Non-interactive automatic confirmation")
-    args = parser.parse_args()
+    subparsers = parser.add_subparsers(dest="subcommand", help="Sub-command (opsional)")
 
-    manifest = parse_target(args.target)
-    install_package(manifest, non_interactive=args.yes)
+    # Subcommand: export
+    p_export = subparsers.add_parser("export", help="Ekspor blueprint setup sistem (Look + Flatpak + Brew) ke berkas .kpkg")
+    p_export.add_argument("out_file", help="Jalur berkas luaran (contoh: my-setup.kpkg)")
+    p_export.add_argument("--name", help="Nama blueprint", default=None)
+    p_export.add_argument("--desc", help="Deskripsi blueprint", default=None)
+
+    # Subcommand: inspect
+    p_inspect = subparsers.add_parser("inspect", help="Periksa detail paket / blueprint .kpkg tanpa instalasi")
+    p_inspect.add_argument("target", help="Berkas .kpkg atau URL kalacakra://")
+
+    # Subcommand: install (eksplisit atau fallback default)
+    p_install = subparsers.add_parser("install", help="Pasang paket atau terapkan blueprint .kpkg")
+    p_install.add_argument("target", help="Berkas .kpkg, paket, atau URL kalacakra://")
+    p_install.add_argument("-y", "--yes", action="store_true", help="Konfirmasi otomatis tanpa tanya")
+    p_install.add_argument("--dry-run", action="store_true", help="Simulasi tanpa memasang")
+
+    args = parser.parse_args(argv)
+
+    if args.subcommand == "export":
+        export_blueprint(args.out_file, name=args.name, desc=args.desc)
+        return
+    elif args.subcommand == "inspect":
+        manifest = parse_target(args.target)
+        inspect_package(manifest, args.target)
+        return
+    elif args.subcommand == "install":
+        manifest = parse_target(args.target)
+        install_package(manifest, non_interactive=args.yes, dry_run=args.dry_run)
+        return
+
+    parser.print_help()
+    sys.exit(1)
 
 if __name__ == "__main__":
     main()
+
+

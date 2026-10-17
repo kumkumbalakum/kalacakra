@@ -1,0 +1,24 @@
+{
+  "id": "segara-raja",
+  "name": "Segara Raja",
+  "description": "Biru pirus samudra dalam dan karang toska kepulauan Raja Ampat yang jernih dan hening.",
+  "plasma_theme": "BreezeDark",
+  "color_scheme": "BreezeDark",
+  "wallpaper": "segara-raja.svg",
+  "cursor": "breeze_cursors",
+  "icons": "Papirus-Dark",
+  "fonts": {
+    "font": "Cantarell,11,-1,5,50,0,0,0,0,0",
+    "fixed": "JetBrains Mono,10,-1,5,50,0,0,0,0,0"
+  },
+  "terminal": "Kalacakra Segara",
+  "terminal_colors": {
+    "ColorScheme": "Kalacakra Segara",
+    "TerminalMargin": "12"
+  },
+  "fastfetch": {
+    "logo": {"type": "kitty", "source": "kalacakra-mandala"},
+    "modules": ["title", "separator", "os", "host", "kernel", "uptime", "shell", "de", "wm", "cpu", "gpu", "memory", "colors"]
+  },
+  "starship": {"format": "$os$directory$git_branch$character"}
+}

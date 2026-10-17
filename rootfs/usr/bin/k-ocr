@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """
 Kalacakra OS - k-ocr
-AI Smart Screenshot with Local Offline OCR (Super + Shift + T)
-Extracts text instantly from any screen area (video/image/locked app) and copies it to clipboard.
+AI Smart Screenshot with Local Offline OCR & Multimodal Screen-to-AI (Super + Shift + T)
+Extracts text instantly from any screen area (video/image/locked app), copies it to clipboard,
+and optionally pipes sanitized text directly to local AI (translate, explain, summarize, or custom ask).
 Supports English & Bahasa Indonesia out-of-the-box.
 """
 
@@ -12,12 +13,22 @@ import subprocess
 import argparse
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
-# Path library bersama ditangani oleh _kalacakra_bootstrap.
-
-# Bootstrap bersama (menggantikan boilerplate sys.path + fallback import).
-from _kalacakra_bootstrap import get_locale_strings
+from _kalacakra_bootstrap import get_locale_strings, redact_secrets
 
 TMP_IMG = "/tmp/kalacakra-ocr-capture.png"
+
+
+def find_bin(name: str) -> str:
+    for c in (f"/usr/bin/{name}", os.path.join(SCRIPT_DIR, name)):
+        if os.path.isfile(c):
+            return c
+    return name
+
+
+def shutil_which(cmd: str) -> bool:
+    import shutil
+    return shutil.which(cmd) is not None
+
 
 def capture_screen_area() -> bool:
     # 1. Coba grim + slurp (Wayland native)
@@ -35,21 +46,27 @@ def capture_screen_area() -> bool:
 
     return False
 
-def shutil_which(cmd: str) -> bool:
-    import shutil
-    return shutil.which(cmd) is not None
 
-def run_ocr() -> str:
+def run_ocr(img_path: str) -> str:
     if shutil_which("tesseract"):
-        # Jalankan tesseract dwibahasa eng+ind
         res = subprocess.run(
-            ["tesseract", TMP_IMG, "stdout", "-l", "eng+ind"],
+            ["tesseract", img_path, "stdout", "-l", "eng+ind"],
             capture_output=True,
             text=True,
-            check=False
+            check=False,
         )
-        return res.stdout.strip()
+        if res.returncode == 0 and res.stdout.strip():
+            return res.stdout.strip()
+        # Fallback bahasa default bila eng+ind belum dipasang lengkap
+        res_fb = subprocess.run(
+            ["tesseract", img_path, "stdout"],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        return res_fb.stdout.strip()
     return ""
+
 
 def copy_to_clipboard(text: str):
     if shutil_which("wl-copy"):
@@ -59,24 +76,98 @@ def copy_to_clipboard(text: str):
         proc = subprocess.Popen(["xclip", "-selection", "clipboard"], stdin=subprocess.PIPE)
         proc.communicate(text.encode("utf-8"))
 
+
 def notify_user(title: str, body: str):
     if shutil_which("notify-send"):
         subprocess.run(["notify-send", "-a", "Kalacakra OCR", title, body], check=False)
 
+
+def build_ai_prompt(text: str, args, lang: str = "id", extra: str = None) -> str | None:
+    """Susun prompt multimodal Screen-to-AI (setelah sanitasi rahasia)."""
+    safe_text, redacted = redact_secrets(text)
+    if redacted:
+        print("[k-ocr Shield] Data sensitif terdeteksi & disensor sebelum dikirim ke AI.")
+
+    ask_val = None
+    translate_val = False
+    explain_val = False
+    summarize_val = False
+
+    if isinstance(args, str):
+        if args == "explain":
+            explain_val = True
+        elif args == "summarize":
+            summarize_val = True
+        elif args == "translate":
+            translate_val = True
+        elif args == "ask":
+            ask_val = extra or "Jelaskan teks ini"
+        else:
+            ask_val = args
+    else:
+        ask_val = getattr(args, "ask", None)
+        translate_val = bool(getattr(args, "translate", False))
+        explain_val = bool(getattr(args, "explain", False))
+        summarize_val = bool(getattr(args, "summarize", False))
+
+    if ask_val:
+        return f"{ask_val}\n\nTeks layar:\n{safe_text}"
+    if translate_val:
+        target = f" ({extra})" if extra else " (Indonesia <-> Inggris)"
+        return (
+            f"Terjemahkan teks berikut{target}:\n{safe_text}"
+            if lang == "id"
+            else f"Translate the following text{target}:\n{safe_text}"
+        )
+    if explain_val:
+        return (
+            f"Jelaskan maksud teks/pesan error dari layar berikut dan berikan solusinya:\n{safe_text}"
+            if lang == "id"
+            else f"Explain this screen text/error message and suggest a fix:\n{safe_text}"
+        )
+    if summarize_val:
+        return (
+            f"Ringkas poin-poin penting dari teks layar berikut:\n{safe_text}"
+            if lang == "id"
+            else f"Summarize the key points from this screen text:\n{safe_text}"
+        )
+    return None
+
+
+
+
+def invoke_k_ai(prompt: str) -> int:
+    kai = find_bin("k-ai")
+    cmd = [kai, "--stream", prompt]
+    if os.path.isfile(kai) and not os.access(kai, os.X_OK):
+        cmd = [sys.executable, kai, "--stream", prompt]
+    return subprocess.run(cmd, check=False).returncode
+
+
 def main():
     parser = argparse.ArgumentParser(
         prog="k-ocr",
-        description="Kalacakra Smart Screenshot with Local OCR (EN/ID)"
+        description="Kalacakra Smart Screenshot with Local OCR & Multimodal Screen-to-AI (EN/ID)",
     )
-    parser.add_argument("--file", "-f", help="OCR an existing image file instead of taking a screenshot")
-    parser.add_argument("--translate", "-t", action="store_true", help="Pipe extracted text directly to k-ai translation")
+    parser.add_argument("--file", "-f", help="OCR berkas gambar yang sudah ada (tanpa screenshot)")
+    parser.add_argument("--translate", "-t", action="store_true",
+                        help="Terjemahkan teks hasil OCR langsung via k-ai")
+    parser.add_argument("--explain", "-e", action="store_true",
+                        help="Jelaskan teks/error di layar & cari solusinya via k-ai")
+    parser.add_argument("--summarize", "-s", action="store_true",
+                        help="Ringkas teks hasil tangkapan layar via k-ai")
+    parser.add_argument("--ask", "-a", metavar="PROMPT",
+                        help="Tanyakan instruksi khusus ke k-ai atas teks layar yang ditangkap")
 
     args = parser.parse_args()
     strings, current_lang = get_locale_strings()
 
-    if args.file and os.path.isfile(args.file):
-        global TMP_IMG
-        TMP_IMG = args.file
+    target_img = TMP_IMG
+    if args.file:
+        if not os.path.isfile(args.file):
+            print(f"[k-ocr Error] Berkas gambar tidak ditemukan: {args.file}")
+            sys.exit(1)
+        target_img = args.file
     else:
         print(strings.get("ocr_processing", "[Kalacakra OCR] Mengambil area layar..."))
         success = capture_screen_area()
@@ -84,7 +175,12 @@ def main():
             print("[k-ocr] Seleksi layar dibatalkan / Screen selection canceled.")
             sys.exit(0)
 
-    extracted_text = run_ocr()
+    if not shutil_which("tesseract"):
+        print("[k-ocr WARN] 'tesseract' belum terpasang di sistem ini.")
+        print("   Pasang: sudo rpm-ostree install tesseract tesseract-langpack-ind tesseract-langpack-eng")
+        sys.exit(1)
+
+    extracted_text = run_ocr(target_img)
 
     if extracted_text:
         copy_to_clipboard(extracted_text)
@@ -96,12 +192,14 @@ def main():
         print("=" * 60)
         notify_user("Kalacakra OCR", f"Teks disalin ({len(extracted_text)} karakter):\n{extracted_text[:120]}...")
 
-        if args.translate:
-            print("\n[k-ocr] Menerjemahkan via k-ai...")
-            subprocess.run(["/usr/bin/k-ai", f"Terjemahkan teks ini: {extracted_text}"])
+        ai_prompt = build_ai_prompt(extracted_text, args, current_lang)
+        if ai_prompt:
+            print("\n[k-ocr -> k-ai] Memproses teks layar dengan AI lokal...")
+            invoke_k_ai(ai_prompt)
     else:
         print("[k-ocr WARN] Tidak ada teks terdeteksi dalam area gambar yang dipilih.")
         notify_user("Kalacakra OCR", "Tidak ada teks yang terdeteksi pada area yang dipilih.")
+
 
 if __name__ == "__main__":
     main()

@@ -707,24 +707,45 @@ class TestLookManager(unittest.TestCase):
     def test_presets_exist_and_are_valid_json(self):
         look = load_cli_module("k-look")
         presets = look.list_presets()
-        self.assertGreaterEqual(len(presets), 5, "harus ada minimal 5 preset Look")
+        self.assertGreaterEqual(len(presets), 10, "harus ada minimal 10 preset Look")
         ids = {p["id"] for p in presets}
-        for expected in ("mandala-cyberpunk", "nusantara-bronze", "obsidian-minimal",
-                         "aurora-borealis", "kraton-gold"):
+        for expected in (
+            "mandala-cyberpunk", "nusantara-bronze", "obsidian-minimal",
+            "aurora-borealis", "kraton-gold", "batik-parang",
+            "rimba-sumatra", "jakarta-neon", "bali-senja", "segara-raja",
+        ):
             self.assertIn(expected, ids)
         for p in presets:
             self.assertIn("name", p)
             self.assertIn("description", p)
+            clean = {k: v for k, v in p.items() if k != "__path__"}
+            ok, problems = look.validate_preset(clean)
+            self.assertTrue(ok, f"preset {p.get('id')} gagal validasi: {problems}")
+            self.assertEqual(problems, [], f"preset {p.get('id')} punya peringatan: {problems}")
 
     def test_look_wallpapers_exist(self):
         import glob
         wp_dir = os.path.join(ROOTFS_DIR, "usr", "share", "kalacakra", "look", "wallpapers")
         svgs = glob.glob(os.path.join(wp_dir, "*.svg"))
-        self.assertGreaterEqual(len(svgs), 5, "setiap preset harus punya wallpaper SVG")
+        self.assertGreaterEqual(len(svgs), 10, "setiap preset harus punya wallpaper SVG")
         # Validasi XML agar tidak ada SVG rusak
         import xml.dom.minidom
         for s in svgs:
             xml.dom.minidom.parse(s)
+
+    def test_distro_logos_exist_and_are_valid(self):
+        import xml.dom.minidom
+        svg_pixmap = os.path.join(ROOTFS_DIR, "usr", "share", "pixmaps", "kalacakra-logo.svg")
+        png_3d = os.path.join(ROOTFS_DIR, "usr", "share", "pixmaps", "kalacakra-logo-3d.png")
+        hicolor_svg = os.path.join(ROOTFS_DIR, "usr", "share", "icons", "hicolor", "scalable", "apps", "kalacakra.svg")
+        hicolor_png = os.path.join(ROOTFS_DIR, "usr", "share", "icons", "hicolor", "512x512", "apps", "kalacakra.png")
+        for p in (svg_pixmap, png_3d, hicolor_svg, hicolor_png):
+            self.assertTrue(os.path.isfile(p), f"logo distro hilang: {p}")
+            self.assertGreater(os.path.getsize(p), 1024, f"ukuran logo terlalu kecil: {p}")
+        xml.dom.minidom.parse(svg_pixmap)
+        xml.dom.minidom.parse(hicolor_svg)
+        with open(png_3d, "rb") as f:
+            self.assertEqual(f.read(8), b"\x89PNG\r\n\x1a\n", "kalacakra-logo-3d.png bukan PNG valid")
 
     def test_look_apply_creates_config_and_records_active(self):
         import tempfile
@@ -854,10 +875,40 @@ class TestInterceptorSmartRecommend(unittest.TestCase):
 
     def test_flatpak_alias_mapping_is_consistent(self):
         ki = load_cli_module("k-interceptor")
+        self.assertGreaterEqual(len(ki.FLATPAK_ALIASES), 120)
+        self.assertGreaterEqual(len(ki.BREW_PREFERRED), 80)
         # Semua nilai alias harus mengikuti format ID Flathub (mengandung titik)
         for name, app_id in ki.FLATPAK_ALIASES.items():
             self.assertIn(".", app_id, f"alias '{name}' -> '{app_id}' bukan ID Flathub")
             self.assertEqual(name, name.lower())
+        # Semua BREW_ALIASES harus tercatat di BREW_PREFERRED
+        for alias in ki.BREW_ALIASES:
+            self.assertIn(alias, ki.BREW_PREFERRED)
+
+    def test_lookup_package_categories(self):
+        ki = load_cli_module("k-interceptor")
+        fp = ki.lookup_package("krita")
+        self.assertEqual(fp["backend"], "flatpak")
+        self.assertEqual(fp["target"], "org.kde.krita")
+        br = ki.lookup_package("fd-find")
+        self.assertEqual(br["backend"], "brew")
+        self.assertEqual(br["target"], "fd")
+        ly = ki.lookup_package("tailscale")
+        self.assertEqual(ly["backend"], "layer")
+        aur = ki.lookup_package("yay-bin")
+        self.assertEqual(aur["backend"], "arch")
+
+    def test_cli_lookup_and_list_aliases(self):
+        import subprocess
+        path = os.path.join(ROOTFS_DIR, "usr", "bin", "k-interceptor")
+        r1 = subprocess.run([sys.executable, path, "--lookup", "obsidian"],
+                            capture_output=True, text=True, timeout=30)
+        self.assertEqual(r1.returncode, 0, r1.stderr)
+        self.assertIn("md.obsidian.Obsidian", r1.stdout)
+        r2 = subprocess.run([sys.executable, path, "--list-aliases"],
+                            capture_output=True, text=True, timeout=30)
+        self.assertEqual(r2.returncode, 0, r2.stderr)
+        self.assertIn("org.videolan.VLC", r2.stdout)
 
 
 class TestWelcomeWizard(unittest.TestCase):
@@ -905,6 +956,38 @@ class TestWelcomeWizard(unittest.TestCase):
             self.assertEqual(res.returncode, 0, res.stderr)
             self.assertNotIn("Traceback", res.stderr)
 
+    def test_welcome_gui_with_stub_kdialog(self):
+        import tempfile, subprocess, stat, json
+        with tempfile.TemporaryDirectory() as home:
+            bin_dir = os.path.join(home, "bin")
+            os.makedirs(bin_dir, exist_ok=True)
+            kdialog_stub = os.path.join(bin_dir, "kdialog")
+            with open(kdialog_stub, "w") as f:
+                f.write(
+                    "#!/bin/sh\n"
+                    "case \"$*\" in\n"
+                    "  *\"[1/3]\"*) echo \"id\" ;;\n"
+                    "  *\"[2/3]\"*) echo \"batik-parang\" ;;\n"
+                    "  *) echo \"ok\" ;;\n"
+                    "esac\n"
+                )
+            os.chmod(kdialog_stub, stat.S_IRWXU)
+            path = os.path.join(ROOTFS_DIR, "usr", "bin", "k-welcome")
+            env = os.environ.copy()
+            env["HOME"] = home
+            env["XDG_CONFIG_HOME"] = os.path.join(home, ".config")
+            env["XDG_DATA_HOME"] = os.path.join(home, ".local", "share")
+            env["PATH"] = bin_dir + os.pathsep + env.get("PATH", "")
+            env["KALACAKRA_FORCE_GUI"] = "1"
+            res = subprocess.run([sys.executable, path, "--gui"], capture_output=True,
+                                 text=True, env=env, timeout=60)
+            self.assertEqual(res.returncode, 0, res.stderr)
+            self.assertIn("batik-parang", res.stdout)
+            active = os.path.join(home, ".local", "share", "kalacakra", "look", "active.json")
+            self.assertTrue(os.path.isfile(active))
+            with open(active) as f:
+                self.assertEqual(json.load(f)["id"], "batik-parang")
+
 
 class TestLookPick(unittest.TestCase):
     def test_pick_applies_selected_theme(self):
@@ -934,6 +1017,46 @@ class TestLookPick(unittest.TestCase):
             self.assertEqual(res.returncode, 0, res.stderr)
             self.assertIn("Dibatalkan", res.stdout)
             self.assertFalse(os.path.isfile(os.path.join(home, ".config", "kdeglobals")))
+
+    def test_look_gui_with_stub_kdialog(self):
+        import tempfile, subprocess, stat, json
+        with tempfile.TemporaryDirectory() as home:
+            bin_dir = os.path.join(home, "bin")
+            os.makedirs(bin_dir, exist_ok=True)
+            kdialog_stub = os.path.join(bin_dir, "kdialog")
+            with open(kdialog_stub, "w") as f:
+                f.write("#!/bin/sh\necho \"rimba-sumatra\"\n")
+            os.chmod(kdialog_stub, stat.S_IRWXU)
+            path = os.path.join(ROOTFS_DIR, "usr", "bin", "k-look")
+            env = os.environ.copy()
+            env["HOME"] = home
+            env["XDG_CONFIG_HOME"] = os.path.join(home, ".config")
+            env["XDG_DATA_HOME"] = os.path.join(home, ".local", "share")
+            env["PATH"] = bin_dir + os.pathsep + env.get("PATH", "")
+            env["KALACAKRA_FORCE_GUI"] = "1"
+            res = subprocess.run([sys.executable, path, "gui"], capture_output=True,
+                                 text=True, env=env, timeout=60)
+            self.assertEqual(res.returncode, 0, res.stderr)
+            active = os.path.join(home, ".local", "share", "kalacakra", "look", "active.json")
+            self.assertTrue(os.path.isfile(active))
+            with open(active) as f:
+                self.assertEqual(json.load(f)["id"], "rimba-sumatra")
+
+    def test_look_gui_without_backend_fails_honestly(self):
+        import tempfile, subprocess
+        with tempfile.TemporaryDirectory() as home:
+            path = os.path.join(ROOTFS_DIR, "usr", "bin", "k-look")
+            env = os.environ.copy()
+            env["HOME"] = home
+            env["XDG_CONFIG_HOME"] = os.path.join(home, ".config")
+            env["XDG_DATA_HOME"] = os.path.join(home, ".local", "share")
+            env["DISPLAY"] = ""
+            env["WAYLAND_DISPLAY"] = ""
+            env.pop("KALACAKRA_FORCE_GUI", None)
+            res = subprocess.run([sys.executable, path, "gui"], capture_output=True,
+                                 text=True, env=env, input="", timeout=60)
+            self.assertEqual(res.returncode, 1)
+            self.assertIn("Dialog GUI", res.stdout)
 
 
 class TestSemanticIndex(unittest.TestCase):
@@ -1099,8 +1222,8 @@ class TestGallery(unittest.TestCase):
             self.assertTrue(os.path.isfile(os.path.join(out, "gallery.json")))
             with open(index, encoding="utf-8") as f:
                 content = f.read()
-            # Lima tema bawaan -> lima kartu
-            self.assertEqual(content.count('class="card"'), 5)
+            # Sepuluh tema bawaan -> sepuluh kartu
+            self.assertEqual(content.count('class="card"'), 10)
             # Wajib ada aset tergandakan (wallpaper)
             self.assertIn("assets/", content)
 
@@ -1259,5 +1382,219 @@ class TestSmokeNoTools(unittest.TestCase):
         self.assertIn("brew", res.stdout.lower() + res.stderr.lower())
 
 
+class TestRodaWaktuCircadian(unittest.TestCase):
+    """Fitur 1: Circadian 'Roda Waktu' Engine & Native KDE .colors Generator."""
+
+    def test_roda_waktu_resolves_presets_by_hour(self):
+        look = load_cli_module("k-look")
+        # Pagi (06:00 - 10:59) -> batik-parang
+        preset_pagi, name_pagi, _ = look.resolve_roda_waktu_preset(8)
+        self.assertEqual(preset_pagi, "batik-parang")
+        self.assertIn("Pagi", name_pagi)
+
+        # Siang (11:00 - 14:59) -> segara-raja
+        preset_siang, name_siang, _ = look.resolve_roda_waktu_preset(12)
+        self.assertEqual(preset_siang, "segara-raja")
+        self.assertIn("Siang", name_siang)
+
+        # Senja (15:00 - 18:59) -> bali-senja
+        preset_senja, name_senja, _ = look.resolve_roda_waktu_preset(17)
+        self.assertEqual(preset_senja, "bali-senja")
+        self.assertIn("Senja", name_senja)
+
+        # Malam (19:00 - 21:59) -> kraton-gold
+        preset_malam, name_malam, _ = look.resolve_roda_waktu_preset(20)
+        self.assertEqual(preset_malam, "kraton-gold")
+        self.assertIn("Malam", name_malam)
+
+        # Dini Hari (22:00 - 05:59) -> mandala-cyberpunk
+        preset_dini, name_dini, _ = look.resolve_roda_waktu_preset(23)
+        self.assertEqual(preset_dini, "mandala-cyberpunk")
+        self.assertIn("Malam", name_dini)
+
+    def test_roda_waktu_cli_applies_and_generates_palette(self):
+        import tempfile, subprocess, json
+        with tempfile.TemporaryDirectory() as home:
+            path = os.path.join(ROOTFS_DIR, "usr", "bin", "k-look")
+            env = os.environ.copy()
+            env["HOME"] = home
+            env["XDG_CONFIG_HOME"] = os.path.join(home, ".config")
+            env["XDG_DATA_HOME"] = os.path.join(home, ".local", "share")
+            res = subprocess.run([sys.executable, path, "roda-waktu", "--hour", "12"],
+                                 capture_output=True, text=True, env=env, timeout=60)
+            self.assertEqual(res.returncode, 0, res.stderr)
+            self.assertIn("Roda Waktu", res.stdout)
+            self.assertIn("segara-raja", res.stdout)
+
+            # Verifikasi active.json
+            active = os.path.join(home, ".local", "share", "kalacakra", "look", "active.json")
+            self.assertTrue(os.path.isfile(active))
+            with open(active) as f:
+                self.assertEqual(json.load(f)["id"], "segara-raja")
+
+            # Verifikasi skema warna KDE dibuat
+            colors_file = os.path.join(home, ".local", "share", "color-schemes", "Kalacakra-segara-raja.colors")
+            self.assertTrue(os.path.isfile(colors_file))
+            with open(colors_file, "r") as f:
+                content = f.read()
+                self.assertIn("[General]", content)
+                self.assertIn("Name=Kalacakra Segara Raja", content)
+
+    def test_roda_waktu_auto_alias(self):
+        import tempfile, subprocess, json
+        with tempfile.TemporaryDirectory() as home:
+            path = os.path.join(ROOTFS_DIR, "usr", "bin", "k-look")
+            env = os.environ.copy()
+            env["HOME"] = home
+            env["XDG_CONFIG_HOME"] = os.path.join(home, ".config")
+            env["XDG_DATA_HOME"] = os.path.join(home, ".local", "share")
+            res = subprocess.run([sys.executable, path, "auto", "--hour", "20"],
+                                 capture_output=True, text=True, env=env, timeout=60)
+            self.assertEqual(res.returncode, 0, res.stderr)
+            active = os.path.join(home, ".local", "share", "kalacakra", "look", "active.json")
+            with open(active) as f:
+                self.assertEqual(json.load(f)["id"], "kraton-gold")
+
+
+class TestMultimodalScreenAI(unittest.TestCase):
+    """Fitur 2: Multimodal Screen-to-AI ('Lihat & Mengerti')."""
+
+    def test_build_ai_prompt_redacts_secrets(self):
+        kocr = load_cli_module("k-ocr")
+        leak_text = "Tolong periksa aws AKIAIOSFODNN7EXAMPLE error pada server produksi."
+        prompt = kocr.build_ai_prompt(leak_text, "explain")
+        self.assertNotIn("AKIAIOSFODNN7EXAMPLE", prompt)
+        self.assertIn("[REDACTED_SECRET]", prompt)
+        self.assertIn("Jelaskan maksud teks/pesan error", prompt)
+
+    def test_build_ai_prompt_modes(self):
+        kocr = load_cli_module("k-ocr")
+        sample = "Error 404: Not Found"
+        p_exp = kocr.build_ai_prompt(sample, "explain")
+        self.assertIn("Jelaskan", p_exp)
+
+        p_sum = kocr.build_ai_prompt(sample, "summarize")
+        self.assertIn("Ringkas", p_sum)
+
+        p_trn = kocr.build_ai_prompt(sample, "translate", extra="English")
+        self.assertIn("Terjemahkan", p_trn)
+        self.assertIn("English", p_trn)
+
+        p_ask = kocr.build_ai_prompt(sample, "ask", extra="apa solusinya?")
+        self.assertIn("apa solusinya?", p_ask)
+
+
+class TestChakraModeMorph(unittest.TestCase):
+    """Fitur 3: Holistic 'Chakra Mode' OS Morphing."""
+
+    def test_chakra_modes_defined(self):
+        kprof = load_cli_module("k-profile")
+        for mode in ("gaming", "creator", "stealth", "zen", "nusantara"):
+            self.assertIn(mode, kprof.CHAKRA_MODES)
+            m = kprof.CHAKRA_MODES[mode]
+            self.assertIn("title", m)
+            self.assertIn("look", m)
+            self.assertIn("power", m)
+            self.assertIn("scx", m)
+
+    def test_morph_dry_run_modes(self):
+        import subprocess
+        path = os.path.join(ROOTFS_DIR, "usr", "bin", "k-profile")
+        for mode in ("gaming", "creator", "stealth", "zen", "nusantara"):
+            res = subprocess.run([sys.executable, path, "morph", mode, "--dry-run"],
+                                 capture_output=True, text=True, timeout=30)
+            self.assertEqual(res.returncode, 0, res.stderr)
+            self.assertIn("[DRY-RUN]", res.stdout)
+            self.assertIn("Chakra", res.stdout)
+
+    def test_morph_unknown_mode_fails_honestly(self):
+        import subprocess
+        path = os.path.join(ROOTFS_DIR, "usr", "bin", "k-profile")
+        res = subprocess.run([sys.executable, path, "morph", "unknown-alien-mode"],
+                             capture_output=True, text=True, timeout=30)
+        self.assertNotEqual(res.returncode, 0)
+        self.assertTrue("invalid choice" in res.stderr or "tidak dikenal" in res.stdout)
+
+
+
+class TestSetupBlueprint(unittest.TestCase):
+    """Fitur 4: One-File Setup Teleport (.kpkg Blueprint)."""
+
+    def test_blueprint_export_and_inspect(self):
+        import tempfile, subprocess, json
+        with tempfile.TemporaryDirectory() as d:
+            out_kpkg = os.path.join(d, "my-setup.kpkg")
+            path = os.path.join(ROOTFS_DIR, "usr", "bin", "k-pkg")
+
+            # 1. Ekspor
+            r_exp = subprocess.run([sys.executable, path, "export", out_kpkg,
+                                    "--name", "Dev Workstation", "--desc", "Workstation Python & Rust"],
+                                   capture_output=True, text=True, timeout=30)
+            self.assertEqual(r_exp.returncode, 0, r_exp.stderr)
+            self.assertTrue(os.path.isfile(out_kpkg))
+
+            with open(out_kpkg, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            self.assertEqual(data["format"], "kalacakra-blueprint-v1")
+            self.assertEqual(data["name"], "Dev Workstation")
+            self.assertIn("look_theme", data)
+
+            # 2. Inspect
+            r_ins = subprocess.run([sys.executable, path, "inspect", out_kpkg],
+                                   capture_output=True, text=True, timeout=30)
+            self.assertEqual(r_ins.returncode, 0, r_ins.stderr)
+            self.assertIn("Dev Workstation", r_ins.stdout)
+            self.assertIn("kalacakra-blueprint-v1", r_ins.stdout)
+
+    def test_blueprint_install_dry_run(self):
+        import tempfile, subprocess, json
+        with tempfile.TemporaryDirectory() as d:
+            bp_file = os.path.join(d, "test.kpkg")
+            with open(bp_file, "w", encoding="utf-8") as f:
+                json.dump({
+                    "format": "kalacakra-blueprint-v1",
+                    "name": "Design Suite",
+                    "look_theme": "bali-senja",
+                    "flatpaks": ["org.inkscape.Inkscape"],
+                    "brew_packages": ["imagemagick"]
+                }, f)
+
+            path = os.path.join(ROOTFS_DIR, "usr", "bin", "k-pkg")
+            res = subprocess.run([sys.executable, path, "install", bp_file, "--dry-run"],
+                                 capture_output=True, text=True, timeout=30)
+            self.assertEqual(res.returncode, 0, res.stderr)
+            self.assertIn("[DRY-RUN]", res.stdout)
+            self.assertIn("bali-senja", res.stdout)
+            self.assertIn("org.inkscape.Inkscape", res.stdout)
+
+
+class TestGlassCockpitDashboard(unittest.TestCase):
+    """Fitur 5: Kalacakra Glass Cockpit Telemetry Dashboard."""
+
+    def test_doctor_html_generation(self):
+        import tempfile, subprocess
+        with tempfile.TemporaryDirectory() as d:
+            out_html = os.path.join(d, "cockpit-report.html")
+            path = os.path.join(ROOTFS_DIR, "usr", "bin", "k-doctor")
+            res = subprocess.run([sys.executable, path, "--html", out_html],
+                                 capture_output=True, text=True, timeout=60)
+            self.assertEqual(res.returncode, 0, res.stderr)
+            self.assertTrue(os.path.isfile(out_html))
+
+            with open(out_html, "r", encoding="utf-8") as f:
+                content = f.read()
+
+            self.assertIn("<!DOCTYPE html>", content)
+            self.assertIn("Glass Cockpit Telemetry", content)
+            self.assertIn("Integritas Sistem", content)
+            self.assertIn("Immutable Core", content)
+            self.assertIn("Roda Masa Depan Nusantara", content)
+            # Mandiri: zero external script / css CDN
+            self.assertNotIn("<script src=\"http", content)
+            self.assertNotIn("<link rel=\"stylesheet\" href=\"http", content)
+
+
 if __name__ == "__main__":
     unittest.main()
+
+

@@ -1,0 +1,37 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="3840" height="2160" viewBox="0 0 3840 2160">
+  <defs>
+    <linearGradient id="sky" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#190a28"/>
+      <stop offset="45%" stop-color="#3b1238"/>
+      <stop offset="75%" stop-color="#6b1d2f"/>
+      <stop offset="100%" stop-color="#12071c"/>
+    </linearGradient>
+    <linearGradient id="sun" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#ffe082"/>
+      <stop offset="55%" stop-color="#ff7043"/>
+      <stop offset="100%" stop-color="#d81b60"/>
+    </linearGradient>
+    <linearGradient id="gold" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#ffd54f"/>
+      <stop offset="100%" stop-color="#ff8a65"/>
+    </linearGradient>
+  </defs>
+  <rect width="3840" height="2160" fill="url(#sky)"/>
+  <g transform="translate(1920 1120)">
+    <circle r="340" fill="url(#sun)" opacity="0.82"/>
+    <circle r="440" fill="none" stroke="url(#gold)" stroke-width="2" opacity="0.5"/>
+    <circle r="580" fill="none" stroke="url(#gold)" stroke-width="1.5" opacity="0.32"/>
+    <!-- Siluet Candi Bentar (Gapura Belah) -->
+    <g fill="#12071c" stroke="url(#gold)" stroke-width="2" opacity="0.92">
+      <polygon points="-110,360 -110,-280 -170,-280 -170,-200 -230,-200 -230,-110 -290,-110 -290,360"/>
+      <polygon points="110,360 110,-280 170,-280 170,-200 230,-200 230,-110 290,-110 290,360"/>
+    </g>
+    <!-- Garis pantulan samudra -->
+    <g stroke="url(#gold)" stroke-linecap="round" opacity="0.7">
+      <line x1="-900" y1="360" x2="900" y2="360" stroke-width="3"/>
+      <line x1="-680" y1="420" x2="680" y2="420" stroke-width="2.5" opacity="0.8"/>
+      <line x1="-480" y1="480" x2="480" y2="480" stroke-width="2" opacity="0.6"/>
+      <line x1="-280" y1="540" x2="280" y2="540" stroke-width="1.5" opacity="0.4"/>
+    </g>
+  </g>
+</svg>

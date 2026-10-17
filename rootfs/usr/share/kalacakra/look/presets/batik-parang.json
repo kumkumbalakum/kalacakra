@@ -1,0 +1,24 @@
+{
+  "id": "batik-parang",
+  "name": "Batik Parang",
+  "description": "Cokelat sogan klasik dan gading hangat dengan geometri Parang Rusak, tenang untuk kerja seharian.",
+  "plasma_theme": "Breeze",
+  "color_scheme": "Breeze",
+  "wallpaper": "batik-parang.svg",
+  "cursor": "breeze_cursors",
+  "icons": "Papirus",
+  "fonts": {
+    "font": "Noto Sans,11,-1,5,50,0,0,0,0,0",
+    "fixed": "JetBrains Mono,10,-1,5,50,0,0,0,0,0"
+  },
+  "terminal": "Kalacakra Parang",
+  "terminal_colors": {
+    "ColorScheme": "Kalacakra Parang",
+    "TerminalMargin": "12"
+  },
+  "fastfetch": {
+    "logo": {"type": "kitty", "source": "kalacakra-mandala"},
+    "modules": ["title", "separator", "os", "host", "kernel", "uptime", "shell", "de", "wm", "cpu", "gpu", "memory", "colors"]
+  },
+  "starship": {"format": "$os$directory$git_branch$character"}
+}

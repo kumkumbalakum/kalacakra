@@ -30,6 +30,11 @@ SUGGESTED_PRESETS = [
     ("obsidian-minimal", "Obsidian Minimal", "Hitam bersih, fokus"),
     ("aurora-borealis", "Aurora Borealis", "Hijau aurora sejuk"),
     ("kraton-gold", "Kraton Gold", "Hitam keraton, aksen emas"),
+    ("batik-parang", "Batik Parang", "Cokelat sogan & gading Parang Rusak"),
+    ("rimba-sumatra", "Rimba Sumatra", "Hijau zamrud hutan hujan & kabut emas"),
+    ("jakarta-neon", "Jakarta Neon", "Biru malam metropolis & pantulan amber"),
+    ("bali-senja", "Bali Senja", "Jingga-lembayung senja di balik pura"),
+    ("segara-raja", "Segara Raja", "Biru pirus samudra & karang Raja Ampat"),
 ]
 
 
@@ -98,7 +103,8 @@ def step_theme(lang: str, assume_yes: bool) -> int:
     if assume_yes:
         chosen = "1"
     else:
-        prompt = "   Pilih tema [0-5] (default 1): " if lang == "id" else "   Choose theme [0-5] (default 1): "
+        n = len(SUGGESTED_PRESETS)
+        prompt = f"   Pilih tema [0-{n}] (default 1): " if lang == "id" else f"   Choose theme [0-{n}] (default 1): "
         chosen = ask(prompt, "1")
 
     if chosen == "0":
@@ -169,6 +175,123 @@ def step_summary(lang: str) -> int:
     return 0
 
 
+def detect_gui_backend() -> str | None:
+    """Deteksi backend dialog GUI (kdialog/zenity) bila sesi grafis aktif."""
+    has_display = bool(
+        os.environ.get("DISPLAY")
+        or os.environ.get("WAYLAND_DISPLAY")
+        or os.environ.get("KALACAKRA_FORCE_GUI") == "1"
+    )
+    if not has_display:
+        return None
+    if have("kdialog"):
+        return "kdialog"
+    if have("zenity"):
+        return "zenity"
+    return None
+
+
+def run_gui_wizard(lang: str) -> int:
+    """Jalankan wizard first-run memakai dialog grafis (kdialog/zenity).
+    Fallback jujur ke mode terminal bila dialog GUI tidak tersedia."""
+    backend = detect_gui_backend()
+    if not backend:
+        print("[k-welcome] Dialog GUI (kdialog/zenity) atau sesi tampilan tidak tersedia; beralih ke mode terminal.")
+        banner(lang)
+        lang = step_language(lang, False)
+        step_theme(lang, False)
+        step_ai(lang, False)
+        step_summary(lang)
+        return 0
+
+    # Langkah 1: Bahasa
+    if backend == "kdialog":
+        r_lang = subprocess.run(
+            ["kdialog", "--title", "Kalacakra Welcome [1/3] - Bahasa / Language",
+             "--radiolist", "Pilih bahasa sistem / Choose system language:",
+             "id", "Bahasa Indonesia", "on" if lang == "id" else "off",
+             "en", "English", "on" if lang != "id" else "off"],
+            capture_output=True, text=True,
+        )
+    else:
+        r_lang = subprocess.run(
+            ["zenity", "--list", "--radiolist",
+             "--title=Kalacakra Welcome [1/3] - Bahasa / Language",
+             "--text=Pilih bahasa sistem / Choose system language:",
+             "--column=", "--column=Kode", "--column=Bahasa",
+             "TRUE" if lang == "id" else "FALSE", "id", "Bahasa Indonesia",
+             "TRUE" if lang != "id" else "FALSE", "en", "English"],
+            capture_output=True, text=True,
+        )
+    if r_lang.returncode != 0 or not r_lang.stdout.strip():
+        print("Dibatalkan.")
+        return 0
+    lang = "id" if r_lang.stdout.strip() == "id" else "en"
+
+    # Langkah 2: Tema Look
+    if backend == "kdialog":
+        cmd_theme = [
+            "kdialog", "--title", "Kalacakra Welcome [2/3] - Kalacakra Look",
+            "--radiolist",
+            "Pilih identitas visual desktop:" if lang == "id" else "Choose desktop visual identity:",
+        ]
+        for i, (pid, name, desc) in enumerate(SUGGESTED_PRESETS):
+            cmd_theme.extend([pid, f"{name} - {desc}", "on" if i == 0 else "off"])
+        cmd_theme.extend(["skip", "Lewati / Skip", "off"])
+    else:
+        cmd_theme = [
+            "zenity", "--list", "--radiolist",
+            "--title=Kalacakra Welcome [2/3] - Kalacakra Look",
+            "--text=" + ("Pilih identitas visual desktop:" if lang == "id" else "Choose desktop visual identity:"),
+            "--column=", "--column=ID", "--column=Tema", "--column=Deskripsi",
+            "--width=720", "--height=460",
+        ]
+        for i, (pid, name, desc) in enumerate(SUGGESTED_PRESETS):
+            cmd_theme.extend(["TRUE" if i == 0 else "FALSE", pid, name, desc])
+        cmd_theme.extend(["FALSE", "skip", "Lewati / Skip", "-"])
+
+    r_theme = subprocess.run(cmd_theme, capture_output=True, text=True)
+    chosen_theme = r_theme.stdout.strip()
+    if r_theme.returncode == 0 and chosen_theme and chosen_theme != "skip":
+        subprocess.run([find_bin("k-look"), "apply", chosen_theme])
+
+    # Langkah 3: Ringkasan & Status AI
+    ollama = "aktif" if _svc_active("kalacakra-ai.service") else "nonaktif"
+    if lang == "id":
+        summary_msg = (
+            f"Selamat datang di Kalacakra OS!\n\n"
+            f"- Bahasa: Bahasa Indonesia\n"
+            f"- Tema Look: {chosen_theme or 'dilewati'}\n"
+            f"- Daemon AI Lokal (Ollama): {ollama}\n\n"
+            f"Perintah berguna:\n"
+            f"  kalacakra look gui      (pemilih tema grafis)\n"
+            f"  kalacakra showcase      (layar identitas)\n"
+            f"  kalacakra hub           (pusat kendali)\n"
+            f"  sudo apt install vlc    (interceptor pintar)"
+        )
+    else:
+        summary_msg = (
+            f"Welcome to Kalacakra OS!\n\n"
+            f"- Language: English\n"
+            f"- Look Theme: {chosen_theme or 'skipped'}\n"
+            f"- Local AI Daemon (Ollama): {ollama}\n\n"
+            f"Useful commands:\n"
+            f"  kalacakra look gui      (graphical theme picker)\n"
+            f"  kalacakra showcase      (identity screen)\n"
+            f"  kalacakra hub           (control center)\n"
+            f"  sudo apt install vlc    (smart interceptor)"
+        )
+
+    if backend == "kdialog":
+        subprocess.run(["kdialog", "--title", "Kalacakra Welcome [3/3]", "--msgbox", summary_msg],
+                       capture_output=True, text=True)
+    else:
+        subprocess.run(["zenity", "--info", "--title=Kalacakra Welcome [3/3]", f"--text={summary_msg}"],
+                       capture_output=True, text=True)
+    print(summary_msg)
+    return 0
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(
         prog="k-welcome",
@@ -177,6 +300,8 @@ def main() -> int:
     parser.add_argument("--lang", choices=["id", "en"], help="Bahasa awal wizard")
     parser.add_argument("--yes", "-y", action="store_true",
                         help="Non-interaktif: terima semua default (untuk provisioning/uji)")
+    parser.add_argument("--gui", "-g", action="store_true",
+                        help="Jalankan wizard memakai dialog grafis (kdialog/zenity)")
     parser.add_argument("--no-color", action="store_true", help="Matikan warna ANSI")
     args = parser.parse_args()
 
@@ -185,6 +310,9 @@ def main() -> int:
 
     strings, current_lang = get_locale_strings(args.lang)
     lang = args.lang or current_lang
+
+    if args.gui and not args.yes:
+        return run_gui_wizard(lang)
 
     banner(lang)
     lang = step_language(lang, args.yes)

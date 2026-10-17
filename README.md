@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="logo_kalacakra.jpg" alt="Kalacakra OS Emblem" width="240" />
+</p>
+
 # ☸️ Kalacakra OS (Roda Waktu)
 
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
@@ -36,7 +40,7 @@
 
 ## ✨ Fitur Utama (Highlights)
 
-* 🎨 **Kalacakra Look (`kalacakra look`) — Fitur Ikonik:** Ubah seluruh identitas desktop (tema KDE, skema warna, wallpaper, kursor, ikon, font, terminal, fastfetch) dengan **satu perintah**: `kalacakra look apply mandala-cyberpunk`. 5 preset siap pakai (Mandala Cyberpunk, Nusantara Bronze, Obsidian Minimal, Aurora Borealis, Kraton Gold), tersimpan sebagai konfigurasi *user* (aman untuk host immutable), **bisa di-rollback penuh**, dan dilengkapi `--screenshot` yang langsung menghasilkan caption siap-tempel untuk r/unixporn.
+* 🎨 **Kalacakra Look (`kalacakra look`) — Fitur Ikonik:** Ubah seluruh identitas desktop (tema KDE, skema warna, wallpaper, kursor, ikon, font, terminal, fastfetch) dengan **satu perintah**: `kalacakra look apply mandala-cyberpunk`. 10 preset siap pakai (Mandala Cyberpunk, Nusantara Bronze, Obsidian Minimal, Aurora Borealis, Kraton Gold, Batik Parang, Rimba Sumatra, Jakarta Neon, Bali Senja, Segara Raja), tersimpan sebagai konfigurasi *user* (aman untuk host immutable), **bisa di-rollback penuh**, dan dilengkapi `--screenshot` yang langsung menghasilkan caption siap-tempel untuk r/unixporn.
 * 🛡️ **Bulletproof Immutable Root:** Root filesystem (`/usr`) berstatus *read-only*. Pembaruan sistem dilakukan secara atomik di latar belakang; sistem tidak akan pernah rusak (*zero-breakage*).
 * 🔄 **Dual-Tier Rollback Engine:** Rollback root otomatis jika boot gagal 3x berturut-turut, dipadu snapshot Snapper khusus data pengguna (`@home` & `@var`).
 * 🇮🇩 / 🇺🇸 **Native Dual Language (EN/ID):** Sistem dwibahasa penuh sejak boot pertama di seluruh elemen: GUI KDE Plasma 6, CLI tooling, voice Whisper, dan AI Terminal Companion.
@@ -55,6 +59,7 @@ Kalacakra bukan sekadar kumpulan tool — ia punya **identitas visual** yang bis
 
 ```bash
 kalacakra look                       # lihat semua preset
+kalacakra look gui                   # pemilih tema grafis (kdialog/zenity)
 kalacakra look apply mandala-cyberpunk   # terapkan tema
 kalacakra look apply kraton-gold --screenshot   # + screenshot & caption r/unixporn
 kalacakra look current               # tema apa yang aktif?
@@ -69,8 +74,70 @@ kalacakra showcase                   # layar identitas siap-screenshot
 | `obsidian-minimal` | Hitam obsidian bersih, fokus tanpa gangguan |
 | `aurora-borealis` | Hijau-teal aurora lembut dengan aksen ungu dingin |
 | `kraton-gold` | Hitam keraton dengan aksen emas, mewah & sangat Indonesia |
+| `batik-parang` | Cokelat sogan klasik dan gading hangat dengan geometri Parang Rusak |
+| `rimba-sumatra` | Hijau zamrud hutan hujan tropis dengan kabut keemasan lembut |
+| `jakarta-neon` | Biru malam metropolis Sudirman dengan pantulan lampu hujan amber |
+| `bali-senja` | Gradien jingga-lembayung matahari terbenam di balik siluet pura |
+| `segara-raja` | Biru pirus samudra dalam dan karang toska kepulauan Raja Ampat |
 
 > **Desain jujur:** Look menulis ke direktori konfigurasi **user** (XDG), sehingga *tidak* melanggar prinsip host immutable. Bila prasyarat Plasma (`plasma-apply-lookandfeel`, dll.) belum ada, langkah itu ditandai **SKIP** dengan pesan jelas — tool **tidak memalsukan keberhasilan**.
+
+---
+
+## 🚀 5 Fitur Futuristik Baru (Next-Gen Futuristic Distro Superpowers)
+
+Kalacakra OS menghadirkan 5 kemampuan mutakhir yang membuat desktop terasa hidup, cerdas, dan fleksibel:
+
+### 1. 🕒 Circadian "Roda Waktu" Engine & Native KDE Palette Generator
+Menyesuaikan tema desktop secara otomatis mengikuti fase jam harian Nusantara:
+* **06:00 – 10:59 (Pagi / Fajar)**: `batik-parang` (Hangat sogan & produktif)
+* **11:00 – 14:59 (Siang / Terik)**: `segara-raja` (Toska segar & fokus)
+* **15:00 – 18:59 (Senja / Sore)**: `bali-senja` (Lembayung pura keemasan)
+* **19:00 – 21:59 (Malam / Petang)**: `kraton-gold` (Obsidian emas keraton yang tenang)
+* **22:00 – 05:59 (Larut Malam / Dini Hari)**: `mandala-cyberpunk` (Gelap pekat kontras tinggi ramah mata)
+
+Fitur ini secara otomatis menghasilkan dan mendaftarkan skema warna native KDE Plasma (`~/.local/share/color-schemes/Kalacakra-<id>.colors`) lengkap dengan aksen warna `AccentColor` di `kdeglobals`.
+```bash
+kalacakra look roda-waktu             # Terapkan otomatis sesuai jam sistem saat ini
+kalacakra look auto --hour 14         # Simulasi / paksa jam 14:00 (Siang / Segara Raja)
+```
+
+### 2. 👁️ Multimodal Screen-to-AI ("Lihat & Mengerti")
+Tangkapan layar cerdas (`k-ocr`) kini terintegrasi langsung dengan mesin AI lokal (`k-ai`) untuk menganalisis teks, kode, atau pesan error di layar, dengan perlindungan kebocoran rahasia (*secret sanitizer*) otomatis:
+```bash
+kalacakra ocr --explain               # Tangkap pesan error di layar dan minta solusi ke AI lokal
+kalacakra ocr --summarize             # Ringkas teks panjang dari layar
+kalacakra ocr --translate             # Terjemahkan teks di layar (ID <-> EN)
+kalacakra ocr --ask "Apa bug di kode ini?"  # Ajukan pertanyaan spesifik dari kode di layar
+```
+
+### 3. 🌀 Holistic "Chakra Mode" OS Morphing
+Ubah identitas sistem secara holistik dalam satu perintah: tema visual Look, eBPF CPU scheduler (`sched-ext`), profil daya, dan mode jaringan:
+* **`gaming`**: Tema Mandala Cyberpunk + eBPF `scx_lavd` + Profil Daya Performance.
+* **`creator`**: Tema Bali Senja + eBPF `scx_rusty` + Profil Daya Balanced (Optimal render/multitasking).
+* **`stealth`**: Tema Obsidian Minimal + eBPF `scx_rusty` + Firewall lockdown + MAC address randomized.
+* **`zen`**: Tema Rimba Sumatra + Profil Daya Power-save + Do-Not-Disturb.
+* **`nusantara`**: Tema Kraton Gold + eBPF `scx_lavd` + Profil Daya Balanced.
+```bash
+kalacakra profile morph gaming        # Transformasi sistem ke mode gaming
+kalacakra profile morph stealth --dry-run  # Pratinjau perubahan mode stealth tanpa eksekusi
+```
+
+### 4. 📦 One-File Setup Teleport (.kpkg Blueprint)
+Bungkus seluruh konfigurasi personal Anda (tema visual Look, daftar Flatpaks, dan alat Homebrew CLI) ke dalam satu berkas `.kpkg` JSON mandiri untuk dibagikan atau dipulihkan ke perangkat baru dalam hitungan detik:
+```bash
+kalacakra pkg export setup-kerja.kpkg --name "Setup Developer" --desc "Workstation Rust & Go"
+kalacakra pkg inspect setup-kerja.kpkg # Periksa isi paket tanpa memasang
+kalacakra pkg install setup-kerja.kpkg --dry-run # Simulasi instalasi
+kalacakra pkg install setup-kerja.kpkg -y       # Terapkan tema dan pasang semua aplikasi
+```
+
+### 5. 🎛️ Kalacakra Glass Cockpit Dashboard
+Hasilkan laporan audit kesehatan, keamanan, dan telemetri perangkat dalam bentuk dashboard HTML berdesain *Cyber-Kraton Glassmorphism* modern. Bersifat 100% mandiri (*zero-CDN*) sehingga dapat dibuka secara offline di peramban mana pun:
+```bash
+kalacakra doctor --html ringkasan.html # Buat dashboard HTML lokal
+xdg-open ringkasan.html                # Buka di peramban
+```
 
 ---
 
@@ -80,12 +147,21 @@ README dan `plan.md` menggambarkan visi lengkap Kalacakra OS. Agar tidak menyesa
 
 **✅ Sudah diimplementasikan (ada kodenya di repo ini):**
 * Seluruh 40 tool CLI di `rootfs/usr/bin/` (`kalacakra`, `k-interceptor`, `k-ai`, `k-ask`, `k-agent`, `k-semantic`, `k-gallery`, `k-aur`, `k-doctor`, `k-rewind`, `k-beam`, `k-portal`, `k-ocr`, `k-survival`, `k-precache`, `k-preview`, `k-spotlight`, `k-flow`, `k-snippet`, `k-keyring`, `k-hub`, `k-qa`, `k-snapboot`, `k-profile`, `k-pkg`, `k-jail`, `k-be`, `k-scrub`, `k-trace`, `k-sysrc`, `k-unveil`, `k-signify`, `k-pf`, `k-doas`, `k-wx`, `k-voice`, `k-game`, `k-look`, `k-showcase`, `k-welcome`).
-* **Kalacakra Look** (`k-look`) — 5 preset tema lengkap dengan wallpaper SVG, penulisan konfigurasi KDE, riwayat & rollback, plus generator caption r/unixporn.
-* i18n EN/ID dwibahasa (kamus `locales/en.json` & `id.json`).
+* **5 Fitur Futuristik Pembeda:**
+  1. *Circadian "Roda Waktu" Engine* (`kalacakra look roda-waktu` / `auto [--hour H]`) — Penyesuaian tema visual otomatis mengikuti fase jam Nusantara + generator palet native KDE `.colors` (`Kalacakra-<id>.colors`).
+  2. *Multimodal Screen-to-AI ("Lihat & Mengerti")* (`kalacakra ocr --ask <tanya>` / `--explain` / `--summarize` / `--translate`) — Tangkap teks/kode layar dan proses langsung via AI lokal dengan pelindung kebocoran rahasia (*secret sanitizer*).
+  3. *Holistic "Chakra Mode" OS Morphing* (`kalacakra profile morph <gaming|creator|stealth|zen|nusantara> [--dry-run]`) — Transformasi terpadu tema visual Look, eBPF CPU scheduler (`scx`), profil daya, dan mode jaringan dalam satu mantra.
+  4. *One-File Setup Teleport (.kpkg Blueprint)* (`kalacakra pkg export <out.kpkg>` / `inspect` / `install [--dry-run]`) — Teleportasi setup sistem lengkap (Look + Flatpaks + Brew tools) antar perangkat dalam 1 berkas manifest mandiri.
+  5. *Kalacakra Glass Cockpit Dashboard* (`kalacakra doctor --html [laporan.html]`) — Generator dashboard audit integritas, keamanan, dan telemetri perangkat bernuansa Cyber-Kraton 100% mandiri (zero-CDN).
+* **Kalacakra Look** (`k-look`) — 10 preset tema Nusantara lengkap dengan wallpaper SVG 4K, pemilih grafis (`kdialog`/`zenity`), impor preset komunitas, penulisan konfigurasi KDE, riwayat & rollback, plus generator caption r/unixporn.
+* **Logo Distro Resmi (3D Emblem & Vector SVG)** — terpasang di `usr/share/pixmaps/kalacakra-logo-3d.png`, `kalacakra-logo.svg`, serta tema ikon `hicolor` (`512x512` & `scalable`).
+* **Basis Data Alias `k-interceptor`** — 130+ pemetaan aplikasi Flathub resmi, 80+ alat CLI Homebrew (`BREW_ALIASES`), deteksi paket AUR & driver host, serta mode `--lookup` / `--list-aliases`.
+* i18n EN/ID dwibahasa (kamus `locales/en.json` & `id.json` - 115 kunci tersinkronisasi).
 * Konfigurasi sistem: hardening sysctl, DNS-over-TLS, ZRAM zstd, service AI Ollama.
 * Integrasi desktop: KDE shortcuts (`.desktop`) & KIO service menu Dolphin.
-* Build pipeline OCI + ISO (`Containerfile`, `Containerfile.nvidia`, GitHub Actions) & test suite (44 test).
+* Build pipeline OCI + ISO (`Containerfile`, `Containerfile.nvidia`, GitHub Actions) & test suite (86 test terverifikasi).
 * Secret sanitizer, safety-gate perintah destruktif, deteksi perangkat lunak yang absen (fail-soft).
+
 
 **🧪 Sudah berjalan, tetapi bergantung pada komponen eksternal yang tidak dipaketkan di sini:**
 * `k-aur` butuh `distrobox` + `podman` + image Arch.
@@ -430,26 +506,37 @@ kalacakra signify verify -p key.pub -m pkg # Verifikasi Ed25519 ultra-cepat (sig
 kalacakra pf panic              # Mode panik killswitch darurat pemutus jaringan (pf)
 kalacakra doas check            # Validasi aturan elevasi hak akses aman (doas)
 kalacakra wx audit /usr/bin/app # Audit kepatuhan memori biner W^X & mitigasi exploit
-kalacakra look list             # Lihat semua preset identitas desktop (fitur ikonik)
+kalacakra look list             # Lihat 10 preset identitas desktop Nusantara (fitur ikonik)
+kalacakra look gui              # Pemilih tema grafis (kdialog/zenity, fallback ke TUI)
 kalacakra look apply kraton-gold --screenshot  # Terapkan tema + screenshot & caption
+kalacakra look import tema.json --install      # Validasi & pasang preset komunitas
 kalacakra look rollback         # Kembalikan tampilan sebelumnya (aman, tanpa data loss)
+kalacakra welcome --gui         # Wizard first-run (bahasa, tema Look, status AI lokal)
+kalacakra gallery build         # Bangun situs statis galeri showcase tema (tanpa CDN)
+kalacakra semantic search "sewa" # Pencarian dokumen lokal dwibahasa (TF-IDF + sinonim)
+kalacakra agent plan "konversi semua PNG di Downloads ke WebP" # Pratinjau rencana aksi
 kalacakra showcase              # Layar identitas siap-screenshot untuk r/unixporn
 ```
 
 ---
 
 ### 2. Universal Command Interceptor (`k-interceptor`)
-Di sistem imutabel, perintah manajemen paket konvensional (`apt` atau `pacman`) secara otomatis dicegat oleh shell guard untuk mengarahkan pengguna ke metode yang aman:
+Di sistem imutabel, perintah manajemen paket konvensional (`apt`, `pacman`, `yay`) secara otomatis dicegat oleh shell guard untuk mengarahkan pengguna ke metode yang aman. Dilengkapi **130+ pemetaan aplikasi Flathub resmi** dan **80+ alat CLI Homebrew**:
 
 ```bash
 sudo apt install vlc
 # atau
 pacman -S neovim
+# Cek pemetaan paket tanpa menginstal:
+k-interceptor --lookup obsidian
+k-interceptor --list-aliases
 ```
-**Tampilan Interaktif:**
+**Tampilan Interaktif (Rekomendasi 1-Tombol Enter):**
 ```text
 [Kalacakra Interceptor] Host sistem Anda berstatus Imutabel (Terproteksi).
 Perintah 'apt install vlc' terdeteksi.
+[Kalacakra] Rekomendasi: opsi 1 - 'vlc' tersedia sebagai aplikasi Flatpak resmi (org.videolan.VLC).
+        Tekan Enter untuk memakai rekomendasi, atau pilih 1-5.
 
 Pilih metode instalasi yang diinginkan:
   [1] Flatpak (Rekomendasi untuk aplikasi Desktop / GUI)
@@ -470,6 +557,11 @@ Asisten terminal cerdas berbasis bahasa alami dengan perlindungan data:
   k-ai "cari file video yang lebih dari 1GB lalu urutkan dari yang terbesar"
   ```
   `k-ai` akan menampilkan preview perintah dan meminta konfirmasi `[Y/n/e]` sebelum dijalankan.
+* **Ringkas Berkas Lokal & Tanya Cepat (`k-ask`):**
+  ```bash
+  k-ai --file catatan.md
+  k-ask "cara cek port yang sedang aktif"
+  ```
 * **Auto-Diagnosa Error Terminal:**
   ```bash
   k-ai --diagnose
@@ -584,21 +676,23 @@ kalacakra/
 │   │   ├── sysctl.d/       # Kernel security hardening
 │   │   └── profile.d/      # Homebrew path, interceptor hooks, & SSH agent
 │   └── usr/
-│       ├── bin/            # Kalacakra CLI suite:
-│       │                   # kalacakra, k-interceptor, k-ai, k-aur, k-doctor,
-│       │                   # k-rewind, k-beam, k-portal, k-ocr, k-survival, k-precache,
-│       │                   # k-preview, k-spotlight, k-flow, k-snippet, k-keyring,
-│       │                   # k-hub, k-qa, k-snapboot, k-profile, k-pkg,
-│       │                   # k-jail, k-be, k-scrub, k-trace, k-sysrc,
-│       │                   # k-unveil, k-signify, k-pf, k-doas, k-wx,
-│       │                   # k-voice, k-game, k-look, k-showcase
+│       ├── bin/            # 40 biner Kalacakra CLI suite:
+│       │                   # kalacakra, k-interceptor, k-ai, k-ask, k-agent, k-semantic,
+│       │                   # k-gallery, k-aur, k-doctor, k-rewind, k-beam, k-portal,
+│       │                   # k-ocr, k-survival, k-precache, k-preview, k-spotlight,
+│       │                   # k-flow, k-snippet, k-keyring, k-hub, k-qa, k-snapboot,
+│       │                   # k-profile, k-pkg, k-jail, k-be, k-scrub, k-trace, k-sysrc,
+│       │                   # k-unveil, k-signify, k-pf, k-doas, k-wx, k-voice, k-game,
+│       │                   # k-look, k-showcase, k-welcome
 │       └── share/
 │           ├── applications/ # Desktop entries & scheme handler (.kpkg / kalacakra://)
-│           ├── kalacakra/  # Fastfetch config, i18n locales (id/en), Justfile, shared lib
-│           │   └── look/   # Preset tema Look (JSON) + wallpaper SVG (fitur ikonik)
-│           └── kio/        # Dolphin context menu (Beam P2P, Game Launcher, Quick Look)
+│           ├── icons/hicolor/ # Ikon aplikasi standar FreeDesktop (512x512 PNG & scalable SVG)
+│           ├── pixmaps/      # Logo resmi distro (kalacakra-logo-3d.png & kalacakra-logo.svg)
+│           ├── kalacakra/    # Fastfetch config, i18n locales (id/en), Justfile, shared lib
+│           │   └── look/     # 10 preset tema Look (JSON) + 10 wallpaper SVG 4K
+│           └── kio/          # Dolphin context menu (Beam P2P, AI, Semantic, Game, Quick Look)
 ├── .github/workflows/      # Pipeline build OCI & bootc-image-builder ISO
-└── tests/                  # Unit test suite untuk validasi CLI & keamanan
+└── tests/                  # Unit & integration test suite (75 test)
 ```
 
 ---

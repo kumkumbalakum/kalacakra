@@ -210,6 +210,351 @@ def check_battery():
 
 # ==============================================================================
 
+def generate_html_report(out_path: str, core_results: list, daily_results: list, strings: dict):
+    """Menghasilkan dashboard Glass Cockpit mandiri (zero-CDN) bernuansa Cyber-Kraton."""
+    import datetime
+    import platform
+
+    total_checks = len(core_results) + len(daily_results)
+    ok_count = sum(1 for status, _, _ in core_results + daily_results if status == "OK")
+    warn_count = sum(1 for status, _, _ in core_results + daily_results if status in ("WARN", "CLEANABLE"))
+    info_count = sum(1 for status, _, _ in core_results + daily_results if status == "INFO")
+    
+    score_pct = int((ok_count / total_checks) * 100) if total_checks else 100
+    timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    uname = platform.uname()
+
+    # Deteksi tema aktif
+    data_home = os.environ.get("XDG_DATA_HOME", os.path.expanduser("~/.local/share"))
+    active_theme = "mandala-cyberpunk"
+    active_path = os.path.join(data_home, "kalacakra", "look", "active.json")
+    if os.path.isfile(active_path):
+        try:
+            import json
+            with open(active_path, "r", encoding="utf-8") as f:
+                active_theme = json.load(f).get("id", active_theme)
+        except Exception:
+            pass
+
+    def badge_class(st):
+        if st == "OK":
+            return "badge-ok"
+        elif st in ("WARN", "CLEANABLE"):
+            return "badge-warn"
+        return "badge-info"
+
+    def render_rows(results):
+        html_rows = []
+        for st, label, msg in results:
+            cls = badge_class(st)
+            html_rows.append(f"""
+            <div class="probe-card">
+              <div class="probe-header">
+                <span class="probe-title">{label}</span>
+                <span class="badge {cls}">{st}</span>
+              </div>
+              <div class="probe-msg">{msg}</div>
+            </div>
+            """)
+        return "\n".join(html_rows)
+
+    core_cards = render_rows(core_results)
+    daily_cards = render_rows(daily_results)
+
+    html_content = f"""<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Kalacakra OS — Glass Cockpit Telemetry</title>
+  <style>
+    :root {{
+      --bg-base: #06080d;
+      --bg-card: rgba(16, 21, 35, 0.75);
+      --border-card: rgba(223, 177, 91, 0.22);
+      --gold-primary: #dfb15b;
+      --gold-glow: rgba(223, 177, 91, 0.4);
+      --cyan-accent: #00f0ff;
+      --text-main: #e2e8f0;
+      --text-muted: #94a3b8;
+      --status-ok: #10b981;
+      --status-warn: #f59e0b;
+      --status-info: #38bdf8;
+    }}
+    * {{ box-sizing: border-box; margin: 0; padding: 0; }}
+    body {{
+      background-color: var(--bg-base);
+      background-image: 
+        radial-gradient(circle at 15% 10%, rgba(223, 177, 91, 0.08) 0%, transparent 40%),
+        radial-gradient(circle at 85% 80%, rgba(0, 240, 255, 0.07) 0%, transparent 40%),
+        radial-gradient(circle at 50% 50%, rgba(13, 17, 28, 0.95) 0%, #06080d 100%);
+      color: var(--text-main);
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+      min-height: 100vh;
+      padding: 32px 20px;
+    }}
+    .container {{
+      max-width: 1100px;
+      margin: 0 auto;
+    }}
+    /* Top Cockpit Header */
+    .cockpit-header {{
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 24px 28px;
+      background: var(--bg-card);
+      border: 1px solid var(--border-card);
+      border-radius: 16px;
+      backdrop-filter: blur(12px);
+      box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+      margin-bottom: 28px;
+    }}
+    .brand-group {{
+      display: flex;
+      align-items: center;
+      gap: 18px;
+    }}
+    .brand-icon {{
+      width: 48px;
+      height: 48px;
+    }}
+    .brand-title {{
+      font-size: 24px;
+      font-weight: 800;
+      letter-spacing: 2px;
+      color: #fff;
+      text-transform: uppercase;
+      background: linear-gradient(135deg, #fff 30%, var(--gold-primary) 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }}
+    .brand-subtitle {{
+      font-size: 13px;
+      color: var(--text-muted);
+      letter-spacing: 0.5px;
+    }}
+    .meta-group {{
+      text-align: right;
+      font-size: 13px;
+      color: var(--text-muted);
+    }}
+    .meta-tag {{
+      display: inline-block;
+      padding: 3px 8px;
+      background: rgba(223, 177, 91, 0.15);
+      border: 1px solid rgba(223, 177, 91, 0.3);
+      color: var(--gold-primary);
+      border-radius: 6px;
+      font-weight: 600;
+      margin-top: 4px;
+    }}
+    /* Gauges & Metric Cards */
+    .metric-grid {{
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 18px;
+      margin-bottom: 32px;
+    }}
+    .metric-box {{
+      background: var(--bg-card);
+      border: 1px solid var(--border-card);
+      border-radius: 14px;
+      padding: 20px;
+      backdrop-filter: blur(10px);
+      text-align: center;
+      box-shadow: 0 6px 20px rgba(0,0,0,0.3);
+    }}
+    .metric-val {{
+      font-size: 36px;
+      font-weight: 800;
+      margin-bottom: 4px;
+    }}
+    .metric-val.score {{ color: var(--gold-primary); }}
+    .metric-val.ok {{ color: var(--status-ok); }}
+    .metric-val.warn {{ color: var(--status-warn); }}
+    .metric-val.info {{ color: var(--status-info); }}
+    .metric-lbl {{
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 1.5px;
+      color: var(--text-muted);
+      font-weight: 600;
+    }}
+    /* Sections */
+    .section-title {{
+      font-size: 16px;
+      text-transform: uppercase;
+      letter-spacing: 2px;
+      color: var(--gold-primary);
+      margin-bottom: 14px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }}
+    .section-title::after {{
+      content: "";
+      flex: 1;
+      height: 1px;
+      background: linear-gradient(90deg, rgba(223, 177, 91, 0.4), transparent);
+    }}
+    .probe-grid {{
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+      gap: 16px;
+      margin-bottom: 32px;
+    }}
+    .probe-card {{
+      background: var(--bg-card);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 12px;
+      padding: 16px 18px;
+      backdrop-filter: blur(8px);
+      transition: transform 0.2s ease, border-color 0.2s ease;
+    }}
+    .probe-card:hover {{
+      border-color: var(--gold-primary);
+      transform: translateY(-2px);
+    }}
+    .probe-header {{
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 8px;
+    }}
+    .probe-title {{
+      font-weight: 600;
+      font-size: 14px;
+      color: #fff;
+    }}
+    .probe-msg {{
+      font-size: 13px;
+      color: var(--text-muted);
+      word-break: break-word;
+    }}
+    .badge {{
+      display: inline-block;
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 1px;
+      padding: 3px 8px;
+      border-radius: 4px;
+      text-transform: uppercase;
+    }}
+    .badge-ok {{
+      background: rgba(16, 185, 129, 0.15);
+      border: 1px solid rgba(16, 185, 129, 0.4);
+      color: var(--status-ok);
+    }}
+    .badge-warn {{
+      background: rgba(245, 158, 11, 0.15);
+      border: 1px solid rgba(245, 158, 11, 0.4);
+      color: var(--status-warn);
+    }}
+    .badge-info {{
+      background: rgba(56, 189, 248, 0.15);
+      border: 1px solid rgba(56, 189, 248, 0.4);
+      color: var(--status-info);
+    }}
+    /* Footer */
+    .cockpit-footer {{
+      text-align: center;
+      padding: 24px 0 10px;
+      border-top: 1px solid rgba(255, 255, 255, 0.08);
+      color: var(--text-muted);
+      font-size: 13px;
+      letter-spacing: 0.5px;
+    }}
+    .cockpit-footer span {{
+      color: var(--gold-primary);
+      font-weight: 600;
+    }}
+  </style>
+</head>
+<body>
+  <div class="container">
+    <!-- Header -->
+    <header class="cockpit-header">
+      <div class="brand-group">
+        <svg class="brand-icon" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <circle cx="50" cy="50" r="44" stroke="#dfb15b" stroke-width="4" stroke-dasharray="6 4"/>
+          <circle cx="50" cy="50" r="32" stroke="#00f0ff" stroke-width="3"/>
+          <circle cx="50" cy="50" r="16" fill="url(#core-grad)"/>
+          <line x1="50" y1="6" x2="50" y2="94" stroke="#dfb15b" stroke-width="2"/>
+          <line x1="6" y1="50" x2="94" y2="50" stroke="#dfb15b" stroke-width="2"/>
+          <line x1="19" y1="19" x2="81" y2="81" stroke="#00f0ff" stroke-width="2"/>
+          <line x1="81" y1="19" x2="19" y2="81" stroke="#00f0ff" stroke-width="2"/>
+          <defs>
+            <radialGradient id="core-grad" cx="50%" cy="50%" r="50%">
+              <stop offset="0%" stop-color="#00f0ff"/>
+              <stop offset="100%" stop-color="#dfb15b"/>
+            </radialGradient>
+          </defs>
+        </svg>
+        <div>
+          <h1 class="brand-title">Kalacakra OS</h1>
+          <p class="brand-subtitle">Glass Cockpit Telemetry & Integrity System</p>
+        </div>
+      </div>
+      <div class="meta-group">
+        <div>Host: <strong>{uname.node}</strong> ({uname.machine})</div>
+        <div>Kernel: {uname.release}</div>
+        <div>Waktu: {timestamp}</div>
+        <div class="meta-tag">Look: {active_theme}</div>
+      </div>
+    </header>
+
+    <!-- Metrics -->
+    <div class="metric-grid">
+      <div class="metric-box">
+        <div class="metric-val score">{score_pct}%</div>
+        <div class="metric-lbl">Integritas Sistem</div>
+      </div>
+      <div class="metric-box">
+        <div class="metric-val ok">{ok_count}</div>
+        <div class="metric-lbl">Komponen Optimal (OK)</div>
+      </div>
+      <div class="metric-box">
+        <div class="metric-val warn">{warn_count}</div>
+        <div class="metric-lbl">Tindakan Diperlukan</div>
+      </div>
+      <div class="metric-box">
+        <div class="metric-val info">{info_count}</div>
+        <div class="metric-lbl">Informasi Standby</div>
+      </div>
+    </div>
+
+    <!-- Core Section -->
+    <h2 class="section-title">Jantung OS Imutabel (Immutable Core)</h2>
+    <div class="probe-grid">
+      {core_cards}
+    </div>
+
+    <!-- Daily Section -->
+    <h2 class="section-title">Resource & Kesehatan Harian (Daily Telemetry)</h2>
+    <div class="probe-grid">
+      {daily_cards}
+    </div>
+
+    <!-- Footer -->
+    <footer class="cockpit-footer">
+      <div><span>Kalacakra OS</span> • Kala Mider, Cakra Mutar — Roda Masa Depan Nusantara</div>
+      <div style="margin-top: 4px; font-size: 11px;">Laporan mandiri dihasilkan secara lokal tanpa CDN eksternal.</div>
+    </footer>
+  </div>
+</body>
+</html>
+"""
+    try:
+        out_dir = os.path.dirname(os.path.abspath(out_path))
+        if out_dir:
+            os.makedirs(out_dir, exist_ok=True)
+        with open(out_path, "w", encoding="utf-8") as f:
+            f.write(html_content)
+        print(f"[k-doctor Glass Cockpit] Laporan HTML berhasil dibuat: {out_path}")
+    except Exception as e:
+        print(f"[k-doctor Error] Gagal menulis laporan HTML: {e}")
+
 def print_row(strings, status, key, default_label, msg, width=26):
     label = strings.get(key, default_label)
     print(f"[{status:^6}] {label:<{width}} : {msg}")
@@ -217,6 +562,14 @@ def print_row(strings, status, key, default_label, msg, width=26):
 def main():
     strings, lang = get_locale_strings()
     clean_mode = "--clean" in sys.argv
+
+    html_target = None
+    if "--html" in sys.argv:
+        idx = sys.argv.index("--html")
+        if idx + 1 < len(sys.argv) and not sys.argv[idx + 1].startswith("-"):
+            html_target = sys.argv[idx + 1]
+        else:
+            html_target = "kalacakra-report.html"
 
     print()
     print("=" * 65)
@@ -237,8 +590,11 @@ def main():
         (check_scheduler,         "doctor_label_scheduler",  "CPU Scheduler (SCX)"),
         (check_layered_packages,  "doctor_label_layering",   "Paket Layering (ostree)"),
     ]
+    core_results = []
     for func, key, default in checks_core:
         status, msg = func()
+        label = strings.get(key, default)
+        core_results.append((status, label, msg))
         print_row(strings, status, key, default, msg)
 
     print("-" * 65)
@@ -253,8 +609,11 @@ def main():
         (check_battery,           "doctor_label_battery",    "Battery Preservation"),
     ]
     status_cont = status_fp = "OK"
+    daily_results = []
     for func, key, default in checks_daily:
         status, msg = func()
+        label = strings.get(key, default)
+        daily_results.append((status, label, msg))
         if func is check_containers:
             status_cont = status
         elif func is check_flatpak_unused:
@@ -262,6 +621,9 @@ def main():
         print_row(strings, status, key, default, msg)
 
     print("-" * 65)
+
+    if html_target:
+        generate_html_report(html_target, core_results, daily_results, strings)
 
     if clean_mode or (status_cont == "CLEANABLE" or status_fp == "CLEANABLE"):
         if not clean_mode:
@@ -289,3 +651,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+

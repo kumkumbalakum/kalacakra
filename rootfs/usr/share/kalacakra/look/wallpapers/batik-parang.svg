@@ -1,0 +1,41 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="3840" height="2160" viewBox="0 0 3840 2160">
+  <defs>
+    <radialGradient id="bg" cx="50%" cy="48%" r="80%">
+      <stop offset="0%" stop-color="#2e1d10"/>
+      <stop offset="55%" stop-color="#1c1108"/>
+      <stop offset="100%" stop-color="#0b0603"/>
+    </radialGradient>
+    <linearGradient id="sogan" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#f5dfba"/>
+      <stop offset="50%" stop-color="#c99752"/>
+      <stop offset="100%" stop-color="#7a4f1d"/>
+    </linearGradient>
+    <linearGradient id="ivory" x1="100%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#fff4dc"/>
+      <stop offset="100%" stop-color="#b88440"/>
+    </linearGradient>
+  </defs>
+  <rect width="3840" height="2160" fill="url(#bg)"/>
+  <g transform="translate(1920 1080) rotate(-32)" fill="none" stroke="url(#sogan)" opacity="0.78">
+    <path d="M-1200,-420 C-900,-620 -600,-220 -300,-420 C0,-620 300,-220 600,-420 C900,-620 1200,-220 1500,-420" stroke-width="5" opacity="0.5"/>
+    <path d="M-1200,-210 C-900,-410 -600,-10 -300,-210 C0,-410 300,-10 600,-210 C900,-410 1200,-10 1500,-210" stroke-width="7" opacity="0.75"/>
+    <path d="M-1200,0 C-900,-200 -600,200 -300,0 C0,-200 300,200 600,0 C900,-200 1200,200 1500,0" stroke="url(#ivory)" stroke-width="9" opacity="0.9"/>
+    <path d="M-1200,210 C-900,10 -600,410 -300,210 C0,10 300,410 600,210 C900,10 1200,410 1500,210" stroke-width="7" opacity="0.75"/>
+    <path d="M-1200,420 C-900,220 -600,620 -300,420 C0,220 300,620 600,420 C900,220 1200,620 1500,420" stroke-width="5" opacity="0.5"/>
+    <g stroke="url(#ivory)" stroke-width="2" opacity="0.55">
+      <polygon points="-450,-105 -420,-75 -450,-45 -480,-75"/>
+      <polygon points="-150,-105 -120,-75 -150,-45 -180,-75"/>
+      <polygon points="150,-105 180,-75 150,-45 120,-75"/>
+      <polygon points="450,-105 480,-75 450,-45 420,-75"/>
+      <polygon points="-450,105 -420,135 -450,165 -480,135"/>
+      <polygon points="-150,105 -120,135 -150,165 -180,135"/>
+      <polygon points="150,105 180,135 150,165 120,135"/>
+      <polygon points="450,105 480,135 450,165 420,135"/>
+    </g>
+  </g>
+  <g transform="translate(1920 1080)" fill="none" stroke="url(#ivory)" opacity="0.8">
+    <circle r="320" stroke-width="2.5"/>
+    <circle r="540" stroke-width="1.5" opacity="0.5"/>
+    <circle r="18" fill="#fff4dc" opacity="0.9"/>
+  </g>
+</svg>

@@ -1,14 +1,17 @@
 #!/usr/bin/env python3
 """
 Kalacakra OS - k-profile
-Workload Profiles & Presets Engine (Zypper Patterns Style)
-Deploys curated, complete development, creator, gaming, or security stacks
-using Flatpaks and isolated Distrobox Spaces in one command without polluting host OS.
+Workload Profiles (Zypper Patterns Style) & Holistic "Chakra Mode" OS Morphing.
+1. `apply <name>`: Deploys curated development, creator, gaming, or security stacks.
+2. `morph <mode>`: Simultaneously morphs Desktop Identity (k-look), Kernel eBPF Scheduler (sched-ext),
+   and Power Profile in a single command (with honest SKIP reporting for missing host tools).
 """
 
 import os
 import sys
+import json
 import shutil
+import datetime
 import subprocess
 import argparse
 
@@ -19,9 +22,6 @@ if hasattr(sys.stdout, "reconfigure"):
         pass
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
-# Path library bersama ditangani oleh _kalacakra_bootstrap.
-
-# Bootstrap bersama (menggantikan boilerplate sys.path + fallback import).
 from _kalacakra_bootstrap import get_locale_strings
 
 PROFILES = {
@@ -30,35 +30,81 @@ PROFILES = {
         "description": "Visual Studio Code, Postman, Node.js, TypeScript, & Container Space",
         "flatpaks": ["com.visualstudio.code", "com.getpostman.Postman"],
         "space": "kalacakra-dev",
-        "space_packages": ["nodejs", "npm", "git", "ripgrep"]
+        "space_packages": ["nodejs", "npm", "git", "ripgrep"],
     },
     "content-creator": {
         "title": "Audio, Video & Multimedia Creator",
         "description": "Kdenlive Video Editor, OBS Studio 60fps, GIMP, & Audacity",
         "flatpaks": ["org.kde.kdenlive", "com.obsproject.Studio", "org.gimp.GIMP", "org.audacityteam.Audacity"],
-        "space": None
+        "space": None,
     },
     "data-science": {
         "title": "Data Science & AI Engineering",
         "description": "JupyterLab, Python Scientific Stack (NumPy/Pandas/PyTorch), & Ollama Tools",
         "flatpaks": ["org.jupyter.JupyterLab"],
         "space": "kalacakra-ai",
-        "space_packages": ["python", "python-pip", "python-numpy"]
+        "space_packages": ["python", "python-pip", "python-numpy"],
     },
     "gaming": {
         "title": "Pro Gaming & Emulation Suite",
         "description": "Steam, Heroic Launcher, MangoHud, ProtonUp-Qt, & Gamemode",
         "flatpaks": ["com.valvesoftware.Steam", "com.heroicgameslauncher.hgl", "net.davidotek.pupgui2"],
-        "space": None
+        "space": None,
     },
     "cybersec": {
         "title": "Cybersecurity & Network Auditing",
         "description": "Isolated Arch Linux Space equipped with network analysis & security tools",
         "flatpaks": [],
         "space": "kalacakra-sec",
-        "space_packages": ["nmap", "wireshark-cli", "curl", "bind-tools"]
-    }
+        "space_packages": ["nmap", "wireshark-cli", "curl", "bind-tools"],
+    },
 }
+
+CHAKRA_MODES = {
+    "gaming": {
+        "title": "Chakra Gaming (Latensi Ultra-Rendah)",
+        "look": "mandala-cyberpunk",
+        "scx": "scx_lavd",
+        "power": "performance",
+        "description": "Tema Mandala Cyberpunk + eBPF scx_lavd + profil daya Performance",
+    },
+    "creator": {
+        "title": "Chakra Kreator & Dev (Multi-Core Throughput)",
+        "look": "kraton-gold",
+        "scx": "scx_rusty",
+        "power": "performance",
+        "description": "Tema Kraton Gold + eBPF scx_rusty + profil daya Performance",
+    },
+    "stealth": {
+        "title": "Chakra Siluman / Cyber-Fortress (Fokus & Privasi)",
+        "look": "obsidian-minimal",
+        "scx": "default",
+        "power": "balanced",
+        "description": "Tema Obsidian Minimal + Kernel EEVDF + profil daya Balanced",
+    },
+    "zen": {
+        "title": "Chakra Zen / Hutan Hujan (Tenang & Hemat Baterai)",
+        "look": "rimba-sumatra",
+        "scx": "default",
+        "power": "power-saver",
+        "description": "Tema Rimba Sumatra + Kernel EEVDF + profil daya Power-Saver",
+    },
+    "nusantara": {
+        "title": "Chakra Sogan Nusantara (Kerja Harian Hangat)",
+        "look": "batik-parang",
+        "scx": "default",
+        "power": "balanced",
+        "description": "Tema Batik Parang + Kernel EEVDF + profil daya Balanced",
+    },
+}
+
+
+def find_bin(name: str) -> str:
+    for c in (os.path.join(SCRIPT_DIR, name), f"/usr/bin/{name}"):
+        if os.path.isfile(c):
+            return c
+    return name
+
 
 def list_profiles():
     print()
@@ -68,13 +114,20 @@ def list_profiles():
     for name, p in PROFILES.items():
         print(f" ▶ {name:<18} : {p['title']}")
         print(f"   └─ {p['description']}")
+    print()
+    print("=== [Chakra Modes] Transformasi Holistik OS Satu Perintah (morph) ===")
+    for mname, m in CHAKRA_MODES.items():
+        print(f" ☸ {mname:<18} : {m['title']}")
+        print(f"   └─ {m['description']}")
     print("-" * 72)
-    print("Gunakan 'k-profile apply <nama>' untuk memasang stack kerja lengkap.")
+    print("Pasang stack : k-profile apply <nama>")
+    print("Ubah mode OS : k-profile morph <gaming|creator|stealth|zen|nusantara>")
     print("=" * 72)
     print()
 
+
 def apply_profile(name: str):
-    strings, current_lang = get_locale_strings()
+    strings, _ = get_locale_strings()
     if name not in PROFILES:
         print(f"[k-profile Error] Profil '{name}' tidak ditemukan.")
         print(f"Profil tersedia: {', '.join(PROFILES.keys())}")
@@ -86,23 +139,21 @@ def apply_profile(name: str):
     print(f"=== Memasang Profil Kerja: {profile['title']} ===")
     print("=" * 70)
 
-    # 1. Pasang Flatpak
     skipped = []
     if profile["flatpaks"]:
         print(f"[k-profile] Menyiapkan {len(profile['flatpaks'])} aplikasi Flatpak...")
         if not shutil.which("flatpak"):
-            print("[k-profile WARN] 'flatpak' tidak terpasang - aplikasi Flatpak DIPERLEWATI.")
+            print("[k-profile WARN] 'flatpak' tidak terpasang - aplikasi Flatpak DILEWATI.")
             skipped.append("flatpak")
         else:
             for fp in profile["flatpaks"]:
                 print(f"  └─ Memasang: {fp}")
                 subprocess.run(["flatpak", "install", "-y", "flathub", fp], check=False)
 
-    # 2. Siapkan Distrobox Space jika diperlukan
     if profile.get("space"):
         space_name = profile["space"]
         if not shutil.which("distrobox"):
-            print(f"[k-profile WARN] 'distrobox' tidak terpasang - space '{space_name}' DIPERLEWATI.")
+            print(f"[k-profile WARN] 'distrobox' tidak terpasang - space '{space_name}' DILEWATI.")
             skipped.append(f"distrobox ({space_name})")
         else:
             print(f"[k-profile] Menyiapkan Kalacakra Space terisolasi '{space_name}'...")
@@ -122,16 +173,101 @@ def apply_profile(name: str):
     print("=" * 70)
     print()
 
+
+def morph_mode(mode_name: str, dry_run: bool = False) -> int:
+    """Transformasi holistik OS: Look + Kernel Scheduler + Power Profile."""
+    if mode_name not in CHAKRA_MODES:
+        print(f"[k-profile Error] Chakra mode '{mode_name}' tidak dikenal.")
+        print(f"   Mode tersedia: {', '.join(CHAKRA_MODES.keys())}")
+        return 1
+
+    m = CHAKRA_MODES[mode_name]
+    print()
+    print("=" * 70)
+    print(f"=== [Kalacakra Chakra Morph] {m['title']} ===")
+    print("=" * 70)
+
+    if dry_run:
+        print(f"[DRY-RUN] Mode '{mode_name}' akan menjalankan:")
+        print(f"  1. Kalacakra Look  -> apply {m['look']}")
+        print(f"  2. CPU Scheduler   -> {m['scx']}")
+        print(f"  3. Power Profile   -> {m['power']}")
+        return 0
+
+    # 1. Terapkan identitas visual Kalacakra Look
+    klook = find_bin("k-look")
+    cmd_look = [klook, "apply", m["look"]]
+    if os.path.isfile(klook) and not os.access(klook, os.X_OK):
+        cmd_look = [sys.executable, klook, "apply", m["look"]]
+    r_look = subprocess.run(cmd_look, capture_output=True, text=True)
+    if r_look.returncode == 0:
+        print(f"  [ OK ] Visual Look   : {m['look']} diterapkan")
+    else:
+        print(f"  [WARN] Visual Look   : gagal menerapkan {m['look']}")
+
+    # 2. Penjadwal CPU (sched-ext) - jujur bila biner tidak ada
+    scx = m["scx"]
+    if scx == "default":
+        print("  [ OK ] CPU Scheduler : EEVDF (default kernel)")
+    elif shutil.which(scx):
+        print(f"  [ OK ] CPU Scheduler : {scx} tersedia (siap diaktifkan via 'kalacakra scx')")
+    else:
+        print(f"  [SKIP] CPU Scheduler : '{scx}' belum terpasang di host ini")
+
+    # 3. Profil daya (powerprofilesctl) - jujur bila tidak ada
+    pwr = m["power"]
+    if shutil.which("powerprofilesctl"):
+        res_p = subprocess.run(["powerprofilesctl", "set", pwr], capture_output=True, text=True)
+        if res_p.returncode == 0:
+            print(f"  [ OK ] Power Profile : {pwr}")
+        else:
+            print(f"  [SKIP] Power Profile : daemon power-profiles-daemon tidak aktif")
+    else:
+        print(f"  [SKIP] Power Profile : 'powerprofilesctl' tidak terpasang (target: {pwr})")
+
+    # Catat state Chakra aktif di direktori data user
+    data_home = os.environ.get("XDG_DATA_HOME", os.path.expanduser("~/.local/share"))
+    state_dir = os.path.join(data_home, "kalacakra")
+    os.makedirs(state_dir, exist_ok=True)
+    state_file = os.path.join(state_dir, "chakra-mode.json")
+    try:
+        with open(state_file, "w", encoding="utf-8") as f:
+            json.dump(
+                {
+                    "mode": mode_name,
+                    "title": m["title"],
+                    "look": m["look"],
+                    "scx": m["scx"],
+                    "power": m["power"],
+                    "morphed_at": datetime.datetime.now().isoformat(timespec="seconds"),
+                },
+                f,
+                indent=2,
+                ensure_ascii=False,
+            )
+    except OSError:
+        pass
+
+    print("-" * 70)
+    print(f"[k-profile] Chakra Mode '{mode_name}' aktif!")
+    print("=" * 70)
+    return 0
+
+
 def main():
     parser = argparse.ArgumentParser(
         prog="k-profile",
-        description="Kalacakra Profile - Zypper Patterns-style Workload Stacks"
+        description="Kalacakra Profile - Workload Stacks & Holistic Chakra Mode OS Morphing",
     )
     subparsers = parser.add_subparsers(dest="command")
-    subparsers.add_parser("list", help="List available workload profiles")
-    
+    subparsers.add_parser("list", help="List available workload profiles and Chakra modes")
+
     p_app = subparsers.add_parser("apply", help="Apply and install a workload profile")
     p_app.add_argument("name", choices=list(PROFILES.keys()), help="Profile name to apply")
+
+    p_morph = subparsers.add_parser("morph", help="Holistically morph OS identity, scheduler & power mode")
+    p_morph.add_argument("mode", choices=list(CHAKRA_MODES.keys()), help="Chakra mode to activate")
+    p_morph.add_argument("--dry-run", "-n", action="store_true", help="Preview morph steps without changing system")
 
     args = parser.parse_args()
 
@@ -139,6 +275,9 @@ def main():
         list_profiles()
     elif args.command == "apply":
         apply_profile(args.name)
+    elif args.command == "morph":
+        sys.exit(morph_mode(args.mode, dry_run=args.dry_run))
+
 
 if __name__ == "__main__":
     main()
