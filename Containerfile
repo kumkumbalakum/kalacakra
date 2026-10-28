@@ -58,7 +58,7 @@ RUN rpm-ostree install \
     rpm-ostree cleanup -m
 
 # 2. Pemasangan biner resmi Ollama (Clean Standalone Binary)
-RUN curl -fsSL https://ollama.com/download/ollama-linux-amd64.tar.gz | tar -xz -C /usr/
+RUN curl -fsSL https://github.com/ollama/ollama/releases/latest/download/ollama-linux-amd64.tar.zst | zstd -d | tar -x -C /usr/
 
 # 3. Pemasangan biner whisper.cpp untuk offline speech-to-text
 RUN curl -fsSL -o /usr/bin/whisper-cli https://github.com/ggerganov/whisper.cpp/releases/download/v1.7.4/whisper-cli-linux-x86_64 && \
