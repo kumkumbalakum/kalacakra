@@ -64,7 +64,7 @@ def run_qa_tests():
         "k-unveil", "k-signify", "k-pf", "k-doas", "k-wx",
         "k-voice", "k-game", "k-look", "k-showcase", "k-welcome", "k-ask",
         "k-semantic", "k-agent", "k-gallery",
-        "k-mok", "k-pqc", "k-hdr", "k-polonium"
+        "k-mok", "k-pqc", "k-hdr", "k-polonium", "k-luks"
     ]
     missing_bins = []
     for b in expected_bins:

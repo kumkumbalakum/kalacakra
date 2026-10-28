@@ -62,15 +62,30 @@ def enroll(args):
     print("[k-mok] Gagal mengimpor MOK.")
     return 1
 
+def verify(args):
+    if not have("sbverify"):
+        print("[k-mok] 'sbverify' tidak tersedia (pasang sbsigntools).")
+        return 1
+    if not args.file:
+        print("[k-mok Error] Sebutkan berkas: k-mok verify --file /path/to/binary")
+        return 2
+    r = subprocess.run(["sbverify", "--list", args.file], capture_output=True, text=True)
+    print(r.stdout.strip() or r.stderr.strip())
+    return 0 if r.returncode == 0 else 1
+
 def main():
     ap = argparse.ArgumentParser(prog="k-mok", description="Kalacakra MOK / Secure Boot helper")
     sub = ap.add_subparsers(dest="action")
     sub.add_parser("status", help="Status Secure Boot & MOK")
     p_en = sub.add_parser("enroll", help="Siapkan & impor MOK (butuh reboot)")
     p_en.add_argument("--password", default="kalacakra", help="Password enrollment (default: kalacakra)")
+    p_ver = sub.add_parser("verify", help="Verifikasi tanda tangan Secure Boot pada berkas")
+    p_ver.add_argument("--file", required=True, help="Path berkas yang diverifikasi")
     args = ap.parse_args()
     if args.action == "enroll":
         return enroll(args)
+    if args.action == "verify":
+        return verify(args)
     return status()
 
 if __name__ == "__main__":

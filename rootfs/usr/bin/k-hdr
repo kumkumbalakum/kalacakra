@@ -17,7 +17,14 @@ def status():
     print("=== Kalacakra HDR / WCG ===")
     print("Sesi:", os.environ.get("XDG_SESSION_TYPE", "tidak diketahui"))
     print("Desktop:", os.environ.get("XDG_CURRENT_DESKTOP", "tidak diketahui"))
-    # Cek dukungan vulkan
+    if have("kscreen-doctor"):
+        r = subprocess.run(["kscreen-doctor", "-o"], capture_output=True, text=True)
+        hdr_lines = [l for l in r.stdout.splitlines() if "hdr" in l.lower() or "color" in l.lower()]
+        print("KScreen:", "tersedia")
+        for l in hdr_lines[:8]:
+            print("  ", l.strip())
+    else:
+        print("KScreen: 'kscreen-doctor' tidak tersedia")
     if have("vulkaninfo"):
         r = subprocess.run(["vulkaninfo", "--summary"], capture_output=True, text=True)
         print("Vulkan:", "tersedia" if r.returncode == 0 else "tidak tersedia")

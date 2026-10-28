@@ -109,6 +109,7 @@ RUN chmod 0755 \
     /usr/bin/k-pqc \
     /usr/bin/k-hdr \
     /usr/bin/k-polonium \
+    /usr/bin/k-luks \
     /usr/bin/_kalacakra_bootstrap.py \
     /etc/profile.d/kalacakra-ssh-agent.sh \
     /usr/share/kalacakra/scripts/battery-cap.sh 2>/dev/null || true

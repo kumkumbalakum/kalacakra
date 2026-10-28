@@ -1,0 +1,7 @@
+# Kalacakra OS - bootc install defaults
+# Mengatur filesystem root ke Btrfs (subvolume @) saat `bootc install to-disk`.
+# Subvolume @home/@var/@snapshots dibuat manual atau via post-install (lihat docs).
+
+[install]
+[install.filesystem.root]
+type = "btrfs"
