@@ -29,10 +29,9 @@ RUN rpm-ostree install \
     mangohud \
     ptyxis \
     just \
-    scx-scheds \
+    scx_rusty \
     plasma-vault \
     fastfetch \
-    starship \
     bat \
     eza \
     fzf \
@@ -49,7 +48,7 @@ RUN rpm-ostree install \
     glow \
     fprintd \
     fprintd-pam \
-    pam_kwallet \
+    pam-kwallet \
     wayvnc \
     deskflow \
     okular \
