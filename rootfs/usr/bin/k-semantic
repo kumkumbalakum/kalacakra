@@ -23,6 +23,9 @@ import math
 import sqlite3
 import argparse
 import datetime
+import json
+import urllib.request
+import urllib.error
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 
@@ -122,12 +125,55 @@ SYNONYMS = build_synonym_map()
 
 
 # ---------------------------------------------------------------------------
+# Embedding (vektor) opsional via Ollama (lokal, offline)
+# ---------------------------------------------------------------------------
+def _embed_model() -> str:
+    return os.environ.get("KALACAKRA_EMBED_MODEL", "nomic-embed-text")
+
+def ollama_available() -> bool:
+    try:
+        with urllib.request.urlopen("http://127.0.0.1:11434/api/tags", timeout=3) as r:
+            return r.status == 200
+    except Exception:
+        return False
+
+def ollama_embed(text: str):
+    """Kembalikan vektor embedding dari Ollama, atau None bila tak tersedia."""
+    if not ollama_available():
+        return None
+    payload = {"model": _embed_model(), "prompt": (text or "")[:4000]}
+    data = json.dumps(payload).encode("utf-8")
+    req = urllib.request.Request(
+        "http://127.0.0.1:11434/api/embeddings", data=data,
+        headers={"Content-Type": "application/json"}, method="POST")
+    try:
+        with urllib.request.urlopen(req, timeout=60) as r:
+            obj = json.loads(r.read().decode("utf-8"))
+            return obj.get("embedding")
+    except Exception:
+        return None
+
+def cosine(a, b) -> float:
+    if not a or not b or len(a) != len(b):
+        return 0.0
+    dot = sum(x*y for x, y in zip(a, b))
+    na = math.sqrt(sum(x*x for x in a))
+    nb = math.sqrt(sum(y*y for y in b))
+    if na == 0 or nb == 0:
+        return 0.0
+    return dot / (na * nb)
+
+# ---------------------------------------------------------------------------
 # Basis data
 # ---------------------------------------------------------------------------
 def connect() -> sqlite3.Connection:
     os.makedirs(SEMANTIC_DIR, exist_ok=True)
     con = sqlite3.connect(DB_PATH)
     con.execute("PRAGMA journal_mode=WAL")
+    try:
+        con.execute("ALTER TABLE docs ADD COLUMN embedding TEXT")
+    except sqlite3.OperationalError:
+        pass
     con.executescript(
         """
         CREATE TABLE IF NOT EXISTS docs (
@@ -137,7 +183,8 @@ def connect() -> sqlite3.Connection:
             size      INTEGER,
             length    INTEGER,
             snippet   TEXT,
-            indexed_at TEXT
+            indexed_at TEXT,
+            embedding TEXT
         );
         CREATE TABLE IF NOT EXISTS postings (
             term   TEXT NOT NULL,
@@ -213,7 +260,7 @@ def read_doc_text(path: str) -> str:
     return raw.decode("utf-8", errors="replace")
 
 
-def index_one(con, path: str) -> bool:
+def index_one(con, path: str, vector: bool = False) -> bool:
     """Indeks satu berkas. Kembalikan True bila (re)diindeks."""
     try:
         st = os.stat(path)
@@ -232,18 +279,23 @@ def index_one(con, path: str) -> bool:
         return False
 
     snippet = " ".join(text.split())[:240]
+    embedding_json = None
+    if vector:
+        vec = ollama_embed(text)
+        if vec is not None:
+            embedding_json = json.dumps(vec)
     if row:
         doc_id = row[0]
         con.execute("DELETE FROM postings WHERE doc_id=?", (doc_id,))
-        con.execute("UPDATE docs SET mtime=?, size=?, length=?, snippet=?, indexed_at=? "
+        con.execute("UPDATE docs SET mtime=?, size=?, length=?, snippet=?, indexed_at=?, embedding=? "
                     "WHERE id=?",
                     (st.st_mtime, st.st_size, len(tokens), snippet,
-                     datetime.datetime.now().isoformat(timespec="seconds"), doc_id))
+                     datetime.datetime.now().isoformat(timespec="seconds"), embedding_json, doc_id))
     else:
         cur = con.execute(
-            "INSERT INTO docs(path, mtime, size, length, snippet, indexed_at) VALUES(?,?,?,?,?,?)",
+            "INSERT INTO docs(path, mtime, size, length, snippet, indexed_at, embedding) VALUES(?,?,?,?,?,?,?)",
             (path, st.st_mtime, st.st_size, len(tokens), snippet,
-             datetime.datetime.now().isoformat(timespec="seconds")),
+             datetime.datetime.now().isoformat(timespec="seconds"), embedding_json),
         )
         doc_id = cur.lastrowid
 
@@ -308,6 +360,32 @@ def search(con, query: str, limit: int) -> list:
     return out
 
 
+
+def search_vector(con, query: str, limit: int) -> list:
+    """Pencarian berbasis vektor (cosine) bila embedding tersedia; fallback TF-IDF."""
+    q_vec = ollama_embed(query)
+    if q_vec is None:
+        return search(con, query, limit)
+    rows = con.execute("SELECT id, path, snippet, embedding FROM docs").fetchall()
+    scored = []
+    for doc_id, path, snippet, emb_json in rows:
+        if not emb_json:
+            continue
+        try:
+            vec = json.loads(emb_json)
+        except Exception:
+            continue
+        sc = cosine(q_vec, vec)
+        if sc > 0:
+            scored.append((doc_id, path, snippet, sc))
+    scored.sort(key=lambda x: x[3], reverse=True)
+    out = []
+    for doc_id, path, snippet, sc in scored[:limit]:
+        out.append({"path": path, "snippet": snippet or "", "score": round(sc, 4), "matched": -1})
+    if not out:
+        return search(con, query, limit)
+    return out
+
 # ---------------------------------------------------------------------------
 # Aksi CLI
 # ---------------------------------------------------------------------------
@@ -327,10 +405,11 @@ def cmd_index(args) -> int:
         return 1
     con = connect()
     n_files = n_indexed = 0
+    vector = getattr(args, "vector", False)
     for path in iter_candidate_files(roots):
         n_files += 1
         try:
-            if index_one(con, path):
+            if index_one(con, path, vector=vector):
                 n_indexed += 1
                 if not args.quiet:
                     print(f"  + {path}")
@@ -343,7 +422,13 @@ def cmd_index(args) -> int:
     con.close()
     print(f"[k-semantic] Selesai: {n_indexed} berkas baru/diperbarui dari {n_files} kandidat.")
     print(f"[k-semantic] Total {total} dokumen terindeks di {DB_PATH}.")
-    print("[k-semantic] Catatan jujur: indeks ini leksikal (kata kunci+sinonim), bukan embedding vektor.")
+    if getattr(args, "vector", False):
+        if ollama_available():
+            print("[k-semantic] Mode vektor: embedding Ollama disimpan (jika model tersedia).")
+        else:
+            print("[k-semantic] Mode vektor diminta, tetapi Ollama tidak aktif; indeks leksikal tetap dibangun.")
+    else:
+        print("[k-semantic] Catatan jujur: indeks default leksikal (TF-IDF+sinonim). Gunakan --vector untuk embedding Ollama.")
     return 0
 
 
@@ -356,7 +441,10 @@ def cmd_search(args) -> int:
         print("[k-semantic] Indeks belum ada. Bangun dulu: kalacakra semantic index")
         return 1
     con = connect()
-    results = search(con, query, args.limit)
+    if getattr(args, "vector", False):
+        results = search_vector(con, query, args.limit)
+    else:
+        results = search(con, query, args.limit)
     con.close()
     if not results:
         print(f"[k-semantic] Tidak ada hasil untuk: {query}")
@@ -414,12 +502,18 @@ def cmd_status(args) -> int:
     con = connect()
     docs = con.execute("SELECT COUNT(*) FROM docs").fetchone()[0]
     terms = con.execute("SELECT COUNT(DISTINCT term) FROM postings").fetchone()[0]
+    try:
+        emb = con.execute("SELECT COUNT(*) FROM docs WHERE embedding IS NOT NULL").fetchone()[0]
+    except sqlite3.OperationalError:
+        emb = 0
     last = get_meta(con, "last_index") or "(tidak diketahui)"
     con.close()
     print(f"  Dokumen       : {docs}")
     print(f"  Istilah unik  : {terms}")
+    print(f"  Vektor        : {emb} dokumen memiliki embedding")
     print(f"  Indeks terakhir: {last}")
-    print("  Mesin         : TF-IDF leksikal + sinonim ID/EN (bukan vektor embedding)")
+    print("  Mesin default : TF-IDF leksikal + sinonim ID/EN")
+    print("  Mode vektor   : aktifkan dengan --vector (memakai Ollama lokal bila tersedia)")
     return 0
 
 

@@ -1,0 +1,51 @@
+#!/usr/bin/env python3
+"""
+Kalacakra OS - k-pqc
+Pembantu aktivasi Post-Quantum Cryptography (PQC) di level sistem.
+
+CATATAN JUJUR:
+- Aktivasi PQC mengandalkan 'update-crypto-policies' (Fedora). Bila alat
+  tersebut tidak ada, k-pqc hanya melaporkan SKIP dan memberi instruksi.
+- Ini mengubah kebijakan kripto sistem; jalankan dengan sadar.
+"""
+
+import os, sys, shutil, subprocess, argparse
+
+def have(x): return shutil.which(x) is not None
+
+def status():
+    print("=== Kalacakra PQC ===")
+    if have("update-crypto-policies"):
+        r = subprocess.run(["update-crypto-policies", "--show"], capture_output=True, text=True)
+        print("Kebijakan aktif:", (r.stdout.strip() if r else "tidak diketahui"))
+    else:
+        print("[SKIP] 'update-crypto-policies' tidak tersedia (bukan Fedora?).")
+    # Cek modul kernel PQC (best-effort)
+    print("Modul ML-KEM/ML-DSA di kernel:", "cek manual via 'grep -i pqc /proc/crypto'")
+
+def enable(args):
+    if not have("update-crypto-policies"):
+        print("[k-pqc Error] 'update-crypto-policies' tidak tersedia.")
+        return 1
+    policy = "DEFAULT:PQC" if not args.policy else args.policy
+    print(f"[k-pqc] Mengaktifkan kebijakan kripto: {policy}")
+    r = subprocess.run(["sudo", "update-crypto-policies", "--set", policy])
+    if r.returncode == 0:
+        print("[k-pqc] OK. Reboot/refresh layanan mungkin diperlukan.")
+        return 0
+    print("[k-pqc] Gagal mengaktifkan PQC.")
+    return 1
+
+def main():
+    ap = argparse.ArgumentParser(prog="k-pqc", description="Kalacakra PQC helper")
+    sub = ap.add_subparsers(dest="action")
+    sub.add_parser("status", help="Status kebijakan kripto")
+    p_en = sub.add_parser("enable", help="Aktifkan PQC (DEFAULT:PQC)")
+    p_en.add_argument("--policy", default="DEFAULT:PQC", help="Nama kebijakan (default DEFAULT:PQC)")
+    args = ap.parse_args()
+    if args.action == "enable":
+        return enable(args)
+    return status()
+
+if __name__ == "__main__":
+    sys.exit(main())

@@ -1,0 +1,57 @@
+#!/usr/bin/env python3
+"""
+Kalacakra OS - k-polonium
+Pembantu integrasi Polonium (tiling KWin) - Super+Y.
+
+CATATAN JUJUR:
+- Polonium bukan bagian dari image ini. Alat ini memeriksa apakah skrip KWin
+  Polonium terpasang; bila tidak, ia memberi tautan instalasi. Ia tidak
+  memalsukan keberadaan Polonium.
+"""
+
+import os, sys, shutil, subprocess, argparse, glob
+
+def have(x): return shutil.which(x) is not None
+
+def find_polonium():
+    home = os.path.expanduser("~")
+    paths = glob.glob(os.path.join(home, ".local/share/kwin/scripts/polonium*")) + \
+            glob.glob("/usr/share/kwin/scripts/polonium*")
+    return paths
+
+def status():
+    print("=== Kalacakra Polonium (Tiling) ===")
+    paths = find_polonium()
+    if paths:
+        print("Polonium terpasang:", paths[0])
+    else:
+        print("Polonium belum terpasang.")
+        print("Pasang dari KDE Store / https://github.com/zeroxoneafour/polonium")
+    print("Pintasan yang direkomendasikan: Super+Y (konfigurasi di System Settings -> Shortcuts).")
+
+def enable(args):
+    paths = find_polonium()
+    if not paths:
+        print("[k-polonium] Polonium tidak terpasang. Pasang dulu, lalu jalankan lagi.")
+        return 1
+    # Aktifkan skrip via kwriteconfig (best-effort)
+    if have("kwriteconfig5") or have("kwriteconfig6"):
+        kc = shutil.which("kwriteconfig6") or shutil.which("kwriteconfig5")
+        subprocess.run([kc, "--file", "kwinrc", "--group", "Plugins", "--key", "poloniumEnabled", "true"])
+        print("[k-polonium] Plugin diaktifkan di kwinrc. Restart KWin / relogin.")
+        return 0
+    print("[k-polonium] kwriteconfig tidak tersedia; aktifkan manual di System Settings.")
+    return 1
+
+def main():
+    ap = argparse.ArgumentParser(prog="k-polonium", description="Kalacakra Polonium helper")
+    sub = ap.add_subparsers(dest="action")
+    sub.add_parser("status", help="Status Polonium")
+    sub.add_parser("enable", help="Aktifkan plugin Polonium")
+    args = ap.parse_args()
+    if args.action == "enable":
+        return enable(args)
+    return status()
+
+if __name__ == "__main__":
+    sys.exit(main())

@@ -1,0 +1,71 @@
+#!/usr/bin/env python3
+"""
+Kalacakra OS - k-hdr
+Pembantu aktivasi pipeline HDR / Wide Color Gamut di KDE Plasma (Wayland).
+
+CATATAN JUJUR:
+- Aktivasi HDR sejati memerlukan GPU + monitor + kernel + Mesa/Vulkan yang
+  mendukung. Alat ini hanya mengaktifkan opsi KDE/KWin dan memberi panduan;
+  ia tidak memalsukan dukungan hardware.
+"""
+
+import os, sys, shutil, subprocess, argparse
+
+def have(x): return shutil.which(x) is not None
+
+def status():
+    print("=== Kalacakra HDR / WCG ===")
+    print("Sesi:", os.environ.get("XDG_SESSION_TYPE", "tidak diketahui"))
+    print("Desktop:", os.environ.get("XDG_CURRENT_DESKTOP", "tidak diketahui"))
+    # Cek dukungan vulkan
+    if have("vulkaninfo"):
+        r = subprocess.run(["vulkaninfo", "--summary"], capture_output=True, text=True)
+        print("Vulkan:", "tersedia" if r.returncode == 0 else "tidak tersedia")
+    else:
+        print("Vulkan: 'vulkaninfo' tidak terpasang")
+    print("Catatan: aktifkan HDR di System Settings -> Display -> HDR (jika monitor mendukung).")
+
+def enable(args):
+    # Tulis konfigurasi KWin untuk mengaktifkan color management (best-effort)
+    kwinrc = os.path.expanduser("~/.config/kwinrc")
+    os.makedirs(os.path.dirname(kwinrc), exist_ok=True)
+    # Tambahkan section [Compositing] EnableColorManagement=true
+    lines = []
+    if os.path.isfile(kwinrc):
+        lines = open(kwinrc).read().splitlines()
+    # remove existing keys
+    lines = [l for l in lines if not l.strip().startswith("ColorManagement=") and not l.strip().startswith("EnableColorManagement=")]
+    # ensure section
+    if not any(l.strip() == "[Compositing]" for l in lines):
+        lines.append("[Compositing]")
+    # insert after section
+    out = []
+    inserted = False
+    for l in lines:
+        out.append(l)
+        if l.strip() == "[Compositing]" and not inserted:
+            out.append("ColorManagement=true")
+            out.append("EnableColorManagement=true")
+            inserted = True
+    if not inserted:
+        out.append("[Compositing]")
+        out.append("ColorManagement=true")
+        out.append("EnableColorManagement=true")
+    with open(kwinrc, "w") as f:
+        f.write("\n".join(out) + "\n")
+    print("[k-hdr] Konfigurasi KWin diperbarui. Restart KWin / relogin untuk menerapkan.")
+    print("[k-hdr] Jujur: dukungan HDR final bergantung hardware (GPU + monitor).")
+    return 0
+
+def main():
+    ap = argparse.ArgumentParser(prog="k-hdr", description="Kalacakra HDR/WCG helper")
+    sub = ap.add_subparsers(dest="action")
+    sub.add_parser("status", help="Status HDR/WCG")
+    sub.add_parser("enable", help="Aktifkan opsi color management KWin")
+    args = ap.parse_args()
+    if args.action == "enable":
+        return enable(args)
+    return status()
+
+if __name__ == "__main__":
+    sys.exit(main())

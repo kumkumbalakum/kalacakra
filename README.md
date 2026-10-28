@@ -146,7 +146,7 @@ xdg-open ringkasan.html                # Buka di peramban
 README dan `plan.md` menggambarkan visi lengkap Kalacakra OS. Agar tidak menyesatkan, berikut pembagian jelas antara **yang sudah ada di repositori ini** dan **yang masih roadmap**:
 
 **✅ Sudah diimplementasikan (ada kodenya di repo ini):**
-* Seluruh 40 tool CLI di `rootfs/usr/bin/` (`kalacakra`, `k-interceptor`, `k-ai`, `k-ask`, `k-agent`, `k-semantic`, `k-gallery`, `k-aur`, `k-doctor`, `k-rewind`, `k-beam`, `k-portal`, `k-ocr`, `k-survival`, `k-precache`, `k-preview`, `k-spotlight`, `k-flow`, `k-snippet`, `k-keyring`, `k-hub`, `k-qa`, `k-snapboot`, `k-profile`, `k-pkg`, `k-jail`, `k-be`, `k-scrub`, `k-trace`, `k-sysrc`, `k-unveil`, `k-signify`, `k-pf`, `k-doas`, `k-wx`, `k-voice`, `k-game`, `k-look`, `k-showcase`, `k-welcome`).
+* Seluruh 44 tool CLI di `rootfs/usr/bin/` (`kalacakra`, `k-interceptor`, `k-ai`, `k-ask`, `k-agent`, `k-semantic`, `k-gallery`, `k-aur`, `k-doctor`, `k-rewind`, `k-beam`, `k-portal`, `k-ocr`, `k-survival`, `k-precache`, `k-preview`, `k-spotlight`, `k-flow`, `k-snippet`, `k-keyring`, `k-hub`, `k-qa`, `k-snapboot`, `k-profile`, `k-pkg`, `k-jail`, `k-be`, `k-scrub`, `k-trace`, `k-sysrc`, `k-unveil`, `k-signify`, `k-pf`, `k-doas`, `k-wx`, `k-voice`, `k-game`, `k-look`, `k-showcase`, `k-welcome`, `k-mok`, `k-pqc`, `k-hdr`, `k-polonium`).
 * **5 Fitur Futuristik Pembeda:**
   1. *Circadian "Roda Waktu" Engine* (`kalacakra look roda-waktu` / `auto [--hour H]`) — Penyesuaian tema visual otomatis mengikuti fase jam Nusantara + generator palet native KDE `.colors` (`Kalacakra-<id>.colors`).
   2. *Multimodal Screen-to-AI ("Lihat & Mengerti")* (`kalacakra ocr --ask <tanya>` / `--explain` / `--summarize` / `--translate`) — Tangkap teks/kode layar dan proses langsung via AI lokal dengan pelindung kebocoran rahasia (*secret sanitizer*).
@@ -181,7 +181,7 @@ README dan `plan.md` menggambarkan visi lengkap Kalacakra OS. Agar tidak menyesa
 * Firmware-level battery cap ASUS/Lenovo (saat ini bergantung dukungan driver kernel vendor).
 
 **⚠️ Fondasi jujur (ADA, tetapi dengan batasan yang dinyatakan terbuka):**
-* `k-semantic` ada dan bekerja, tetapi indeksnya **leksikal (TF-IDF + sinonim ID/EN) di SQLite**, **bukan** vector embedding/NPU seperti target Fase 2 di `plan.md`. Ia tidak mengunggah data ke cloud dan dapat diganti mesin embedding kelak tanpa mengubah CLI.
+* `k-semantic` ada dan bekerja. Default indeksnya **leksikal (TF-IDF + sinonim ID/EN) di SQLite**; kini mendukung mode **vektor opsional** via `--vector` (memakai Ollama lokal bila tersedia, fallback TF-IDF). Target NPU/embedding khusus tetap roadmap. Ia tidak mengunggah data ke cloud.
 * `k-agent` ada dan bekerja, tetapi perencana utamanya adalah **pola berbasis aturan** untuk beberapa intent (konversi gambar, arsip, pindah berkas); perencanaan bebas memerlukan `k-ai`/Ollama. Agen **menolak perintah berbahaya** dan menampilkan *action plan preview* sebelum eksekusi; sandbox nyata hanya aktif bila `bwrap` tersedia.
 * `k-gallery` menghasilkan **situs statis mandiri** (tanpa CDN) untuk tema Look/kiriman komunitas. `k-gallery serve` hanya **pratinjau lokal** (127.0.0.1) — untuk benar-benar "daring", unggah folder keluaran ke hosting statis (GitHub Pages, Netlify, dsb.). Tool tidak mengunggah apa pun.
 

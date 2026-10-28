@@ -1,0 +1,77 @@
+#!/usr/bin/env python3
+"""
+Kalacakra OS - k-mok
+Pembantu enrollment MOK (Machine Owner Key) untuk Secure Boot.
+
+CATATAN JUJUR:
+- Alat ini TIDAK memalsukan sukses. Ia hanya memeriksa status Secure Boot /
+  MOK dan, bila diminta, menyiapkan kunci + memanggil `mokutil --import`.
+  Enrollment sebenarnya terjadi di firmware (reboot + konfirmasi biru MOK).
+- Bila `mokutil`/`openssl` tidak ada, alat memberi instruksi instalasi.
+"""
+
+import os, sys, shutil, subprocess, argparse
+
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+from _kalacakra_bootstrap import get_locale_strings
+
+def have(x): return shutil.which(x) is not None
+
+def run(cmd):
+    try:
+        return subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+    except Exception as e:
+        return None
+
+def status():
+    print("=== Kalacakra MOK / Secure Boot ===")
+    if not have("mokutil"):
+        print("[SKIP] 'mokutil' tidak terpasang. Pasang: sudo dnf install mokutil")
+        return 1
+    r = run(["mokutil", "--sb-state"])
+    print("Secure Boot:", (r.stdout.strip() if r else "tidak diketahui"))
+    r2 = run(["mokutil", "--list-enrolled"])
+    enrolled = (r2.stdout.strip() if r2 else "")
+    print("MOK terdaftar:", "ada" if enrolled else "tidak ada / tidak dapat dibaca")
+    r3 = run(["mokutil", "--list-new"])
+    pending = (r3.stdout.strip() if r3 else "")
+    print("MOK menunggu enrollment:", "ada" if pending else "tidak ada")
+    return 0
+
+def enroll(args):
+    if not have("mokutil") or not have("openssl"):
+        print("[k-mok Error] Butuh 'mokutil' dan 'openssl'. Pasang: sudo dnf install mokutil openssl")
+        return 1
+    key_dir = os.path.expanduser("~/.local/share/kalacakra/mok")
+    os.makedirs(key_dir, exist_ok=True)
+    key = os.path.join(key_dir, "MOK.priv")
+    cert = os.path.join(key_dir, "MOK.der")
+    if not os.path.isfile(key):
+        print("[k-mok] Membuat kunci MOK baru...")
+        subprocess.run(["openssl", "req", "-new", "-x509", "-newkey", "rsa:2048",
+                        "-keyout", key, "-out", os.path.join(key_dir, "MOK.pem"),
+                        "-nodes", "-days", "3650", "-subj", "/CN=Kalacakra MOK/"], check=True)
+        subprocess.run(["openssl", "x509", "-in", os.path.join(key_dir, "MOK.pem"),
+                        "-outform", "DER", "-out", cert], check=True)
+    pw = args.password or "kalacakra"
+    print("[k-mok] Mengimpor MOK (mokutil --import). Anda akan diminta password saat reboot.")
+    r = subprocess.run(["mokutil", "--import", cert], input=f"{pw}\n{pw}\n", text=True)
+    if r.returncode == 0:
+        print("[k-mok] OK. Reboot, lalu konfirmasi enrollment di layar biru MOK.")
+        return 0
+    print("[k-mok] Gagal mengimpor MOK.")
+    return 1
+
+def main():
+    ap = argparse.ArgumentParser(prog="k-mok", description="Kalacakra MOK / Secure Boot helper")
+    sub = ap.add_subparsers(dest="action")
+    sub.add_parser("status", help="Status Secure Boot & MOK")
+    p_en = sub.add_parser("enroll", help="Siapkan & impor MOK (butuh reboot)")
+    p_en.add_argument("--password", default="kalacakra", help="Password enrollment (default: kalacakra)")
+    args = ap.parse_args()
+    if args.action == "enroll":
+        return enroll(args)
+    return status()
+
+if __name__ == "__main__":
+    sys.exit(main())
