@@ -125,10 +125,15 @@ jobs:
       - name: Install Cosign for Image Signing
         uses: sigstore/cosign-installer@v3.5.0
 
-      - name: Log in to GitHub Container Registry
+      - name: Log in to GitHub Container Registry (podman)
         if: github.event_name != 'pull_request'
         run: |
           echo "${{ secrets.GITHUB_TOKEN }}" | sudo podman login ${{ env.REGISTRY }} -u ${{ github.actor }} --password-stdin
+
+      - name: Log in to GitHub Container Registry (docker, for cosign)
+        if: github.event_name != 'pull_request'
+        run: |
+          echo "${{ secrets.GITHUB_TOKEN }}" | docker login ${{ env.REGISTRY }} -u ${{ github.actor }} --password-stdin
 
       - name: Extract Docker metadata
         id: meta
