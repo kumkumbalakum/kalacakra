@@ -60,10 +60,6 @@ RUN rpm-ostree install \
 # 2. Pemasangan biner resmi Ollama
 RUN curl -fsSL https://github.com/ollama/ollama/releases/latest/download/ollama-linux-amd64.tar.zst | zstd -d | tar -x -C /usr/
 
-# 3. Pemasangan biner whisper.cpp untuk offline speech-to-text
-RUN curl -fsSL -o /usr/bin/whisper-cli https://github.com/ggerganov/whisper.cpp/releases/download/v1.7.4/whisper-cli-linux-x86_64 && \
-    chmod 0755 /usr/bin/whisper-cli || true
-
 # 4. Injeksi overlay filesystem (konfigurasi sistem, security hardening, CLI tools)
 COPY rootfs/ /
 
@@ -114,7 +110,6 @@ RUN chmod 0755 \
     /usr/share/kalacakra/scripts/battery-cap.sh 2>/dev/null || true
 
 # 6. Aktifkan service sistem esensial
-RUN systemctl enable zram-generator.service && \
-    systemctl enable tailscaled.service && \
+RUN systemctl enable tailscaled.service && \
     systemctl enable firewalld.service && \
     systemctl enable usbguard.service
